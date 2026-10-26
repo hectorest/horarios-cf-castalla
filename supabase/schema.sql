@@ -18,8 +18,12 @@ create policy "Cada usuario ve su perfil" on public.profiles
   for select to authenticated using (id = (select auth.uid()));
 -- Nadie puede modificar perfiles desde la web: los roles se asignan por SQL (ver README).
 
--- ¿El usuario actual es coordinador?
-create or replace function public.is_coordinator()
+-- ¿El usuario actual es coordinador?  (en un esquema privado, fuera de la API pública)
+create schema if not exists private;
+revoke all on schema private from public, anon;
+grant usage on schema private to authenticated;
+
+create or replace function private.is_coordinator()
 returns boolean
 language sql stable security definer
 set search_path = ''
@@ -29,8 +33,8 @@ as $$
     where id = (select auth.uid()) and role = 'coordinador'
   );
 $$;
-revoke all on function public.is_coordinator() from public;
-grant execute on function public.is_coordinator() to anon, authenticated;
+revoke all on function private.is_coordinator() from public, anon;
+grant execute on function private.is_coordinator() to authenticated;
 
 -- Crea el perfil (rol lector) cuando se da de alta un usuario
 create or replace function public.handle_new_user()
@@ -44,6 +48,8 @@ begin
   return new;
 end;
 $$;
+
+revoke all on function public.handle_new_user() from public, anon, authenticated;
 
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
@@ -100,15 +106,15 @@ create policy "Lectura pública" on public.bookings
 
 drop policy if exists "Coordinadores crean" on public.bookings;
 create policy "Coordinadores crean" on public.bookings
-  for insert to authenticated with check ((select public.is_coordinator()));
+  for insert to authenticated with check ((select private.is_coordinator()));
 
 drop policy if exists "Coordinadores modifican" on public.bookings;
 create policy "Coordinadores modifican" on public.bookings
-  for update to authenticated using ((select public.is_coordinator())) with check ((select public.is_coordinator()));
+  for update to authenticated using ((select private.is_coordinator())) with check ((select private.is_coordinator()));
 
 drop policy if exists "Coordinadores eliminan" on public.bookings;
 create policy "Coordinadores eliminan" on public.bookings
-  for delete to authenticated using ((select public.is_coordinator()));
+  for delete to authenticated using ((select private.is_coordinator()));
 
 -- Permisos de la API (RLS sigue filtrando fila a fila)
 grant select on public.bookings to anon, authenticated;

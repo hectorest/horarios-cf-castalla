@@ -1,4 +1,16 @@
-# Planificador de Campo
+# Planificador de Campo · Castalla C.F.
+
+**En línea:** https://hectorest.github.io/horarios-cf-castalla/  
+**Base de datos:** proyecto Supabase `horarios-cf-castalla` (`wwkfaxrmmbptuithqpxn`, región París), ya creado y conectado en `config.js`.
+
+## Alta de coordinadores
+
+1. Supabase > **Authentication > Users > Add user > Create new user**: email y contraseña, marcando *Auto Confirm User*.
+2. Supabase > **SQL Editor**:
+   ```sql
+   update public.profiles set role = 'coordinador' where email = 'coordinador@ejemplo.com';
+   ```
+3. Esa persona entra en la web con «Acceso coordinador». Para quitarle permisos: `role = 'lector'`.
 
 Herramienta web para organizar la ocupación semanal del campo de fútbol (lunes a domingo, 09:00–21:30) entre los 10 equipos del club. Es una página estática (HTML + CSS + JavaScript, sin compilación) pensada para alojarse en **GitHub Pages** y guardar los datos en **Supabase**.
 
@@ -27,7 +39,7 @@ Sin Supabase configurado funciona en **modo demo** (datos en el propio navegador
 | `config.js` | **Lo que tienes que editar**: claves de Supabase, nombre del club, horario y equipos con sus duraciones |
 | `supabase/schema.sql` | Tablas, seguridad (RLS) y roles |
 
-## Puesta en marcha
+## Puesta en marcha desde cero (otro club u otro proyecto)
 
 ### 1. Supabase
 

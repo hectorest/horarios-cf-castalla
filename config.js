@@ -8,8 +8,8 @@ window.APP_CONFIG = {
   // Los encontrarás en Supabase > Project Settings > API.
   // La clave "anon"/"publishable" es pública por diseño: la seguridad
   // la ponen las políticas RLS de supabase/schema.sql.
-  SUPABASE_URL: '',
-  SUPABASE_ANON_KEY: '',
+  SUPABASE_URL: 'https://wwkfaxrmmbptuithqpxn.supabase.co',
+  SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3a2ZheHJtbWJwdHVpdGhxcHhuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTI5OTUyMzQsImV4cCI6MjEwODU3MTIzNH0.cwVMIeaOpb62mipGx95rV-5uof8gXHGaofnLj9QIf-c',
 
   // --- General --------------------------------------------------
   CLUB_NAME: 'Castalla C.F.',

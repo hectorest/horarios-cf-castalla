@@ -290,7 +290,7 @@
   }
 
   async function makeSupabaseStore() {
-    if (!window.supabase) await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js');
+    if (!window.supabase) await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js');
     const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
     const T = 'bookings';
     const chk = ({ data, error }) => { if (error) throw new Error(error.message); return data; };
@@ -321,7 +321,8 @@
           return roleOf(data.user);
         },
         async signOut() { await sb.auth.signOut(); },
-        onChange(cb) { sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT' || ev === 'TOKEN_REFRESHED') cb(); }); },
+        // setTimeout: supabase-js no admite otras llamadas suyas dentro de este callback
+        onChange(cb) { sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT' || ev === 'TOKEN_REFRESHED') setTimeout(cb, 0); }); },
       },
     };
   }
