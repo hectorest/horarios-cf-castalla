@@ -52,6 +52,10 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
 - **Observaciones**: texto libre del partido (por ejemplo, «el entrenador pide jugar el viernes porque el sábado tiene 5 bajas»). Lo escribe el coordinador; todos lo ven en el detalle.
 - **Propuestas de horario**: el coordinador y los entrenadores del equipo pueden proponer alternativas para un partido: día y hora exacta, «por la mañana», «por la tarde» o «a cualquier hora», con su motivo. Junto a cada propuesta se comprueba si el hueco está libre (sin hora exacta, se busca la primera hora libre de la franja; entre semana, a partir de las 16:00). El coordinador la **aplica** (mueve el partido) o la **descarta**. Los partidos con propuestas pendientes llevan la marca **⇄**.
 
+## Panel lateral
+
+- Las **incidencias** ocupan todo el alto del panel; el resumen de horas y la leyenda están plegados en **Ver resumen y leyenda** (en móvil, tablet y escritorio).
+
 ## Móvil
 
 - Desliza a izquierda o derecha sobre el calendario para cambiar de día (del domingo pasa al lunes de la semana siguiente, y al revés).

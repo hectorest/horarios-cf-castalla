@@ -682,14 +682,12 @@ button.danger-link { color: var(--err); }
 .pv-issues li .ack-btn { margin-left: 8px; }
 .pv-issues li.ack { background: #eef6f0; color: var(--pitch-dark); }
 
-/* ---------- Móvil: incidencias primero, resumen plegado ---------- */
-.summary-toggle { display: none; }
-@media (max-width: 1000px) {
-  .summary-toggle { display: block; flex: none; width: 100%; padding: 8px; font-size: 13px; }
-  .side:not(.show-summary) > .tabs-panel { display: none; }
-  .side > .issues-panel { flex: 1 1 auto; }
-  .side.show-summary > .issues-panel { flex: 1 1 40%; }
-}
+/* ---------- Incidencias primero, resumen plegado (en todos los tamaños) ---------- */
+.summary-toggle { display: block; flex: none; width: 100%; padding: 8px; font-size: 13px; }
+.side:not(.show-summary) > .tabs-panel { display: none; }
+.side > .issues-panel { flex: 1 1 auto; min-height: 140px; }
+.side.show-summary > .issues-panel { flex: 1 1 0; min-height: 50%; }
+.side.show-summary > .tabs-panel { flex: 0 1 auto; min-height: 0; max-height: 45%; overflow-y: auto; overscroll-behavior: contain; }
 
 /* ---------- Partidos fuera (solo referencia) ---------- */
 .lanes-head.with-away { grid-template-columns: repeat(5, 1fr); }

@@ -700,7 +700,7 @@
     weekGenerated: false,
     proposals: new Map(),   // id de partido → propuestas de horario
     acks: [],               // solapes partido–entreno asumidos
-    summaryOpen: false,     // móvil: resumen y leyenda desplegados
+    summaryOpen: false,     // resumen y leyenda desplegados (plegados por defecto)
     issueScope: 'mine',
     minorOpen: false,     // grupo «reparto del campo en entrenamientos» desplegado  // entrenadores: 'mine' | 'all'
     edit: true,
@@ -2529,7 +2529,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261026140115';
+  const APP_VERSION = '20261026145129';
   async function checkVersion() {
     if (store?.mode === 'demo') return;
     try {

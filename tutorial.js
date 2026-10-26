@@ -181,6 +181,11 @@ window.TUTORIAL_STEPS = [
     body: 'En <b>Partidos</b> (en el móvil, dentro de tu menú) eliges un equipo y ves todos sus partidos de la temporada, en casa y fuera, con la hora, el rival, dónde se juega y si falta algo por confirmar. El próximo partido sale resaltado. En la pestaña <b>Por fin de semana</b> tienes una tabla de toda la temporada con los equipos en columnas y los findes en filas, para ver la carga de partidos de cada finde: cuántos hay en casa y cuántos fuera. Toca un partido para ir a esa semana en el calendario.',
   },
   {
+    id: 'resumen-plegado', since: 13, target: '#summary-toggle, #side-toggle',
+    title: 'Incidencias primero',
+    body: 'El panel lateral muestra primero las <b>incidencias</b>, con todo el alto disponible. El resumen de horas y la leyenda están plegados: ábrelos con <b>Ver resumen y leyenda</b> cuando los necesites.',
+  },
+  {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',
     title: 'Volver a ver esta guía',
     body: 'Puedes repetir el tutorial cuando quieras desde aquí. Cuando añadamos funciones nuevas, te las enseñaremos al entrar.',
