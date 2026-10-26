@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Planificador de Campo</title>
   <link rel="icon" type="image/png" href="assets/escudo-64.png">
-  <link rel="stylesheet" href="styles.css?v=20261026112202">
+  <link rel="stylesheet" href="styles.css?v=20261026112410">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -192,6 +192,9 @@
           <div class="zone-picker" id="f-zone"></div>
         </div>
 
+        <div class="hab-note full" id="f-hab" hidden></div>
+        <div class="preview full" id="f-preview"></div>
+
         <div class="field full match-only">
           <label for="f-opp">Rival</label>
           <input type="text" id="f-opp" maxlength="80" placeholder="Opcional">
@@ -202,6 +205,8 @@
           <input type="text" id="f-notes" maxlength="200" placeholder="Opcional">
         </div>
 
+        <h4 class="dlg-sec full match-only week-only">Estado del partido</h4>
+
         <div class="field full match-only week-only">
           <label class="switch conf-switch" title="Márcalo cuando la hora del partido sea definitiva">
             <input type="checkbox" id="f-confirmed">
@@ -211,18 +216,18 @@
         </div>
 
         <div class="field full match-only week-only rival-field" id="f-rival-wrap">
-          <span class="lbl">Horario federativo</span>
+          <span class="lbl">Horario federativo y aprobación del rival</span>
           <p class="fed-hint" id="f-fed"></p>
           <div class="segmented small" id="f-rival" role="group" aria-label="Aprobación del rival">
-            <button type="button" data-v="pendiente">Pendiente del rival</button>
-            <button type="button" data-v="aprobado">Aprobado por el rival</button>
+            <button type="button" data-v="pendiente">Pendiente</button>
+            <button type="button" data-v="aprobado">Aprobado</button>
             <button type="button" data-v="rechazado">Rechazado</button>
           </div>
         </div>
 
         <div class="field full match-only week-only">
           <label for="f-obs">Observaciones</label>
-          <textarea id="f-obs" rows="2" maxlength="500" placeholder="Ej.: el entrenador pide jugar el domingo por la mañana porque el sábado tienen excursión"></textarea>
+          <textarea id="f-obs" rows="3" maxlength="500" placeholder="Ej.: el entrenador pide jugar el domingo por la mañana porque el sábado tienen excursión"></textarea>
         </div>
 
         <div class="field full match-only week-only">
@@ -230,8 +235,6 @@
           <div id="f-props" class="props-box"></div>
         </div>
 
-        <div class="hab-note full" id="f-hab" hidden></div>
-        <div class="preview full" id="f-preview"></div>
       </div>
       <footer class="dlg-foot">
         <button type="button" id="f-delete" class="danger">Eliminar</button>
@@ -293,8 +296,8 @@
   <div id="drag-tip" class="drag-tip" hidden></div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261026112202"></script>
-  <script src="tutorial.js?v=20261026112202"></script>
-  <script src="app.js?v=20261026112202"></script>
+  <script src="config.js?v=20261026112410"></script>
+  <script src="tutorial.js?v=20261026112410"></script>
+  <script src="app.js?v=20261026112410"></script>
 </body>
 </html>

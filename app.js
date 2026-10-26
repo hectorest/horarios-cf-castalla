@@ -1257,6 +1257,7 @@
     $('#f-dup').hidden = isNew;
     syncForm();
     if (!dlg().open) dlg().showModal();
+    dlg().querySelector('.dlg-body').scrollTop = 0;
   }
 
   function newDraft(dayKey, startMin, zone) {
@@ -1450,6 +1451,7 @@
       ${b.kind === 'partido' ? '<div class="field"><span class="lbl">Propuestas de horario</span><div id="d-props" class="props-box"></div></div>' : ''}`;
     if (b.kind === 'partido') renderProposals($('#d-props'), b, false);
     $('#detail-dialog').showModal();
+    $('#d-body').scrollTop = 0;
   }
 
   // ================================================================
@@ -2234,7 +2236,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261026112202';
+  const APP_VERSION = '20261026112410';
   async function checkVersion() {
     if (store?.mode === 'demo') return;
     try {
