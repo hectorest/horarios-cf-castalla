@@ -21,6 +21,7 @@
 
   const DAYS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
   const DAYS_SHORT = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  const MONTHS_LONG = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
   const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 
   // Carriles: 0=A1, 1=A2, 2=B1, 3=B2
@@ -345,6 +346,7 @@
     return {
       mode: 'demo',
       async list(from, to) { return read().filter(b => b.day >= from && b.day <= to).map(b => ({ ...b })); },
+      async listMatches(team) { return read().filter(b => b.kind === 'partido' && b.team === team).sort((a, b) => a.day.localeCompare(b.day) || a.start_min - b.start_min).map(b => ({ ...b })); },
       async insert(row) { const r = { ...cleanRow(row), id: uid() }; write([...read(), r]); return r; },
       async insertMany(rows) { const rs = rows.map(r => ({ ...cleanRow(r), id: uid() })); write([...read(), ...rs]); return rs; },
       async update(id, row) { write(read().map(b => b.id === id ? { ...cleanRow(row), id } : b)); },
@@ -509,6 +511,7 @@
     return {
       mode: 'supabase',
       async list(from, to) { return chk(await sb.from(T).select('*').gte('day', from).lte('day', to).order('start_min')); },
+      async listMatches(team) { return chk(await sb.from(T).select('*').eq('kind', 'partido').eq('team', team).order('day').order('start_min')); },
       async insert(row) { return chk(await sb.from(T).insert(cleanRow(row)).select().single()); },
       async insertMany(rows) { return chk(await sb.from(T).insert(rows.map(cleanRow)).select()); },
       async update(id, row) { chk(await sb.from(T).update(cleanRow(row)).eq('id', id).select()); },
@@ -1170,7 +1173,7 @@
   function setWeek(d) {
     state.weekStart = mondayOf(d);
     try { history.replaceState(null, '', '#semana=' + keyOf(state.weekStart)); } catch { }
-    load();
+    return load();
   }
 
   function stepDay(dir) {
@@ -1959,6 +1962,107 @@
   }
   let peopleLoadedOnce = false;
 
+  // ---------- Listados de partidos: por equipo y por fin de semana ----------
+  const MATCH_TEAMS = () => TEAMS.filter(t => t.match);
+  const mxDate = k => { const d = parseKey(k); return `<b>${DAYS_SHORT[dayIndexOf(k)]}</b> ${d.getDate()} ${MONTHS[d.getMonth()]}${d.getFullYear() !== new Date().getFullYear() ? ' ' + String(d.getFullYear()).slice(2) : ''}`; };
+  function mxRow(b, { showTeam = false, next = false } = {}) {
+    const today = keyOf(new Date()), w = whoOf(b);
+    const tags = [];
+    if (!b.confirmed && !b.away) tags.push('<span class="mx-tag warn">Por confirmar</span>');
+    else if (!b.confirmed && b.away) tags.push('<span class="mx-tag">Hora sin confirmar</span>');
+    if (needsRival(b)) tags.push(`<span class="mx-tag ${b.rival_status === 'rechazado' ? 'err' : b.rival_status === 'aprobado' ? '' : 'warn'}">⚑ ${b.rival_status === 'aprobado' ? 'OK del rival' : b.rival_status === 'rechazado' ? 'Rechazado' : 'Falta OK del rival'}</span>`);
+    const where = b.away ? (b.venue ? esc(b.venue) : 'Fuera') : `Castalla · ${esc(ZONE_LABEL[b.zone] || b.zone)}`;
+    const opp = `vs ${esc(b.opponent || 'rival por definir')}`;
+    return `<li><button type="button" class="mx-row ${b.day < today ? 'past' : ''} ${next ? 'next' : ''} ${showTeam ? 'with-team' : ''}" style="--team:${w.color}" data-id="${esc(b.id)}" data-day="${b.day}">
+        <span class="mx-date">${showTeam ? '' : mxDate(b.day)}<span class="mx-time">${fmt(b.start_min)}</span></span>
+        <span class="mx-main"><span class="mx-opp"><span class="mx-ha ${b.away ? 'away' : 'home'}">${b.away ? 'Fuera' : 'Casa'}</span>${showTeam ? `<span class="mx-team">${esc(w.name)}</span> <span class="mx-vs">${opp}</span>` : opp}</span>
+          <span class="mx-where">${where}${b.format ? ' · ' + esc(b.format) : ''}</span>${tags.length ? `<span class="mx-tags">${tags.join('')}</span>` : ''}</span>
+        <span class="mx-go" aria-hidden="true">›</span></button></li>`;
+  }
+
+  function openMatches(tab) {
+    closeUserMenu();
+    const teams = MATCH_TEAMS();
+    const pick = state.matchesTeam || (state.filter && TEAM[state.filter]?.match ? state.filter : null) || myTeams()?.find(t => TEAM[t]?.match) || teams[0].id;
+    $('#mx-team').innerHTML = teams.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
+    $('#mx-team').value = pick;
+    state.matchesTeam = pick;
+    if (!state.mxWeek) state.mxWeek = isTpl() ? mondayOf(new Date()) : state.weekStart;
+    $('#matches-dialog').showModal();
+    setMatchesTab(tab || state.mxTab || 'team');
+  }
+
+  function setMatchesTab(tab) {
+    state.mxTab = tab;
+    $$('#mx-tabs button').forEach(b => { const on = b.dataset.mx === tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
+    $('#mx-team-bar').hidden = tab !== 'team';
+    $('#mx-wk-bar').hidden = tab !== 'weekend';
+    if (tab === 'team') loadMatches(state.matchesTeam); else loadWeekend();
+  }
+
+  async function loadMatches(team) {
+    state.matchesTeam = team;
+    const body = $('#mx-body'), req = (state.mxReq = (state.mxReq || 0) + 1);
+    body.innerHTML = '<p class="muted mx-empty">Cargando…</p>';
+    let list;
+    try { list = await store.listMatches(team); }
+    catch (e) { body.innerHTML = `<p class="muted mx-empty">No se han podido cargar: ${esc(e.message)}</p>`; return; }
+    if (state.mxReq !== req) return;
+    const today = keyOf(new Date());
+    const home = list.filter(b => !b.away).length;
+    $('#mx-sum').innerHTML = list.length
+      ? `<span><b>${list.length}</b> partidos</span><span>${home} en casa</span><span>${list.length - home} fuera</span>` : '';
+    if (!list.length) { body.innerHTML = '<p class="muted mx-empty">Este equipo no tiene partidos guardados.</p>'; return; }
+    let lastMonth = null;
+    const nextId = list.find(b => b.day >= today)?.id;
+    const rows = list.map(b => {
+      const d = parseKey(b.day), mk = d.getFullYear() * 12 + d.getMonth();
+      const head = mk !== lastMonth ? `<li class="mx-month">${MONTHS_LONG[d.getMonth()]} ${d.getFullYear()}</li>` : '';
+      lastMonth = mk;
+      return head + mxRow(b, { next: b.id === nextId });
+    }).join('');
+    body.innerHTML = `<ul class="mx-list">${rows}</ul>`;
+    const nx = nextId && body.querySelector(`[data-id="${CSS.escape(nextId)}"]`);
+    body.scrollTop = nx ? Math.max(0, nx.parentElement.offsetTop - body.offsetTop - 40) : body.scrollHeight;
+  }
+
+  // Fin de semana = viernes a domingo de la semana elegida
+  async function loadWeekend() {
+    const mon = state.mxWeek, fri = addDays(mon, 4), sun = addDays(mon, 6);
+    const body = $('#mx-body'), req = (state.mxReq = (state.mxReq || 0) + 1);
+    const sameMonth = fri.getMonth() === sun.getMonth();
+    $('#mx-wk-label').textContent = sameMonth ? `${fri.getDate()}–${sun.getDate()} ${MONTHS[sun.getMonth()]}` : `${fri.getDate()} ${MONTHS[fri.getMonth()]} – ${sun.getDate()} ${MONTHS[sun.getMonth()]}`;
+    const thisWk = keyOf(mondayOf(new Date())) === keyOf(mon);
+    $('#mx-wk-label').classList.toggle('now', thisWk);
+    body.innerHTML = '<p class="muted mx-empty">Cargando…</p>';
+    let list;
+    try { list = (await store.list(keyOf(fri), keyOf(sun))).filter(b => b.kind === 'partido'); }
+    catch (e) { body.innerHTML = `<p class="muted mx-empty">No se han podido cargar: ${esc(e.message)}</p>`; return; }
+    if (state.mxReq !== req) return;
+    const order = new Map(TEAMS.map((t, i) => [t.id, i]));
+    list.sort((a, b) => a.day.localeCompare(b.day) || a.start_min - b.start_min || (order.get(a.team) ?? 99) - (order.get(b.team) ?? 99));
+    const home = list.filter(b => !b.away).length;
+    $('#mx-sum').innerHTML = list.length ? `<span><b>${list.length}</b> partidos</span><span>${home} en casa</span><span>${list.length - home} fuera</span>` : '';
+    if (!list.length) { body.innerHTML = '<p class="muted mx-empty">No hay partidos este fin de semana.</p>'; return; }
+    const rows = [4, 5, 6].map(i => {
+      const k = keyOf(addDays(mon, i)), day = list.filter(b => b.day === k);
+      if (!day.length) return '';
+      const d = parseKey(k), h = day.filter(b => !b.away).length;
+      return `<li class="mx-month">${DAYS[i]} ${d.getDate()} ${MONTHS[d.getMonth()]}<span class="mx-dsum">${h} en casa · ${day.length - h} fuera</span></li>` + day.map(b => mxRow(b, { showTeam: true })).join('');
+    }).join('');
+    body.innerHTML = `<ul class="mx-list">${rows}</ul>`;
+    body.scrollTop = 0;
+  }
+
+  async function goToBooking(id, day) {
+    $('#matches-dialog').close();
+    state.filter = null;
+    if (isTpl()) state.mode = 'week';
+    state.dayIndex = dayIndexOf(day);
+    await setWeek(parseKey(day));
+    focusBooking(id);
+  }
+
   function openPeople(tab) {
     closeUserMenu();
     if (tab) state.peopleTab = tab;
@@ -2211,6 +2315,15 @@
     };
     document.addEventListener('click', e => { if (!e.target.closest('.user-menu')) closeUserMenu(); if (!e.target.closest('#legend, #legend-btn')) setLegend(false); });
     $('#m-people').onclick = () => openPeople();
+    $('#m-matches').onclick = () => openMatches();
+    $('#matches-btn').onclick = () => openMatches();
+    $('#mx-team').onchange = e => loadMatches(e.target.value);
+    $('#mx-tabs').onclick = e => { const t = e.target.closest('button')?.dataset.mx; if (t) setMatchesTab(t); };
+    $('#mx-wk-prev').onclick = () => { state.mxWeek = addDays(state.mxWeek, -7); loadWeekend(); };
+    $('#mx-wk-next').onclick = () => { state.mxWeek = addDays(state.mxWeek, 7); loadWeekend(); };
+    $('#mx-wk-today').onclick = () => { state.mxWeek = mondayOf(new Date()); loadWeekend(); };
+    $('#m-weekend').onclick = () => openMatches('weekend');
+    $('#mx-body').onclick = e => { const r = e.target.closest('.mx-row'); if (r) goToBooking(r.dataset.id, r.dataset.day); };
     $('#people-btn').onclick = () => openPeople();
     $('#m-copy').onclick = () => { closeUserMenu(); copyPrevWeek(); };
     $('#m-clear').onclick = clearWeekEvents;
@@ -2395,7 +2508,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261026133225';
+  const APP_VERSION = '20261026135515';
   async function checkVersion() {
     if (store?.mode === 'demo') return;
     try {

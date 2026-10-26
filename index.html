@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Planificador de Campo</title>
   <link rel="icon" type="image/png" href="assets/escudo-64.png">
-  <link rel="stylesheet" href="styles.css?v=20261026133225">
+  <link rel="stylesheet" href="styles.css?v=20261026135515">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -29,6 +29,7 @@
         <button data-view="week">Semana</button>
         <button data-view="day">Día</button>
       </div>
+      <button id="matches-btn" class="ghost people-btn">Partidos</button>
       <button id="people-btn" class="ghost people-btn" hidden>Entrenadores <span id="people-count"></span></button>
       <button id="help-btn" class="icon-btn help-btn" title="Ver tutorial" aria-label="Ver tutorial">?</button>
       <div class="user-menu">
@@ -42,6 +43,8 @@
             <span id="up-role" class="role-badge"></span>
           </div>
           <div id="up-teams" class="up-teams"></div>
+          <button type="button" role="menuitem" id="m-matches">Partidos por equipo</button>
+          <button type="button" role="menuitem" id="m-weekend">Partidos del fin de semana</button>
           <button type="button" role="menuitem" id="m-people" hidden>Entrenadores y solicitudes <span id="m-people-count"></span></button>
           <button type="button" role="menuitem" id="m-copy" hidden>Copiar entrenos de la semana anterior</button>
           <button type="button" role="menuitem" id="m-confirm" hidden>Confirmar los partidos de esta semana</button>
@@ -307,11 +310,33 @@
     <div class="people-body" id="people-body"></div>
   </dialog>
 
+  <dialog id="matches-dialog" class="dialog wide-dlg">
+    <header class="dlg-head">
+      <h3>Partidos</h3>
+      <button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button>
+    </header>
+    <div class="people-tabs ptabs" role="tablist" id="mx-tabs">
+      <button type="button" role="tab" data-mx="team" class="on">Por equipo</button>
+      <button type="button" role="tab" data-mx="weekend">Por fin de semana</button>
+    </div>
+    <div class="mx-bar">
+      <div id="mx-team-bar" class="mx-team-bar"><select id="mx-team" aria-label="Equipo"></select></div>
+      <div id="mx-wk-bar" class="mx-wk" hidden>
+        <button type="button" id="mx-wk-prev" class="icon-btn" aria-label="Fin de semana anterior">‹</button>
+        <span id="mx-wk-label" class="mx-wk-label"></span>
+        <button type="button" id="mx-wk-next" class="icon-btn" aria-label="Fin de semana siguiente">›</button>
+        <button type="button" id="mx-wk-today" class="ghost">Este finde</button>
+      </div>
+      <div id="mx-sum" class="mx-sum"></div>
+    </div>
+    <div class="people-body mx-body" id="mx-body"></div>
+  </dialog>
+
   <div id="drag-tip" class="drag-tip" hidden></div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261026133225"></script>
-  <script src="tutorial.js?v=20261026133225"></script>
-  <script src="app.js?v=20261026133225"></script>
+  <script src="config.js?v=20261026135515"></script>
+  <script src="tutorial.js?v=20261026135515"></script>
+  <script src="app.js?v=20261026135515"></script>
 </body>
 </html>

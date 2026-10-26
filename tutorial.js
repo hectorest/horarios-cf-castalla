@@ -176,6 +176,11 @@ window.TUTORIAL_STEPS = [
     body: 'En el móvil, <b>desliza a izquierda o derecha</b> sobre el calendario para pasar al día siguiente o al anterior. Al pasar del domingo vas al lunes de la semana siguiente, y al revés.',
   },
   {
+    id: 'partidos-equipo', since: 12, target: '#matches-btn, #user-btn',
+    title: 'Partidos por equipo y por fin de semana',
+    body: 'En <b>Partidos</b> (en el móvil, dentro de tu menú) eliges un equipo y ves todos sus partidos de la temporada, en casa y fuera, con la hora, el rival, dónde se juega y si falta algo por confirmar. El próximo partido sale resaltado. En la pestaña <b>Por fin de semana</b> ves todos los partidos de viernes a domingo de todos los equipos, en casa y fuera, y pasas de un finde a otro con las flechas. Toca un partido para ir a esa semana en el calendario.',
+  },
+  {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',
     title: 'Volver a ver esta guía',
     body: 'Puedes repetir el tutorial cuando quieras desde aquí. Cuando añadamos funciones nuevas, te las enseñaremos al entrar.',
