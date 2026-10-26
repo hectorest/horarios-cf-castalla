@@ -744,18 +744,42 @@ button.danger-link { color: var(--err); }
   .mx-row { grid-template-columns: 74px 1fr auto; gap: 8px; padding: 8px 6px 8px 8px; }
 }
 #mx-tabs { margin: 12px 18px 0; }
-.mx-wk { display: flex; align-items: center; gap: 6px; }
-.mx-wk-label { min-width: 120px; text-align: center; font-weight: 700; font-size: 15px; }
-.mx-wk-label.now::after { content: ' · este finde'; font-weight: 500; font-size: 12px; color: var(--pitch); }
-.mx-dsum { float: right; font-weight: 500; text-transform: none; letter-spacing: 0; }
-.mx-row.with-team { grid-template-columns: 52px 1fr auto; }
-.mx-team { font-weight: 700; color: var(--team); }
-.mx-vs { font-weight: 500; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 720px) { #mx-tabs { margin: 10px 14px 0; } .mx-team-bar { flex: 1; } }
+
+/* Carga por fin de semana (tabla equipos × findes) */
+.dialog.wide-dlg.mx-wide { width: min(1320px, calc(100vw - 24px)); height: calc(100dvh - 32px); }
+.mx-wide .mx-team-bar { display: none; }
+.mx-wide .mx-body { display: flex; flex-direction: column; overflow: hidden; padding-bottom: 10px; max-height: none; }
+.mx-grid-wrap { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; border: 1px solid var(--line); border-radius: 8px; }
+.mx-grid { border-collapse: separate; border-spacing: 0; width: 100%; font-size: 12px; }
+.mx-grid th, .mx-grid td { border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); padding: 3px; vertical-align: top; background: var(--panel); }
+.mx-grid thead th { position: sticky; top: 0; z-index: 2; padding: 6px 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--muted); white-space: nowrap; border-bottom: 2px solid var(--line-strong); }
+.mx-grid thead th.mx-g-team { color: var(--team); border-bottom: 3px solid var(--team); min-width: 92px; }
+.mx-grid .mx-g-wk { position: sticky; left: 0; z-index: 1; text-align: left; white-space: nowrap; font-weight: 600; padding: 6px 8px; min-width: 104px; }
+.mx-grid thead .mx-g-wk { z-index: 3; }
+.mx-g-wk small { font-weight: 500; color: var(--muted); }
+.mx-g-wk .mx-now { display: block; color: var(--pitch); font-weight: 700; font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+.mx-grid td.mx-g-tot { text-align: center; vertical-align: middle; font-weight: 700; font-size: 14px; min-width: 44px; font-variant-numeric: tabular-nums; }
+.mx-grid td.mx-g-tot.home { background: color-mix(in srgb, var(--pitch) calc(var(--heat) * 100%), var(--panel)); color: var(--ink); }
+.mx-grid td.mx-g-tot.away { color: var(--muted); }
+.mx-grid tr.now > * { box-shadow: inset 0 2px 0 var(--pitch), inset 0 -2px 0 var(--pitch); }
+.mx-grid tr.past td.mx-g-c, .mx-grid tr.past .mx-g-wk { opacity: .5; }
+.mx-grid tr.empty .mx-g-wk { color: var(--muted); font-weight: 500; }
+.mx-cell { display: block; width: 100%; text-align: left; font: inherit; border-radius: 5px; padding: 3px 5px; margin: 0 0 2px; cursor: pointer; line-height: 1.25; color: var(--ink); }
+.mx-cell b { display: block; font-size: 12px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mx-cell b i { font-style: normal; color: var(--pend); margin-left: 3px; }
+.mx-cell span { display: block; font-size: 10.5px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
+.mx-cell.home { background: color-mix(in srgb, var(--team, var(--pitch)) 16%, var(--panel)); border: 1px solid color-mix(in srgb, var(--team, var(--pitch)) 45%, var(--panel)); border-left: 3px solid var(--team, var(--pitch)); }
+.mx-cell.away { background: repeating-linear-gradient(135deg, var(--panel) 0 5px, var(--bg) 5px 10px); border: 1px dashed var(--line-strong); color: var(--muted); }
+.mx-cell:hover { filter: brightness(.96); }
+.mx-legend { flex: none; margin: 8px 2px 0; font-size: 12px; color: var(--muted); display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.mx-legend .mx-cell { display: inline-block; width: auto; margin: 0; cursor: default; }
 @media (max-width: 720px) {
-  #mx-tabs { margin: 10px 14px 0; }
-  .mx-team-bar { flex: 1; }
-  .mx-wk { flex: 1; }
-  .mx-wk-label { flex: 1; min-width: 0; }
-  .mx-wk-label.now::after { content: ''; }
-  .mx-row.with-team { grid-template-columns: 46px 1fr auto; }
+  .dialog.wide-dlg.mx-wide { width: 100vw; height: 100dvh; }
+  .mx-wide .mx-body { padding: 4px 8px 8px; }
+  .mx-grid .mx-g-wk { min-width: 70px; padding: 5px 6px; font-size: 11.5px; white-space: normal; }
+  .mx-grid thead th.mx-g-team { min-width: 78px; }
+  .mx-grid td.mx-g-tot { min-width: 34px; font-size: 13px; }
+  .mx-cell span { max-width: 84px; }
+  .mx-legend { font-size: 11px; }
 }

@@ -178,7 +178,7 @@ window.TUTORIAL_STEPS = [
   {
     id: 'partidos-equipo', since: 12, target: '#matches-btn, #user-btn',
     title: 'Partidos por equipo y por fin de semana',
-    body: 'En <b>Partidos</b> (en el móvil, dentro de tu menú) eliges un equipo y ves todos sus partidos de la temporada, en casa y fuera, con la hora, el rival, dónde se juega y si falta algo por confirmar. El próximo partido sale resaltado. En la pestaña <b>Por fin de semana</b> ves todos los partidos de viernes a domingo de todos los equipos, en casa y fuera, y pasas de un finde a otro con las flechas. Toca un partido para ir a esa semana en el calendario.',
+    body: 'En <b>Partidos</b> (en el móvil, dentro de tu menú) eliges un equipo y ves todos sus partidos de la temporada, en casa y fuera, con la hora, el rival, dónde se juega y si falta algo por confirmar. El próximo partido sale resaltado. En la pestaña <b>Por fin de semana</b> tienes una tabla de toda la temporada con los equipos en columnas y los findes en filas, para ver la carga de partidos de cada finde: cuántos hay en casa y cuántos fuera. Toca un partido para ir a esa semana en el calendario.',
   },
   {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',

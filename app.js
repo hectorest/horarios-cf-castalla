@@ -346,6 +346,7 @@
     return {
       mode: 'demo',
       async list(from, to) { return read().filter(b => b.day >= from && b.day <= to).map(b => ({ ...b })); },
+      async listAllMatches() { return read().filter(b => b.kind === 'partido').sort((a, b) => a.day.localeCompare(b.day) || a.start_min - b.start_min).map(b => ({ ...b })); },
       async listMatches(team) { return read().filter(b => b.kind === 'partido' && b.team === team).sort((a, b) => a.day.localeCompare(b.day) || a.start_min - b.start_min).map(b => ({ ...b })); },
       async insert(row) { const r = { ...cleanRow(row), id: uid() }; write([...read(), r]); return r; },
       async insertMany(rows) { const rs = rows.map(r => ({ ...cleanRow(r), id: uid() })); write([...read(), ...rs]); return rs; },
@@ -511,6 +512,7 @@
     return {
       mode: 'supabase',
       async list(from, to) { return chk(await sb.from(T).select('*').gte('day', from).lte('day', to).order('start_min')); },
+      async listAllMatches() { return chk(await sb.from(T).select('*').eq('kind', 'partido').order('day').order('start_min')); },
       async listMatches(team) { return chk(await sb.from(T).select('*').eq('kind', 'partido').eq('team', team).order('day').order('start_min')); },
       async insert(row) { return chk(await sb.from(T).insert(cleanRow(row)).select().single()); },
       async insertMany(rows) { return chk(await sb.from(T).insert(rows.map(cleanRow)).select()); },
@@ -1987,16 +1989,15 @@
     $('#mx-team').innerHTML = teams.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('');
     $('#mx-team').value = pick;
     state.matchesTeam = pick;
-    if (!state.mxWeek) state.mxWeek = isTpl() ? mondayOf(new Date()) : state.weekStart;
     $('#matches-dialog').showModal();
     setMatchesTab(tab || state.mxTab || 'team');
   }
 
   function setMatchesTab(tab) {
     state.mxTab = tab;
+    $('#matches-dialog').classList.toggle('mx-wide', tab === 'weekend');
     $$('#mx-tabs button').forEach(b => { const on = b.dataset.mx === tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
     $('#mx-team-bar').hidden = tab !== 'team';
-    $('#mx-wk-bar').hidden = tab !== 'weekend';
     if (tab === 'team') loadMatches(state.matchesTeam); else loadWeekend();
   }
 
@@ -2026,32 +2027,55 @@
     body.scrollTop = nx ? Math.max(0, nx.parentElement.offsetTop - body.offsetTop - 40) : body.scrollHeight;
   }
 
-  // Fin de semana = viernes a domingo de la semana elegida
+  // Carga por fin de semana: equipos en columnas, findes (viernes a domingo) en filas
   async function loadWeekend() {
-    const mon = state.mxWeek, fri = addDays(mon, 4), sun = addDays(mon, 6);
     const body = $('#mx-body'), req = (state.mxReq = (state.mxReq || 0) + 1);
-    const sameMonth = fri.getMonth() === sun.getMonth();
-    $('#mx-wk-label').textContent = sameMonth ? `${fri.getDate()}–${sun.getDate()} ${MONTHS[sun.getMonth()]}` : `${fri.getDate()} ${MONTHS[fri.getMonth()]} – ${sun.getDate()} ${MONTHS[sun.getMonth()]}`;
-    const thisWk = keyOf(mondayOf(new Date())) === keyOf(mon);
-    $('#mx-wk-label').classList.toggle('now', thisWk);
     body.innerHTML = '<p class="muted mx-empty">Cargando…</p>';
     let list;
-    try { list = (await store.list(keyOf(fri), keyOf(sun))).filter(b => b.kind === 'partido'); }
+    try { list = await store.listAllMatches(); }
     catch (e) { body.innerHTML = `<p class="muted mx-empty">No se han podido cargar: ${esc(e.message)}</p>`; return; }
     if (state.mxReq !== req) return;
-    const order = new Map(TEAMS.map((t, i) => [t.id, i]));
-    list.sort((a, b) => a.day.localeCompare(b.day) || a.start_min - b.start_min || (order.get(a.team) ?? 99) - (order.get(b.team) ?? 99));
-    const home = list.filter(b => !b.away).length;
-    $('#mx-sum').innerHTML = list.length ? `<span><b>${list.length}</b> partidos</span><span>${home} en casa</span><span>${list.length - home} fuera</span>` : '';
-    if (!list.length) { body.innerHTML = '<p class="muted mx-empty">No hay partidos este fin de semana.</p>'; return; }
-    const rows = [4, 5, 6].map(i => {
-      const k = keyOf(addDays(mon, i)), day = list.filter(b => b.day === k);
-      if (!day.length) return '';
-      const d = parseKey(k), h = day.filter(b => !b.away).length;
-      return `<li class="mx-month">${DAYS[i]} ${d.getDate()} ${MONTHS[d.getMonth()]}<span class="mx-dsum">${h} en casa · ${day.length - h} fuera</span></li>` + day.map(b => mxRow(b, { showTeam: true })).join('');
+    const teams = MATCH_TEAMS();
+    // Partidos de viernes a domingo, agrupados por el lunes de su semana
+    const wk = new Map();
+    for (const b of list) {
+      if (dayIndexOf(b.day) < 4 || !TEAM[b.team]) continue;
+      const mk = keyOf(mondayOf(parseKey(b.day)));
+      if (!wk.has(mk)) wk.set(mk, []);
+      wk.get(mk).push(b);
+    }
+    const shown = [...wk.values()].flat(), midweek = list.length - shown.length;
+    const home = shown.filter(b => !b.away).length;
+    $('#mx-sum').innerHTML = shown.length ? `<span><b>${shown.length}</b> partidos en fin de semana</span><span>${home} en casa</span><span>${shown.length - home} fuera</span>` : '';
+    if (!wk.size) { body.innerHTML = '<p class="muted mx-empty">No hay partidos guardados.</p>'; return; }
+    const keys = [...wk.keys()].sort();
+    const weeks = [];
+    for (let d = parseKey(keys[0]); keyOf(d) <= keys[keys.length - 1]; d = addDays(d, 7)) weeks.push(keyOf(d));
+    const nowWk = keyOf(mondayOf(new Date()));
+    const maxHome = Math.max(1, ...weeks.map(k => (wk.get(k) || []).filter(b => !b.away).length));
+    const head = `<tr><th class="mx-g-wk">Fin de semana</th><th class="mx-g-tot" title="Partidos en casa">Casa</th><th class="mx-g-tot" title="Partidos fuera">Fuera</th>${teams.map(t => `<th class="mx-g-team" style="--team:${t.color}" title="${esc(t.name)}">${esc(t.short || t.name)}</th>`).join('')}</tr>`;
+    const cell = b => {
+      const tag = (b.confirmed ? '' : '?') + (needsRival(b) ? '⚑' : '');
+      const tip = `${whoOf(b).name} · ${DAYS[dayIndexOf(b.day)]} ${fmt(b.start_min)} · ${b.away ? 'fuera' : 'en casa'} · vs ${b.opponent || 'rival por definir'}${b.away && b.venue ? ' · ' + b.venue : ''}${b.confirmed ? '' : ' · por confirmar'}`;
+      return `<button type="button" class="mx-cell ${b.away ? 'away' : 'home'}" data-id="${esc(b.id)}" data-day="${b.day}" title="${esc(tip)}">
+        <b>${DAYS_SHORT[dayIndexOf(b.day)].slice(0, 1)} ${fmt(b.start_min)}${tag ? `<i>${tag}</i>` : ''}</b><span>${esc(b.opponent || '—')}</span></button>`;
+    };
+    const rows = weeks.map(k => {
+      const ms = wk.get(k) || [], fri = addDays(parseKey(k), 4), sun = addDays(parseKey(k), 6);
+      const h = ms.filter(b => !b.away).length, f = ms.length - h;
+      const lbl = fri.getMonth() === sun.getMonth() ? `${fri.getDate()}–${sun.getDate()} ${MONTHS[sun.getMonth()]}` : `${fri.getDate()} ${MONTHS[fri.getMonth()]}–${sun.getDate()} ${MONTHS[sun.getMonth()]}`;
+      const yr = fri.getFullYear() !== new Date().getFullYear() ? ` <small>${fri.getFullYear()}</small>` : '';
+      const heat = h ? 0.12 + 0.55 * h / maxHome : 0;
+      return `<tr class="${k < nowWk ? 'past' : ''} ${k === nowWk ? 'now' : ''} ${ms.length ? '' : 'empty'}" data-wk="${k}">
+        <th class="mx-g-wk">${lbl}${yr}${k === nowWk ? '<small class="mx-now">este finde</small>' : ''}</th>
+        <td class="mx-g-tot home" style="--heat:${heat.toFixed(2)}">${h || ''}</td><td class="mx-g-tot away">${f || ''}</td>
+        ${teams.map(t => `<td class="mx-g-c" style="--team:${t.color}">${ms.filter(b => b.team === t.id).map(cell).join('')}</td>`).join('')}</tr>`;
     }).join('');
-    body.innerHTML = `<ul class="mx-list">${rows}</ul>`;
-    body.scrollTop = 0;
+    body.innerHTML = `<div class="mx-grid-wrap"><table class="mx-grid"><thead>${head}</thead><tbody>${rows}</tbody></table></div>
+      <p class="mx-legend"><span class="mx-cell home"><b>S 10:00</b></span> en casa · <span class="mx-cell away"><b>D 12:00</b></span> fuera · <b>?</b> por confirmar · <b>⚑</b> falta OK del rival · La columna <b>Casa</b> es más intensa cuantos más partidos hay en nuestro campo.${midweek ? ` · ${midweek === 1 ? 'Hay 1 partido entre semana que no sale aquí' : `Hay ${midweek} partidos entre semana que no salen aquí`} (míralos en «Por equipo»).` : ''}</p>`;
+    const gw = body.querySelector('.mx-grid-wrap');
+    const target = body.querySelector('tbody tr.now') || [...body.querySelectorAll('tbody tr')].find(r => r.dataset.wk >= nowWk);
+    if (target) gw.scrollTop = Math.max(0, target.offsetTop - gw.querySelector('thead').offsetHeight - 4);
   }
 
   async function goToBooking(id, day) {
@@ -2319,11 +2343,8 @@
     $('#matches-btn').onclick = () => openMatches();
     $('#mx-team').onchange = e => loadMatches(e.target.value);
     $('#mx-tabs').onclick = e => { const t = e.target.closest('button')?.dataset.mx; if (t) setMatchesTab(t); };
-    $('#mx-wk-prev').onclick = () => { state.mxWeek = addDays(state.mxWeek, -7); loadWeekend(); };
-    $('#mx-wk-next').onclick = () => { state.mxWeek = addDays(state.mxWeek, 7); loadWeekend(); };
-    $('#mx-wk-today').onclick = () => { state.mxWeek = mondayOf(new Date()); loadWeekend(); };
     $('#m-weekend').onclick = () => openMatches('weekend');
-    $('#mx-body').onclick = e => { const r = e.target.closest('.mx-row'); if (r) goToBooking(r.dataset.id, r.dataset.day); };
+    $('#mx-body').onclick = e => { const r = e.target.closest('.mx-row, .mx-grid .mx-cell'); if (r) goToBooking(r.dataset.id, r.dataset.day); };
     $('#people-btn').onclick = () => openPeople();
     $('#m-copy').onclick = () => { closeUserMenu(); copyPrevWeek(); };
     $('#m-clear').onclick = clearWeekEvents;
@@ -2508,7 +2529,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261026135515';
+  const APP_VERSION = '20261026140115';
   async function checkVersion() {
     if (store?.mode === 'demo') return;
     try {
