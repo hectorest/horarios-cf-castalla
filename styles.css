@@ -496,3 +496,32 @@ button.wide { width: 100%; padding: 10px; font-size: 15px; }
 .tt-actions { display: flex; align-items: center; gap: 8px; }
 .tt-sp { flex: 1; }
 @media (prefers-reduced-motion: reduce) { .tt-hole, .tt-card { transition: none; } }
+
+/* ---------- Invitaciones ---------- */
+.invite-box { display: flex; gap: 12px; align-items: flex-start; padding: 12px; border-radius: 12px; background: var(--pitch-tint); margin-bottom: 14px; }
+.invite-box p { margin: 2px 0 0; font-size: 13.5px; line-height: 1.7; }
+.invite-ic { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: var(--pitch); color: #fff; font-size: 16px; flex: none; }
+.inv-form { display: grid; gap: 12px; padding: 14px; border-radius: 12px; background: var(--bg); }
+.inv-intro { margin: 0; font-size: 13px; color: var(--muted); }
+.inv-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.inv-form .field input, .inv-form .field select { background: var(--panel); }
+.inv-form .segmented { align-self: start; }
+.inv-h { margin: 6px 0 0; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.invite { border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; display: grid; gap: 8px; }
+.invite.inactive { opacity: .6; }
+.invite.fresh { border-color: var(--pitch); box-shadow: 0 0 0 3px var(--pitch-tint); }
+.inv-top { display: flex; align-items: center; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+.inv-st { font-size: 12px; padding: 1px 8px; border-radius: 99px; background: var(--bg); color: var(--muted); }
+.inv-st.on { background: var(--pitch-tint); color: var(--pitch-dark); font-weight: 600; }
+.inv-st.used { background: #e8f5ec; color: #1f6b3a; }
+.inv-meta { line-height: 1.9; }
+.coord-chip { --c: var(--gold); }
+.muted { color: var(--muted); font-size: 12.5px; }
+.inv-link { display: grid; gap: 8px; }
+.inv-link input { width: 100%; padding: 6px 8px; border: 1px solid var(--line-strong); border-radius: 8px; font-size: 12px; color: var(--muted); background: var(--bg); }
+.inv-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.inv-actions button, .inv-actions .btn { padding: 5px 10px; font-size: 13px; }
+a.btn { display: inline-flex; align-items: center; border-radius: 8px; text-decoration: none; font-weight: 600; }
+a.btn.wa { background: #1f9d55; color: #fff; border: 1px solid #1f9d55; }
+a.btn.wa:hover { background: #17834a; }
+@media (max-width: 720px) { .inv-row { grid-template-columns: 1fr; } }

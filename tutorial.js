@@ -91,9 +91,14 @@ window.TUTORIAL_STEPS = [
     body: 'Copia de golpe los entrenamientos de la semana anterior a la actual (no los partidos). En el móvil está en tu menú de usuario.',
   },
   {
-    id: 'entrenadores', since: 1, roles: ['coordinador'], target: '#people-btn, #user-btn',
-    title: 'Entrenadores y solicitudes',
-    body: 'Los entrenadores piden acceso desde la pantalla de inicio indicando sus equipos. Aquí aceptas o rechazas cada solicitud, corriges sus equipos, das rol de coordinador o retiras el acceso. El número rojo indica solicitudes pendientes.',
+    id: 'invitar', since: 2, roles: ['coordinador'], target: '#people-btn, #user-btn',
+    title: 'Invitar a los entrenadores',
+    body: 'Nadie puede registrarse sin invitación. En <b>Entrenadores › Invitar</b> marcas los equipos (o el rol de coordinador), creas un enlace y lo envías por <b>WhatsApp</b>. Quien lo abre elige su contraseña y entra directamente con esos equipos. Cada enlace caduca y se puede anular.',
+  },
+  {
+    id: 'gestionar', since: 2, roles: ['coordinador'], target: '#people-btn, #user-btn',
+    title: 'Gestionar el acceso',
+    body: 'En <b>Con acceso</b> cambias los equipos de cada entrenador, nombras a otro coordinador o quitas el acceso. Los que no tienen acceso quedan en <b>Sin acceso</b> por si quieres devolvérselo.',
   },
   {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',

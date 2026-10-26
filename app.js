@@ -253,7 +253,7 @@
   // ================================================================
   function makeLocalStore() {
     const KEY = 'planificador-campo-demo-v2';
-    const UKEY = 'planificador-campo-demo-users-v1';
+    const UKEY = 'planificador-campo-demo-users-v2';
     const SKEY = 'planificador-campo-demo-session';
     let mem = null, umem = null;
     const ls = {
@@ -275,6 +275,11 @@
     try { sid = sessionStorage.getItem(SKEY); } catch { }
     const setSid = v => { sid = v; try { v ? sessionStorage.setItem(SKEY, v) : sessionStorage.removeItem(SKEY); } catch { } };
     const sessionOf = u => u ? { user: { id: u.id, email: u.email }, profile: { full_name: u.full_name, role: u.role, status: u.status, teams: u.teams || [], requested_teams: u.requested_teams || [] } } : null;
+    const IKEY = 'planificador-campo-demo-invites-v1';
+    let imem = null;
+    const invites = () => imem || (imem = ls.get(IKEY) || demoInvites());
+    const writeInvites = a => { imem = a; ls.set(IKEY, a); };
+    const validInvite = t => invites().find(i => i.token === t && !i.revoked && i.uses < i.max_uses && new Date(i.expires_at) > new Date());
     const byEmail = e => users().find(u => u.email.toLowerCase() === String(e || '').trim().toLowerCase());
     return {
       mode: 'demo',
@@ -291,9 +296,13 @@
           if (!u) throw new Error('No hay ninguna cuenta con ese email. En la demo puedes usar los accesos rápidos de abajo.');
           setSid(u.id); return sessionOf(u);
         },
-        async signUp({ email, full_name, teams }) {
+        async signUp({ email, full_name, invite }) {
           if (byEmail(email)) throw new Error('Ya hay una cuenta con ese email. Inicia sesión.');
-          const u = { id: uid(), email: email.trim(), full_name, role: 'entrenador', status: 'pendiente', teams: [...teams], requested_teams: [...teams], created_at: new Date().toISOString() };
+          const inv = validInvite(invite);
+          if (!inv) throw new Error(INVITE_BAD);
+          writeInvites(invites().map(i => i.id === inv.id ? { ...i, uses: i.uses + 1, last_used_at: new Date().toISOString() } : i));
+          const now = new Date().toISOString();
+          const u = { id: uid(), email: email.trim(), full_name, role: inv.role, status: 'aprobado', teams: [...inv.teams], requested_teams: [...inv.teams], created_at: now, reviewed_at: now };
           writeUsers([...users(), u]); setSid(u.id);
           return { session: sessionOf(u) };
         },
@@ -307,7 +316,25 @@
         async update(id, patch) { writeUsers(users().map(u => u.id === id ? { ...u, ...patch } : u)); },
         subscribe(cb) { peopleListeners.push(cb); },
       },
+      invites: {
+        async check(token) { const i = validInvite(token); return i ? { valid: true, role: i.role, teams: i.teams, label: i.label, expires_at: i.expires_at } : { valid: false }; },
+        async list() { return invites().map(i => ({ ...i })).sort((a, b) => b.created_at.localeCompare(a.created_at)); },
+        async create({ label, role, teams, max_uses, days }) {
+          const i = { id: uid(), token: uid().replace(/-/g, '').slice(0, 32), label: label || null, role, teams, max_uses, uses: 0, revoked: false,
+            expires_at: new Date(Date.now() + days * 864e5).toISOString(), created_at: new Date().toISOString() };
+          writeInvites([i, ...invites()]); return { ...i };
+        },
+        async revoke(id) { writeInvites(invites().map(i => i.id === id ? { ...i, revoked: true } : i)); },
+      },
     };
+  }
+
+  function demoInvites() {
+    const at = h => new Date(Date.now() + h * 3600e3).toISOString();
+    return [
+      { id: 'demo-i1', token: 'demoinvitacionmarcosalevina00001', label: 'Marcos Pérez', role: 'entrenador', teams: ['alevin-a'], max_uses: 1, uses: 0, revoked: false, expires_at: at(24 * 6), created_at: at(-2) },
+      { id: 'demo-i2', token: 'demoinvitacionusada0000000000002', label: 'Sara Gil', role: 'entrenador', teams: ['infantil-b', 'tec-1'], max_uses: 1, uses: 1, revoked: false, expires_at: at(24 * 3), created_at: at(-30) },
+    ];
   }
 
   function demoUsers() {
@@ -315,10 +342,12 @@
     return [
       { id: 'demo-coord', email: 'coordinador@demo', full_name: 'Coordinación deportiva', role: 'coordinador', status: 'aprobado', teams: [], requested_teams: [], created_at: ago(500) },
       { id: 'demo-entre', email: 'entrenador@demo', full_name: 'Laura Martí', role: 'entrenador', status: 'aprobado', teams: ['juvenil', 'cadete'], requested_teams: ['juvenil', 'cadete'], created_at: ago(300) },
-      { id: 'demo-p1', email: 'marcos@demo', full_name: 'Marcos Pérez', role: 'entrenador', status: 'pendiente', teams: ['alevin-a'], requested_teams: ['alevin-a'], created_at: ago(20) },
-      { id: 'demo-p2', email: 'sara@demo', full_name: 'Sara Gil', role: 'entrenador', status: 'pendiente', teams: ['infantil-b', 'tec-1'], requested_teams: ['infantil-b', 'tec-1'], created_at: ago(3) },
+      { id: 'demo-e2', email: 'sara@demo', full_name: 'Sara Gil', role: 'entrenador', status: 'aprobado', teams: ['infantil-b', 'tec-1'], requested_teams: ['infantil-b', 'tec-1'], created_at: ago(30) },
     ];
   }
+
+  const INVITE_BAD = 'Este enlace de invitación no es válido, ya se ha usado o ha caducado. Pide uno nuevo a la coordinación.';
+  const INV_COLS = 'id, token, label, role, teams, max_uses, uses, expires_at, revoked, created_at, last_used_at';
 
   function loadScript(src) {
     return new Promise((res, rej) => {
@@ -339,7 +368,8 @@
       'Email not confirmed': 'Aún no has confirmado tu email. Busca el correo de confirmación.',
       'User already registered': 'Ya hay una cuenta con ese email. Inicia sesión.',
       'Signup requires a valid password': 'Escribe una contraseña.',
-      'Signups not allowed for this instance': 'El registro está cerrado. Pide acceso al coordinador.',
+      'Signups not allowed for this instance': 'El registro está desactivado en Supabase. Avisa a la coordinación.',
+      'Database error saving new user': INVITE_BAD,
     })[m] || (/at least 6/.test(m) ? 'La contraseña debe tener al menos 6 caracteres.' : /rate limit/i.test(m) ? 'Demasiados intentos seguidos. Espera unos minutos y vuelve a probar.' : m);
     async function sessionOf(user) {
       if (!user) return null;
@@ -364,8 +394,8 @@
           if (error) throw new Error(authMsg(error.message));
           return sessionOf(data.user);
         },
-        async signUp({ email, password, full_name, teams }) {
-          const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name, teams }, emailRedirectTo: here() } });
+        async signUp({ email, password, full_name, invite }) {
+          const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name, invite }, emailRedirectTo: here() } });
           if (error) throw new Error(authMsg(error.message));
           // Con confirmación de email activa, un email ya registrado vuelve sin identidades
           if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) throw new Error(authMsg('User already registered'));
@@ -391,6 +421,22 @@
         },
         subscribe(cb) {
           sb.channel('profiles-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, debounce(cb)).subscribe();
+        },
+      },
+      invites: {
+        async check(token) {
+          const { data, error } = await sb.rpc('invitation_info', { p_token: token });
+          if (error) throw new Error(error.message);
+          return data || { valid: false };
+        },
+        async list() { return chk(await sb.from('invitations').select(INV_COLS).order('created_at', { ascending: false })); },
+        async create({ label, role, teams, max_uses, days }) {
+          const expires_at = new Date(Date.now() + days * 864e5).toISOString();
+          return chk(await sb.from('invitations').insert({ label: label || null, role, teams, max_uses, expires_at }).select(INV_COLS).single());
+        },
+        async revoke(id) {
+          const rows = chk(await sb.from('invitations').update({ revoked: true }).eq('id', id).select('id'));
+          if (!rows.length) throw new Error('No tienes permiso para anular esta invitación.');
         },
       },
     };
@@ -439,7 +485,11 @@
     user: null,
     profile: null,
     people: [],
-    peopleTab: 'pendiente',
+    peopleTab: 'invitaciones',
+    invites: [],
+    inviteDraft: { label: '', role: 'entrenador', teams: [], max_uses: 1, days: 7 },
+    newInviteId: null,
+    inviteToken: null,   // token del enlace de invitación abierto
     issueScope: 'mine',  // entrenadores: 'mine' | 'all'
     edit: true,
     view: window.innerWidth < 820 ? 'day' : 'week',
@@ -1016,7 +1066,7 @@
   }
 
   function route() {
-    if (!state.user) return showAuth('login');
+    if (!state.user) return state.inviteToken ? showInvite() : showAuth('login');
     if (state.profile?.status === 'aprobado') return enterApp();
     if (state.profile?.status === 'rechazado') return showAuth('rejected');
     return showAuth('pending');
@@ -1056,29 +1106,39 @@
     const teamsTxt = t => (t || []).map(x => esc(teamOf(x).name)).join(', ');
     const views = {
       login: () => `
-        <div class="auth-tabs" role="tablist"><button type="button" class="on" aria-selected="true">Entrar</button><button type="button" data-go="register" aria-selected="false">Soy entrenador, quiero acceso</button></div>
+        <h2 class="auth-h">Iniciar sesión</h2>
         <form id="f-login" class="auth-form" novalidate>
           ${authField('a-email', 'Email', 'email', 'autocomplete="username" required')}
           ${authField('a-pass', 'Contraseña', 'password', 'autocomplete="current-password" required')}
           <p class="auth-msg" id="a-msg" ${msg ? '' : 'hidden'}>${esc(msg || '')}</p>
           <button type="submit" class="primary wide">Entrar</button>
           <button type="button" class="link" data-go="forgot">He olvidado mi contraseña</button>
+          <p class="auth-note">¿Eres entrenador y aún no tienes cuenta? Pide a la coordinación tu enlace de invitación.</p>
         </form>
         ${demo ? `<div class="demo-quick"><p><b>Demo:</b> entra sin contraseña con un perfil de prueba</p>
           <div><button type="button" class="ghost" data-demo="coordinador@demo">Coordinador</button><button type="button" class="ghost" data-demo="entrenador@demo">Entrenadora (Juvenil y Cadete)</button></div></div>` : ''}`,
-      register: () => `
-        <div class="auth-tabs" role="tablist"><button type="button" data-go="login" aria-selected="false">Entrar</button><button type="button" class="on" aria-selected="true">Soy entrenador, quiero acceso</button></div>
-        <form id="f-register" class="auth-form" novalidate>
-          ${authField('r-name', 'Nombre y apellidos', 'text', 'autocomplete="name" maxlength="80" required')}
+      invite: () => {
+        const inv = state.invite || {};
+        const coord = inv.role === 'coordinador';
+        const teams = (inv.teams || []).map(t => `<span class="mini-chip" style="--c:${teamOf(t).color}">${esc(teamOf(t).name)}</span>`).join(' ');
+        return `
+        <div class="invite-box"><span class="invite-ic">✉</span><div>
+          <b>Tienes una invitación</b>
+          <p>${coord ? 'Entrarás como <b>coordinador</b>: podrás editar el calendario y gestionar a los entrenadores.' : `Entrarás como <b>entrenador</b>${teams ? ' de ' + teams : ''}.`}</p></div></div>
+        <form id="f-invite" class="auth-form" novalidate>
+          ${authField('r-name', 'Nombre y apellidos', 'text', `autocomplete="name" maxlength="80" required value="${esc(inv.label && !/coordinador/i.test(inv.label) ? inv.label : '')}"`)}
           ${authField('r-email', 'Email', 'email', 'autocomplete="email" required')}
-          ${authField('r-pass', 'Contraseña (mínimo 6 caracteres)', 'password', 'autocomplete="new-password" minlength="6" required')}
-          <div class="field"><span class="lbl">¿Qué equipos entrenas?</span>
-            <div class="team-pick" id="r-teams">${TEAMS.map(t => `<button type="button" class="chip" data-team="${t.id}" style="--c:${t.color}" aria-pressed="false"><span class="dot"></span>${esc(t.name)}</button>`).join('')}</div>
-          </div>
+          ${authField('r-pass', 'Elige una contraseña (mínimo 6 caracteres)', 'password', 'autocomplete="new-password" minlength="6" required')}
           <p class="auth-msg" id="a-msg" hidden></p>
-          <button type="submit" class="primary wide">Solicitar acceso</button>
-          <p class="auth-note">El coordinador revisará tu solicitud. Cuando la acepte podrás entrar con este email y contraseña.</p>
-        </form>`,
+          <button type="submit" class="primary wide">Crear mi cuenta y entrar</button>
+          <button type="button" class="link" data-act="noinvite">Ya tengo cuenta</button>
+        </form>`;
+      },
+      'invite-bad': () => `
+        <div class="auth-state"><span class="state-ic no">×</span>
+          <h2 class="auth-h">Enlace no válido</h2>
+          <p>${INVITE_BAD}</p>
+          <button type="button" class="ghost wide" data-act="noinvite">Ir a iniciar sesión</button></div>`,
       forgot: () => `
         <h2 class="auth-h">Recuperar contraseña</h2>
         <form id="f-forgot" class="auth-form" novalidate>
@@ -1096,9 +1156,9 @@
         </form>`,
       sent: () => `
         <div class="auth-state"><span class="state-ic ok">✓</span>
-          <h2 class="auth-h">Solicitud enviada</h2>
-          <p>Te hemos enviado un correo para confirmar tu email. Ábrelo y pulsa el enlace.</p>
-          <p>Después, cuando el coordinador acepte tu solicitud, podrás entrar con tu email y contraseña.</p>
+          <h2 class="auth-h">Confirma tu email</h2>
+          <p>Tu cuenta está creada. Te hemos enviado un correo para confirmar tu email: ábrelo y pulsa el enlace.</p>
+          <p>Después podrás entrar con tu email y contraseña.</p>
           <button type="button" class="ghost wide" data-go="login">Ir a iniciar sesión</button></div>`,
       pending: () => `
         <div class="auth-state"><span class="state-ic wait">⏳</span>
@@ -1132,6 +1192,24 @@
 
   const validEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) || (store.mode === 'demo' && /^[^\s@]+@[^\s@]+$/.test(e));
 
+  // ---- Enlaces de invitación (#invitacion=TOKEN) ----
+  const inviteLink = token => `${location.origin}${location.pathname}#invitacion=${token}`;
+  function readInviteFromUrl() {
+    const m = location.hash.match(/invitacion=([A-Za-z0-9-]{8,64})/);
+    if (m) state.inviteToken = m[1];
+  }
+  function clearInvite() {
+    state.inviteToken = null; state.invite = null;
+    if (/invitacion=/.test(location.hash)) { try { history.replaceState(null, '', location.pathname); } catch { } }
+  }
+  async function showInvite() {
+    let info = { valid: false };
+    try { info = await store.invites.check(state.inviteToken); } catch (e) { toast('No se pudo comprobar la invitación: ' + e.message, true); }
+    if (!info.valid) return showAuth('invite-bad');
+    state.invite = info;
+    showAuth('invite');
+  }
+
   function bindAuth() {
     const body = $('#auth-body');
     body.addEventListener('click', async e => {
@@ -1141,9 +1219,8 @@
       if (demoEmail) { applySession(await store.auth.signIn(demoEmail)); route(); return; }
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (act === 'logout') { await store.auth.signOut(); applySession(null); showAuth('login'); }
+      if (act === 'noinvite') { clearInvite(); showAuth('login'); return; }
       if (act === 'recheck') { await refreshSession(); if (state.profile?.status === 'pendiente') toast('Tu solicitud sigue pendiente'); }
-      const chip = e.target.closest('#r-teams .chip');
-      if (chip) { const on = !chip.classList.contains('on'); chip.classList.toggle('on', on); chip.setAttribute('aria-pressed', String(on)); }
     });
     body.addEventListener('submit', e => {
       e.preventDefault();
@@ -1155,15 +1232,14 @@
         applySession(await store.auth.signIn(email, pass));
         route();
       });
-      if (f.id === 'f-register') withBusy(f, async () => {
+      if (f.id === 'f-invite') withBusy(f, async () => {
         const full_name = $('#r-name').value.trim(), email = $('#r-email').value.trim(), password = $('#r-pass').value;
-        const teams = $$('#r-teams .chip.on').map(c => c.dataset.team);
         if (full_name.length < 3) return authMsg('Escribe tu nombre y apellidos.');
         if (!validEmail(email)) return authMsg('Escribe un email válido.');
         if (password.length < 6) return authMsg('La contraseña debe tener al menos 6 caracteres.');
-        if (!teams.length) return authMsg('Marca al menos un equipo.');
-        const res = await store.auth.signUp({ email, password, full_name, teams });
-        if (res.session) { applySession(res.session); route(); }
+        const res = await store.auth.signUp({ email, password, full_name, invite: state.inviteToken });
+        clearInvite();
+        if (res.session) { applySession(res.session); route(); toast('Cuenta creada. ¡Bienvenido!'); }
         else showAuth('sent');
       });
       if (f.id === 'f-forgot') withBusy(f, async () => {
@@ -1192,7 +1268,7 @@
   async function loadPeople() {
     if (!isCoord()) return;
     const before = new Set(state.people.filter(p => p.status === 'pendiente').map(p => p.id));
-    try { state.people = await store.people.list(); }
+    try { [state.people, state.invites] = await Promise.all([store.people.list(), store.invites.list()]); }
     catch (e) { toast('No se pudo cargar la lista de entrenadores: ' + e.message, true); return; }
     const fresh = state.people.filter(p => p.status === 'pendiente' && !before.has(p.id));
     if (fresh.length && peopleLoadedOnce) toast(`Nueva solicitud de acceso: ${fresh[0].full_name || fresh[0].email}`);
@@ -1205,7 +1281,7 @@
   function openPeople(tab) {
     closeUserMenu();
     if (tab) state.peopleTab = tab;
-    else state.peopleTab = state.people.some(p => p.status === 'pendiente') ? 'pendiente' : 'aprobado';
+    else state.peopleTab = state.people.some(p => p.status === 'pendiente') ? 'pendiente' : 'invitaciones';
     renderPeople();
     $('#people-dialog').showModal();
     loadPeople();
@@ -1216,10 +1292,12 @@
     $$('#people-tabs button').forEach(b => { const on = b.dataset.pt === tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
     const pend = state.people.filter(p => p.status === 'pendiente').length;
     $('#pt-pend').innerHTML = pend ? `<span class="pill err">${pend}</span>` : '';
+    $('#people-tabs [data-pt="pendiente"]').hidden = !pend;
+    if (tab === 'invitaciones') return renderInvites();
     const list = state.people.filter(p => p.status === tab);
     const me = state.user?.id;
     const fmtDate = iso => { if (!iso) return ''; const d = new Date(iso); return `${d.getDate()} ${MONTHS[d.getMonth()]}`; };
-    const empty = { pendiente: 'No hay solicitudes pendientes.', aprobado: 'Todavía no hay nadie con acceso.', rechazado: 'No hay solicitudes rechazadas.' }[tab];
+    const empty = { pendiente: 'No hay solicitudes pendientes.', aprobado: 'Todavía no hay nadie con acceso. Invita a los entrenadores desde «Invitar».', rechazado: 'No hay nadie sin acceso.' }[tab];
     $('#people-body').innerHTML = list.length ? list.map(p => {
       const self = p.id === me;
       const teams = p.teams || [];
@@ -1227,7 +1305,7 @@
       const actions = {
         pendiente: `<button type="button" class="danger" data-pa="reject">Rechazar</button><button type="button" class="primary" data-pa="approve">Aceptar</button>`,
         aprobado: self ? '<span class="p-self">Eres tú</span>' : `<select data-pa="role" aria-label="Rol de ${esc(p.full_name || p.email)}"><option value="entrenador" ${p.role === 'entrenador' ? 'selected' : ''}>Entrenador</option><option value="coordinador" ${p.role === 'coordinador' ? 'selected' : ''}>Coordinador</option></select><button type="button" class="danger" data-pa="revoke">Quitar acceso</button>`,
-        rechazado: `<button type="button" class="ghost" data-pa="approve">Dar acceso</button>`,
+        rechazado: `<button type="button" class="ghost" data-pa="approve">Devolver acceso</button>`,
       }[tab];
       return `<article class="person" data-id="${esc(p.id)}">
         <div class="p-head"><span class="avatar">${esc(initials(p.full_name || p.email))}</span>
@@ -1239,6 +1317,121 @@
         <div class="p-actions">${actions}</div>
       </article>`;
     }).join('') : `<p class="people-empty">${empty}</p>`;
+  }
+
+  // ---- Invitaciones ----
+  function inviteState(i) {
+    if (i.revoked) return { key: 'off', text: 'Anulada' };
+    if (i.uses >= i.max_uses) return { key: 'used', text: i.max_uses > 1 ? `Usada (${i.uses}/${i.max_uses})` : 'Usada' };
+    if (new Date(i.expires_at) <= new Date()) return { key: 'off', text: 'Caducada' };
+    const d = new Date(i.expires_at);
+    return { key: 'on', text: `Activa · caduca el ${d.getDate()} ${MONTHS[d.getMonth()]}${i.max_uses > 1 ? ` · ${i.uses}/${i.max_uses} usos` : ''}` };
+  }
+
+  function inviteMessage(i) {
+    const teams = (i.teams || []).map(t => teamOf(t).name);
+    const who = i.label && !/coordinador/i.test(i.label) ? ` ${i.label.split(/\s+/)[0]}` : '';
+    const what = i.role === 'coordinador' ? 'como coordinador' : teams.length ? `como entrenador de ${teams.join(', ')}` : 'como entrenador';
+    return `Hola${who}. Te invito al planificador del campo del ${CFG.CLUB_NAME || 'club'} ${what}. Crea tu cuenta desde este enlace: ${inviteLink(i.token)}`;
+  }
+
+  function renderInvites() {
+    const d = state.inviteDraft;
+    const coord = d.role === 'coordinador';
+    const list = [...state.invites].sort((a, b) => (inviteState(a).key === 'on' ? 0 : 1) - (inviteState(b).key === 'on' ? 0 : 1));
+    $('#people-body').innerHTML = `
+      <form class="inv-form" id="inv-form" novalidate>
+        <p class="inv-intro">Crea un enlace y envíalo por WhatsApp. Quien lo abra crea su cuenta y entra directamente, con el rol y los equipos que marques aquí.</p>
+        <div class="inv-row">
+          <div class="field"><label for="inv-label">Para (opcional)</label><input id="inv-label" type="text" maxlength="80" placeholder="Nombre del entrenador" value="${esc(d.label)}"></div>
+          <div class="field"><span class="lbl">Rol</span>
+            <div class="segmented small" id="inv-role"><button type="button" data-v="entrenador" class="${coord ? '' : 'on'}">Entrenador</button><button type="button" data-v="coordinador" class="${coord ? 'on' : ''}">Coordinador</button></div></div>
+        </div>
+        ${coord ? '' : `<div class="field"><span class="lbl">Equipos</span>
+          <div class="team-pick small">${TEAMS.map(t => `<button type="button" class="chip ${d.teams.includes(t.id) ? 'on' : ''}" data-inv-team="${t.id}" style="--c:${t.color}" aria-pressed="${d.teams.includes(t.id)}"><span class="dot"></span>${esc(t.short)}</button>`).join('')}</div></div>`}
+        <div class="inv-row">
+          <div class="field"><label for="inv-uses">Lo pueden usar</label>
+            <select id="inv-uses">${[[1, '1 persona'], [2, '2 personas'], [3, '3 personas'], [5, '5 personas'], [10, '10 personas']].map(([v, l]) => `<option value="${v}" ${d.max_uses === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+          <div class="field"><label for="inv-days">Caduca en</label>
+            <select id="inv-days">${[[1, '1 día'], [7, '7 días'], [30, '30 días']].map(([v, l]) => `<option value="${v}" ${d.days === v ? 'selected' : ''}>${l}</option>`).join('')}</select></div>
+        </div>
+        <button type="submit" class="primary">Crear enlace de invitación</button>
+      </form>
+      <h4 class="inv-h">Enlaces creados</h4>
+      ${list.length ? list.map(i => {
+        const st = inviteState(i);
+        const teams = (i.teams || []).map(t => `<span class="mini-chip" style="--c:${teamOf(t).color}">${esc(teamOf(t).short)}</span>`).join(' ');
+        const active = st.key === 'on';
+        return `<article class="invite ${active ? '' : 'inactive'} ${i.id === state.newInviteId ? 'fresh' : ''}" data-inv="${esc(i.id)}">
+          <div class="inv-top"><b>${esc(i.label || (i.role === 'coordinador' ? 'Coordinador' : 'Sin nombre'))}</b>
+            <span class="inv-st ${st.key}">${st.text}</span></div>
+          <div class="inv-meta">${i.role === 'coordinador' ? '<span class="mini-chip coord-chip">Coordinador</span>' : (teams || '<span class="muted">Sin equipos</span>')}</div>
+          ${active ? `<div class="inv-link"><input type="text" readonly value="${esc(inviteLink(i.token))}" aria-label="Enlace de invitación">
+            <div class="inv-actions">
+              <a class="btn wa" href="https://wa.me/?text=${encodeURIComponent(inviteMessage(i))}" target="_blank" rel="noopener">WhatsApp</a>
+              <button type="button" class="ghost" data-ia="copy">Copiar</button>
+              ${store.mode === 'demo' ? '<button type="button" class="ghost" data-ia="try">Probar</button>' : ''}
+              <button type="button" class="danger" data-ia="revoke">Anular</button>
+            </div></div>` : ''}
+        </article>`;
+      }).join('') : '<p class="people-empty">Aún no has creado ningún enlace.</p>'}`;
+  }
+
+  function bindInvites() {
+    const body = $('#people-body');
+    body.addEventListener('click', async e => {
+      if (state.peopleTab !== 'invitaciones') return;
+      const d = state.inviteDraft;
+      const role = e.target.closest('#inv-role button')?.dataset.v;
+      if (role) { d.label = $('#inv-label').value; d.role = role; return renderInvites(); }
+      const chip = e.target.closest('[data-inv-team]');
+      if (chip) {
+        const t = chip.dataset.invTeam;
+        d.teams = d.teams.includes(t) ? d.teams.filter(x => x !== t) : TEAMS.map(x => x.id).filter(x => x === t || d.teams.includes(x));
+        const on = d.teams.includes(t); chip.classList.toggle('on', on); chip.setAttribute('aria-pressed', String(on));
+        return;
+      }
+      const card = e.target.closest('[data-inv]'); if (!card) return;
+      const inv = state.invites.find(i => i.id === card.dataset.inv); if (!inv) return;
+      const act = e.target.closest('[data-ia]')?.dataset.ia;
+      if (act === 'copy') {
+        const input = card.querySelector('input');
+        try { await navigator.clipboard.writeText(inviteMessage(inv)); toast('Mensaje con el enlace copiado'); }
+        catch { input.focus(); input.select(); toast('Enlace seleccionado: cópialo con el menú del navegador'); }
+      }
+      if (act === 'revoke') {
+        if (!(await askConfirm(`¿Anular este enlace? Quien no lo haya usado ya no podrá registrarse con él.`, 'Anular enlace', true))) return;
+        try { await store.invites.revoke(inv.id); inv.revoked = true; renderInvites(); toast('Enlace anulado'); }
+        catch (ex) { toast('No se pudo anular: ' + ex.message, true); }
+      }
+      if (act === 'try') {
+        $('#people-dialog').close();
+        await store.auth.signOut(); applySession(null);
+        state.inviteToken = inv.token; showInvite();
+        toast('Demo: así ve el enlace la persona invitada');
+      }
+    });
+    body.addEventListener('change', e => {
+      if (e.target.id === 'inv-uses') state.inviteDraft.max_uses = +e.target.value;
+      if (e.target.id === 'inv-days') state.inviteDraft.days = +e.target.value;
+    });
+    body.addEventListener('input', e => { if (e.target.id === 'inv-label') state.inviteDraft.label = e.target.value; });
+    body.addEventListener('submit', async e => {
+      if (e.target.id !== 'inv-form') return;
+      e.preventDefault();
+      const d = state.inviteDraft;
+      d.label = $('#inv-label').value.trim();
+      if (d.role === 'entrenador' && !d.teams.length && !(await askConfirm('No has marcado ningún equipo. Podrá ver el calendario, pero no tendrá incidencias propias.', 'Crear igualmente'))) return;
+      const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
+      try {
+        const inv = await store.invites.create({ label: d.label, role: d.role, teams: d.role === 'coordinador' ? [] : d.teams, max_uses: d.max_uses, days: d.days });
+        state.invites.unshift(inv); state.newInviteId = inv.id;
+        state.inviteDraft = { label: '', role: 'entrenador', teams: [], max_uses: 1, days: 7 };
+        renderInvites();
+        $('#people-body').querySelector('.invite.fresh')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        toast('Enlace creado: envíalo por WhatsApp o cópialo');
+      } catch (ex) { toast('No se pudo crear el enlace: ' + ex.message, true); btn.disabled = false; }
+    });
   }
 
   async function updatePerson(id, patch, okMsg) {
@@ -1495,6 +1688,7 @@
     bind();
     bindAuth();
     bindPeople();
+    bindInvites();
     store.auth.onChange(async ev => {
       if (ev === 'PASSWORD_RECOVERY') { showAuth('reset'); return; }
       if (ev === 'SIGNED_OUT') { applySession(null); showAuth('login'); return; }
@@ -1512,7 +1706,10 @@
       if (appOpen && state.profile?.status === 'aprobado') { render(); toast('Tus permisos han cambiado'); if (isCoord()) loadPeople(); }
       else route();
     });
+    readInviteFromUrl();
+    window.addEventListener('hashchange', () => { readInviteFromUrl(); if (state.inviteToken && !state.user) showInvite(); });
     await refreshSession();
+    if (state.user && state.inviteToken) { clearInvite(); toast('Ya tienes sesión iniciada. Para usar la invitación, cierra sesión y abre el enlace otra vez.'); }
   }
 
   init();

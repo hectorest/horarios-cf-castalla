@@ -10,27 +10,25 @@ Para usar la herramienta hay que **iniciar sesión**. Hay dos roles:
 - **Coordinador**: ve todo, edita el calendario y gestiona a los entrenadores.
 - **Entrenador**: ve el calendario de todos los equipos, pero en Incidencias solo le salen las de **sus equipos** (puede consultar las demás con un clic). No puede modificar nada.
 
-**Cómo se da de alta un entrenador**
+**Alta por invitación (no hay registro abierto)**
 
-1. En la pantalla de inicio pulsa «Soy entrenador, quiero acceso» y rellena nombre, email, contraseña y los equipos que entrena.
-2. Su solicitud queda **pendiente**: no ve el calendario.
-3. El coordinador la ve en **Entrenadores** (con un número rojo), corrige los equipos si hace falta y pulsa **Aceptar** o **Rechazar**.
-4. Al aceptarla, al entrenador se le abre la herramienta sola, sin recargar.
+La página de inicio solo permite entrar. Nadie puede crearse una cuenta sin un enlace de invitación, ni siquiera llamando directamente a Supabase: la base de datos rechaza cualquier registro sin invitación válida.
 
-Desde **Entrenadores** el coordinador también puede cambiar equipos, nombrar a otro coordinador o quitar el acceso.
+1. El coordinador abre **Entrenadores › Invitar**, escribe para quién es (opcional), marca los equipos o el rol de coordinador, cuántas personas pueden usarlo y cuándo caduca, y pulsa **Crear enlace de invitación**.
+2. Lo envía con el botón **WhatsApp** (abre WhatsApp con el mensaje listo) o con **Copiar**.
+3. El entrenador abre el enlace, ve qué equipos tendrá, escribe nombre, email y contraseña, y entra directamente.
+4. Cada enlace se gasta al usarse, caduca y se puede **anular**.
 
-**Primer coordinador** (solo una vez): regístrate desde la web como cualquier entrenador y ejecuta en Supabase > **SQL Editor**:
+En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o quita el acceso (pasa a **Sin acceso**, desde donde se puede devolver).
 
-```sql
-update public.profiles set role = 'coordinador', status = 'aprobado' where email = 'tu@email.com';
-```
+**Primer coordinador**: ya existe una invitación de coordinador de un solo uso creada en la base de datos. Para otro proyecto, ver el final de `supabase/schema.sql`.
 
 **Ajustes necesarios en Supabase > Authentication**
 
 | Ajuste | Valor | Por qué |
 |---|---|---|
-| *Sign In / Providers > Allow new users to sign up* | **Activado** | Es lo que permite pedir acceso desde la web. Nadie entra sin que el coordinador acepte. |
-| *Sign In / Providers > Email > Confirm email* | **Desactivado** (recomendado) | El correo integrado de Supabase solo envía a los miembros de tu organización de Supabase, así que los entrenadores no recibirían el correo de confirmación. La aprobación del coordinador ya hace de filtro. |
+| *Sign In / Providers > Allow new users to sign up* | **Activado** | Es lo que permite registrarse con un enlace de invitación. Sin invitación válida la base de datos rechaza el registro. |
+| *Sign In / Providers > Email > Confirm email* | **Desactivado** (recomendado) | El correo integrado de Supabase solo envía a los miembros de tu organización de Supabase, así que los entrenadores no recibirían el correo de confirmación. La invitación ya hace de filtro. |
 | *URL Configuration > Site URL* | `https://hectorest.github.io/horarios-cf-castalla/` | Para los enlaces de los correos (recuperar contraseña). |
 
 > «He olvidado mi contraseña» envía un correo. Con el correo integrado de Supabase solo llega a direcciones de tu organización de Supabase. Para que llegue a cualquier entrenador, configura un SMTP propio en *Authentication > Emails > SMTP Settings* (por ejemplo, una cuenta de Gmail del club o Resend).
@@ -52,11 +50,11 @@ Herramienta web para organizar la ocupación semanal del campo de fútbol (lunes
   - ½ Solapes entre entrenamientos: si dos entrenos coinciden un rato, comparten la zona del equipo que llega después, partida en dos (campo entero → una mitad cada uno; media → un cuarto cada uno). El calendario lo dibuja así y no cuenta como conflicto. Si el que llega después tiene un cuarto, si empiezan a la vez o si no queda sitio por un tercer equipo, sí es conflicto.
   - ⚠ Avisos: solape solo en el margen posterior, margen que pasa del cierre, entreno en un cuarto, dos entrenos el mismo día, entreno y partido el mismo día, F8 ocupando el campo entero.
 - **Roles**: el **coordinador** puede crear, editar, duplicar, eliminar, **arrastrar** bloques (día, hora y mitad), estirar la duración de un entreno y copiar los entrenos de la semana anterior. El interruptor «Modo edición» le permite consultar sin riesgo de mover nada. Los **entrenadores** consultan y ven las incidencias de sus equipos.
-- Pantalla de inicio de sesión, registro de entrenadores con aprobación y tutorial guiado.
+- Pantalla de inicio de sesión, alta de entrenadores por enlace de invitación (WhatsApp) y tutorial guiado.
 - Zoom bloqueado para que la herramienta se use como una app en el móvil.
 - Resumen semanal por equipo, filtro por equipo, impresión en A4 apaisado, enlace directo a una semana (`#semana=2026-10-26`) y actualización en vivo entre navegadores.
 
-Sin Supabase configurado funciona en **modo demo**: datos en el propio navegador, una semana de ejemplo y usuarios de prueba (coordinador, entrenadora y dos solicitudes pendientes).
+Sin Supabase configurado funciona en **modo demo**: datos en el propio navegador, una semana de ejemplo y usuarios e invitaciones de prueba (el botón «Probar» de una invitación muestra lo que ve el entrenador).
 
 ## Archivos
 
@@ -77,7 +75,7 @@ Sin Supabase configurado funciona en **modo demo**: datos en el propio navegador
 1. Crea un proyecto en [supabase.com](https://supabase.com).
 2. En **SQL Editor**, pega y ejecuta `supabase/schema.sql` entero.
 3. Aplica los ajustes de *Authentication* de la sección «Usuarios y acceso».
-4. Regístrate desde la web y hazte coordinador con el SQL de esa misma sección.
+4. Crea la invitación del primer coordinador con el SQL del final de `schema.sql` y regístrate con ese enlace.
 5. En **Project Settings > API** copia la *Project URL* y la clave *anon / publishable*.
 
 ### 2. Configuración
