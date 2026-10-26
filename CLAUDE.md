@@ -13,4 +13,5 @@ Web estática (HTML + CSS + JS sin compilación) en GitHub Pages, con datos en S
 - **Tipos de reserva**: `entreno`, `partido` y `evento` (extraordinaria: `team` nulo, `title` obligatorio, ocupa campo). Usa `whoOf(b)` en lugar de `teamOf(b.team)` para nombre y color de cualquier reserva.
 - **Horarios**: todo en tramos de 15 minutos. En partidos, `start_min` es la hora del saque; el calentamiento se dibuja antes.
 - **Móvil**: la página no hace scroll; solo se desplaza el calendario. El zoom está bloqueado. Comprueba cada cambio también a ~390 px de ancho.
+- **Publicar**: antes de cada commit que cambie la web, ejecuta `./release.sh` (actualiza `version.txt`, `APP_VERSION` y los `?v=` de `index.html`). Así los navegadores no mezclan archivos viejos y nuevos, y las pestañas abiertas se recargan solas.
 - Documenta los cambios relevantes para el usuario en `README.md`.

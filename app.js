@@ -1962,6 +1962,25 @@
     window.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && ['+', '-', '=', '0'].includes(e.key)) e.preventDefault(); });
   }
 
+  // ---- Versión: si se publica una nueva, la página se recarga sola ----
+  const APP_VERSION = '20261026102828';
+  async function checkVersion() {
+    if (store?.mode === 'demo') return;
+    try {
+      const r = await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' });
+      if (!r.ok) return;
+      const v = (await r.text()).trim();
+      if (v && v !== APP_VERSION && !drag && !$$('dialog[open]').length) {
+        // Evita bucles si el navegador aún sirve la página antigua desde su caché
+        let tried = null; try { tried = sessionStorage.getItem('recarga-version'); } catch { }
+        if (tried === v) return;
+        try { sessionStorage.setItem('recarga-version', v); } catch { }
+        toast('Hay una versión nueva de la herramienta. Actualizando…');
+        setTimeout(() => location.reload(), 1200);
+      }
+    } catch { /* sin conexión o modo demo */ }
+  }
+
   async function init() {
     lockZoom();
     $('#club-name').textContent = CFG.CLUB_NAME || 'Campo';
@@ -2006,6 +2025,9 @@
     });
     readInviteFromUrl();
     window.addEventListener('hashchange', () => { readInviteFromUrl(); if (state.inviteToken && !state.user) showInvite(); });
+    checkVersion();
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkVersion(); });
+    setInterval(checkVersion, 5 * 60 * 1000);
     await refreshSession();
     if (state.user && state.inviteToken) { clearInvite(); toast('Ya tienes sesión iniciada. Para usar la invitación, cierra sesión y abre el enlace otra vez.'); }
   }
