@@ -253,16 +253,29 @@
   // ================================================================
   function makeLocalStore() {
     const KEY = 'planificador-campo-demo-v2';
-    let mem = null;
-    const read = () => {
-      if (mem) return mem;
-      try { mem = JSON.parse(localStorage.getItem(KEY) || 'null'); } catch { mem = null; }
-      return mem;
+    const UKEY = 'planificador-campo-demo-users-v1';
+    const SKEY = 'planificador-campo-demo-session';
+    let mem = null, umem = null;
+    const ls = {
+      get(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch { return null; } },
+      set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sin almacenamiento */ } },
     };
-    const write = a => { mem = a; try { localStorage.setItem(KEY, JSON.stringify(a)); } catch { /* sin almacenamiento */ } };
+    const read = () => mem || (mem = ls.get(KEY));
+    const write = a => { mem = a; ls.set(KEY, a); };
+    const users = () => umem || (umem = ls.get(UKEY));
+    const writeUsers = a => { umem = a; ls.set(UKEY, a); peopleListeners.forEach(f => f()); };
+    const listeners = [], peopleListeners = [];
     if (!read()) write(demoSeed());
-    const listeners = [];
-    window.addEventListener('storage', e => { if (e.key === KEY) { mem = null; listeners.forEach(f => f()); } });
+    if (!users()) writeUsers(demoUsers());
+    window.addEventListener('storage', e => {
+      if (e.key === KEY) { mem = null; listeners.forEach(f => f()); }
+      if (e.key === UKEY) { umem = null; peopleListeners.forEach(f => f()); }
+    });
+    let sid = null;
+    try { sid = sessionStorage.getItem(SKEY); } catch { }
+    const setSid = v => { sid = v; try { v ? sessionStorage.setItem(SKEY, v) : sessionStorage.removeItem(SKEY); } catch { } };
+    const sessionOf = u => u ? { user: { id: u.id, email: u.email }, profile: { full_name: u.full_name, role: u.role, status: u.status, teams: u.teams || [], requested_teams: u.requested_teams || [] } } : null;
+    const byEmail = e => users().find(u => u.email.toLowerCase() === String(e || '').trim().toLowerCase());
     return {
       mode: 'demo',
       async list(from, to) { return read().filter(b => b.day >= from && b.day <= to).map(b => ({ ...b })); },
@@ -272,13 +285,39 @@
       async remove(id) { write(read().filter(b => b.id !== id)); },
       subscribe(cb) { listeners.push(cb); },
       auth: {
-        // En demo se entra directamente como coordinador para poder probar la edición.
-        async current() { let r = null; try { r = sessionStorage.getItem('demo-role'); } catch { } return r === 'viewer' ? null : { user: { email: 'coordinador@demo' }, role: 'coordinador' }; },
-        async signIn() { try { sessionStorage.setItem('demo-role', 'coordinador'); } catch { } return { user: { email: 'coordinador@demo' }, role: 'coordinador' }; },
-        async signOut() { try { sessionStorage.setItem('demo-role', 'viewer'); } catch { } },
+        async current() { return sessionOf(users().find(u => u.id === sid)); },
+        async signIn(email) {
+          const u = byEmail(email);
+          if (!u) throw new Error('No hay ninguna cuenta con ese email. En la demo puedes usar los accesos rápidos de abajo.');
+          setSid(u.id); return sessionOf(u);
+        },
+        async signUp({ email, full_name, teams }) {
+          if (byEmail(email)) throw new Error('Ya hay una cuenta con ese email. Inicia sesión.');
+          const u = { id: uid(), email: email.trim(), full_name, role: 'entrenador', status: 'pendiente', teams: [...teams], requested_teams: [...teams], created_at: new Date().toISOString() };
+          writeUsers([...users(), u]); setSid(u.id);
+          return { session: sessionOf(u) };
+        },
+        async resetPassword() { },
+        async updatePassword() { },
+        async signOut() { setSid(null); },
         onChange() { },
       },
+      people: {
+        async list() { return users().map(u => ({ ...u })).sort((a, b) => (b.created_at || '').localeCompare(a.created_at || '')); },
+        async update(id, patch) { writeUsers(users().map(u => u.id === id ? { ...u, ...patch } : u)); },
+        subscribe(cb) { peopleListeners.push(cb); },
+      },
     };
+  }
+
+  function demoUsers() {
+    const ago = d => new Date(Date.now() - d * 3600e3).toISOString();
+    return [
+      { id: 'demo-coord', email: 'coordinador@demo', full_name: 'Coordinación deportiva', role: 'coordinador', status: 'aprobado', teams: [], requested_teams: [], created_at: ago(500) },
+      { id: 'demo-entre', email: 'entrenador@demo', full_name: 'Laura Martí', role: 'entrenador', status: 'aprobado', teams: ['juvenil', 'cadete'], requested_teams: ['juvenil', 'cadete'], created_at: ago(300) },
+      { id: 'demo-p1', email: 'marcos@demo', full_name: 'Marcos Pérez', role: 'entrenador', status: 'pendiente', teams: ['alevin-a'], requested_teams: ['alevin-a'], created_at: ago(20) },
+      { id: 'demo-p2', email: 'sara@demo', full_name: 'Sara Gil', role: 'entrenador', status: 'pendiente', teams: ['infantil-b', 'tec-1'], requested_teams: ['infantil-b', 'tec-1'], created_at: ago(3) },
+    ];
   }
 
   function loadScript(src) {
@@ -293,13 +332,21 @@
     if (!window.supabase) await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js');
     const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
     const T = 'bookings';
+    const here = () => location.origin + location.pathname;
     const chk = ({ data, error }) => { if (error) throw new Error(error.message); return data; };
-    async function roleOf(user) {
+    const authMsg = m => ({
+      'Invalid login credentials': 'Email o contraseña incorrectos.',
+      'Email not confirmed': 'Aún no has confirmado tu email. Busca el correo de confirmación.',
+      'User already registered': 'Ya hay una cuenta con ese email. Inicia sesión.',
+      'Signup requires a valid password': 'Escribe una contraseña.',
+      'Signups not allowed for this instance': 'El registro está cerrado. Pide acceso al coordinador.',
+    })[m] || (/at least 6/.test(m) ? 'La contraseña debe tener al menos 6 caracteres.' : /rate limit/i.test(m) ? 'Demasiados intentos seguidos. Espera unos minutos y vuelve a probar.' : m);
+    async function sessionOf(user) {
       if (!user) return null;
-      const { data, error } = await sb.from('profiles').select('role').eq('id', user.id).maybeSingle();
-      if (error) console.warn(error);
-      return { user, role: data?.role || 'lector' };
+      const data = chk(await sb.from('profiles').select('full_name, role, status, teams, requested_teams').eq('id', user.id).maybeSingle());
+      return { user: { id: user.id, email: user.email }, profile: data || { role: 'entrenador', status: 'pendiente', teams: [], requested_teams: [] } };
     }
+    let debounce = (cb, t) => () => { clearTimeout(t); t = setTimeout(cb, 250); };
     return {
       mode: 'supabase',
       async list(from, to) { return chk(await sb.from(T).select('*').gte('day', from).lte('day', to).order('start_min')); },
@@ -308,21 +355,43 @@
       async update(id, row) { chk(await sb.from(T).update(cleanRow(row)).eq('id', id).select()); },
       async remove(id) { chk(await sb.from(T).delete().eq('id', id)); },
       subscribe(cb) {
-        let t;
-        sb.channel('bookings-changes')
-          .on('postgres_changes', { event: '*', schema: 'public', table: T }, () => { clearTimeout(t); t = setTimeout(cb, 250); })
-          .subscribe();
+        sb.channel('bookings-changes').on('postgres_changes', { event: '*', schema: 'public', table: T }, debounce(cb)).subscribe();
       },
       auth: {
-        async current() { const { data } = await sb.auth.getSession(); return roleOf(data.session?.user); },
+        async current() { const { data } = await sb.auth.getSession(); return sessionOf(data.session?.user); },
         async signIn(email, password) {
           const { data, error } = await sb.auth.signInWithPassword({ email, password });
-          if (error) throw new Error(error.message === 'Invalid login credentials' ? 'Email o contraseña incorrectos' : error.message);
-          return roleOf(data.user);
+          if (error) throw new Error(authMsg(error.message));
+          return sessionOf(data.user);
+        },
+        async signUp({ email, password, full_name, teams }) {
+          const { data, error } = await sb.auth.signUp({ email, password, options: { data: { full_name, teams }, emailRedirectTo: here() } });
+          if (error) throw new Error(authMsg(error.message));
+          // Con confirmación de email activa, un email ya registrado vuelve sin identidades
+          if (data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0) throw new Error(authMsg('User already registered'));
+          return { session: data.session ? await sessionOf(data.user) : null };
+        },
+        async resetPassword(email) {
+          const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: here() });
+          if (error) throw new Error(authMsg(error.message));
+        },
+        async updatePassword(password) {
+          const { error } = await sb.auth.updateUser({ password });
+          if (error) throw new Error(authMsg(error.message));
         },
         async signOut() { await sb.auth.signOut(); },
         // setTimeout: supabase-js no admite otras llamadas suyas dentro de este callback
-        onChange(cb) { sb.auth.onAuthStateChange((ev) => { if (ev === 'SIGNED_OUT' || ev === 'TOKEN_REFRESHED') setTimeout(cb, 0); }); },
+        onChange(cb) { sb.auth.onAuthStateChange(ev => setTimeout(() => cb(ev), 0)); },
+      },
+      people: {
+        async list() { return chk(await sb.from('profiles').select('id, email, full_name, role, status, teams, requested_teams, created_at, reviewed_at').order('created_at', { ascending: false })); },
+        async update(id, patch) {
+          const rows = chk(await sb.from('profiles').update(patch).eq('id', id).select('id'));
+          if (!rows.length) throw new Error('No tienes permiso para cambiar este usuario.');
+        },
+        subscribe(cb) {
+          sb.channel('profiles-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'profiles' }, debounce(cb)).subscribe();
+        },
       },
     };
   }
@@ -366,8 +435,12 @@
     weekStart: mondayOf(new Date()),
     bookings: [],
     issues: { byId: new Map(), all: [], pieces: new Map() },
-    role: 'viewer',
+    role: null,          // 'coordinador' | 'entrenador' | null
     user: null,
+    profile: null,
+    people: [],
+    peopleTab: 'pendiente',
+    issueScope: 'mine',  // entrenadores: 'mine' | 'all'
     edit: true,
     view: window.innerWidth < 820 ? 'day' : 'week',
     dayIndex: (new Date().getDay() + 6) % 7,
@@ -377,13 +450,28 @@
   };
   let store;
   const isCoord = () => state.role === 'coordinador';
+  const isCoach = () => state.role === 'entrenador';
+  /** Equipos del entrenador (null si no aplica el filtro) */
+  const myTeams = () => isCoach() && state.profile?.teams?.length ? state.profile.teams : null;
+  const isMine = team => !!myTeams()?.includes(team);
   const isEditor = () => isCoord() && state.edit;
 
   // ================================================================
   //  Render
   // ================================================================
+  /** Para entrenadores: deja solo las incidencias en las que interviene alguno de sus equipos */
+  function scopeIssues(full) {
+    const mine = myTeams();
+    if (!mine || state.issueScope === 'all') return full;
+    const teamOfId = new Map(state.bookings.map(b => [b.id, b.team]));
+    const all = full.all.filter(it => it.ids.some(id => mine.includes(teamOfId.get(id))));
+    const byId = new Map();
+    for (const it of all) for (const id of it.ids) { if (!byId.has(id)) byId.set(id, []); byId.get(id).push(it); }
+    return { ...full, all, byId };
+  }
+
   function render() {
-    state.issues = computeIssues(state.bookings);
+    state.issues = scopeIssues(computeIssues(state.bookings));
     renderHeader();
     renderLegend();
     renderDayTabs();
@@ -404,17 +492,45 @@
     $$('.edit-only').forEach(x => x.hidden = !state.edit);
     $('.edit-hint').hidden = !isEditor();
     $('#edit-toggle').checked = state.edit;
-    const badge = $('#role-badge');
-    const mail = state.user?.email ? `<span class="badge-mail"> · ${esc(state.user.email)}</span>` : '';
-    badge.innerHTML = (coord ? 'Coordinador' : 'Solo lectura') + mail;
-    badge.classList.toggle('coord', coord);
-    $('#login-btn').textContent = state.user ? 'Salir' : 'Acceso coordinador';
+    renderUser();
+  }
+
+  const initials = s => String(s || '').trim().split(/[\s@.]+/).filter(Boolean).slice(0, 2).map(w => w[0].toUpperCase()).join('') || '?';
+  const displayName = () => state.profile?.full_name || state.user?.email || '';
+
+  function renderUser() {
+    const coord = isCoord();
+    const pending = state.people.filter(p => p.status === 'pendiente').length;
+    $('#user-initials').textContent = initials(state.profile?.full_name || state.user?.email);
+    $('#user-name').textContent = displayName();
+    $('#up-name').textContent = displayName();
+    $('#up-email').textContent = state.user?.email || '';
+    const roleEl = $('#up-role');
+    roleEl.textContent = coord ? 'Coordinador' : 'Entrenador';
+    roleEl.classList.toggle('coord', coord);
+    const teams = state.profile?.teams || [];
+    $('#up-teams').innerHTML = isCoach()
+      ? (teams.length ? 'Tus equipos: ' + teams.map(t => `<span class="mini-chip" style="--c:${teamOf(t).color}">${esc(teamOf(t).name)}</span>`).join(' ') : 'Aún no tienes equipos asignados.')
+      : '';
+    $('#up-teams').hidden = !isCoach();
+    $('#people-btn').hidden = !coord;
+    $('#m-people').hidden = !coord;
+    $('#m-copy').hidden = !coord;
+    const badge = pending ? `<span class="pill err">${pending}</span>` : '';
+    $('#people-count').innerHTML = badge;
+    $('#m-people-count').innerHTML = badge;
+    $('#user-dot').hidden = !(coord && pending);
   }
 
   function renderLegend() {
     const el = $('#legend');
     el.classList.toggle('filtering', !!state.filter);
-    el.innerHTML = TEAMS.map(t => `<button class="chip ${state.filter === t.id ? 'on' : ''}" data-team="${t.id}" style="--c:${t.color}" title="Resaltar ${esc(t.name)}"><span class="dot"></span><span class="nm-full">${esc(t.name)}</span><span class="nm-short">${esc(t.short)}</span></button>`).join('');
+    const ordered = myTeams() ? [...TEAMS.filter(t => isMine(t.id)), ...TEAMS.filter(t => !isMine(t.id))] : TEAMS;
+    el.innerHTML = ordered.map(t => `<button class="chip ${state.filter === t.id ? 'on' : ''} ${isMine(t.id) ? 'mine' : ''}" data-team="${t.id}" style="--c:${t.color}" title="${isMine(t.id) ? 'Tu equipo · ' : ''}Resaltar ${esc(t.name)}"><span class="dot"></span>${isMine(t.id) ? '<span class="star" aria-hidden="true">★</span>' : ''}<span class="nm-full">${esc(t.name)}</span><span class="nm-short">${esc(t.short)}</span></button>`).join('');
+    const f = state.filter && teamOf(state.filter);
+    $('#legend-btn-text').textContent = f ? f.name : 'Equipos';
+    $('#legend-btn-dot').style.background = f ? f.color : 'transparent';
+    $('#legend-btn-dot').hidden = !f;
   }
 
   function renderDayTabs() {
@@ -479,7 +595,7 @@
       const labelTop = b.kind === 'partido' && t.kick != null ? Math.max(0, (t.kick - g.vs) * PX) : 0;
       return `<div class="${cls}" data-id="${esc(b.id)}" style="--c:${team.color};${geomStyle(g)}" title="${title}">
       ${segs}
-      <div class="b-label" style="${labelTop ? `margin-top:${labelTop + 3}px` : ''}"><span class="b-name">${esc(narrow ? team.short : team.name)}</span><span class="b-sub">${esc(sub)}</span><span class="b-time">${time}</span></div>
+      <div class="b-label" style="${labelTop ? `margin-top:${labelTop + 3}px` : ''}"><span class="b-name">${isMine(b.team) ? '★ ' : ''}${esc(narrow ? team.short : team.name)}</span><span class="b-sub">${esc(sub)}</span><span class="b-time">${time}</span></div>
       ${lvl && first ? `<span class="b-flag">!</span>` : ''}
       ${b.kind === 'entreno' && isEditor() && last ? '<div class="resize" data-resize="1"></div>' : ''}
     </div>`;
@@ -530,7 +646,12 @@
     $('#side-toggle-count').innerHTML = ne ? `<span class="pill err">${ne}</span>` : nw ? `<span class="pill warn">${nw}</span>` : '';
     $('#issues').innerHTML = all.length
       ? all.map((it, n) => `<li class="${it.level}" data-n="${n}" tabindex="0"><span class="ic">${it.level === 'info' ? '½' : '!'}</span><div><span class="when">${dayLabel(it.day)} · ${fmt(it.at)}</span>${esc(it.msg)}</div></li>`).join('')
-      : '<li class="empty">Sin conflictos ni avisos esta semana ✓</li>';
+      : `<li class="empty">${myTeams() && state.issueScope === 'mine' ? 'Tus equipos no tienen conflictos ni avisos esta semana ✓' : 'Sin conflictos ni avisos esta semana ✓'}</li>`;
+    const scoped = !!(isCoach() && state.profile?.teams?.length);
+    $('#issues-title').textContent = scoped && state.issueScope === 'mine' ? 'Tus incidencias' : 'Incidencias';
+    const sc = $('#issue-scope');
+    sc.hidden = !scoped;
+    sc.textContent = state.issueScope === 'mine' ? 'Ver las de todos los equipos' : 'Ver solo las de mis equipos';
   }
 
   function renderSummary() {
@@ -539,7 +660,7 @@
       const tr = bs.filter(b => b.kind === 'entreno');
       const mins = tr.reduce((s, b) => s + (b.duration_min || DEFAULT_DUR), 0);
       const pm = bs.filter(b => b.kind === 'partido').length;
-      return `<tr><td><span class="dot" style="--c:${t.color}"></span>${esc(t.name)}</td>
+      return `<tr class="${isMine(t.id) ? 'mine' : ''}"><td><span class="dot" style="--c:${t.color}"></span>${isMine(t.id) ? '★ ' : ''}${esc(t.name)}</td>
         <td class="n ${tr.length ? '' : 'zero'}">${tr.length}</td><td class="n">${mins ? (mins / 60).toFixed(mins % 60 ? 1 : 0).replace('.', ',') + ' h' : '—'}</td><td class="n">${t.match ? pm : '—'}</td></tr>`;
     }).join('');
     $('#summary').innerHTML = `<thead><tr><th>Equipo</th><th class="n">Entrenos</th><th class="n">Horas</th><th class="n">Partidos</th></tr></thead><tbody>${rows}</tbody>`;
@@ -877,36 +998,317 @@
   }
 
   // ================================================================
-  //  Acceso
+  //  Acceso: inicio de sesión, registro y estado de la solicitud
   // ================================================================
-  function openLogin() {
-    const body = $('#login-body');
-    if (store.mode === 'demo') {
-      body.innerHTML = `<p class="login-note">Estás en <b>modo demo</b>: no hay usuarios reales. Pulsa «Entrar» para probar las funciones de coordinador. Al conectar Supabase se pedirá email y contraseña.</p>`;
-    } else {
-      body.innerHTML = `<div class="field"><label for="l-email">Email</label><input type="email" id="l-email" autocomplete="username" required></div>
-        <div class="field"><label for="l-pass">Contraseña</label><input type="password" id="l-pass" autocomplete="current-password" required></div>
-        <p class="login-error" id="l-err" hidden></p>`;
-    }
-    $('#login-dialog').showModal();
-    $('#l-email')?.focus();
-  }
-
-  async function doLogin(e) {
-    e.preventDefault();
-    const err = $('#l-err');
-    try {
-      const res = await store.auth.signIn($('#l-email')?.value.trim(), $('#l-pass')?.value);
-      applySession(res);
-      $('#login-dialog').close();
-      toast(isCoord() ? 'Sesión iniciada como coordinador' : 'Sesión iniciada (sin permisos de edición)');
-      render();
-    } catch (ex) { if (err) { err.textContent = ex.message; err.hidden = false; } }
-  }
-
   function applySession(s) {
     state.user = s?.user || null;
-    state.role = s?.role === 'coordinador' ? 'coordinador' : 'viewer';
+    state.profile = s?.profile || null;
+    const ok = state.profile?.status === 'aprobado';
+    state.role = ok ? (state.profile.role === 'coordinador' ? 'coordinador' : 'entrenador') : null;
+  }
+
+  let appOpen = false;
+  async function refreshSession() {
+    let s = null;
+    try { s = await store.auth.current(); } catch (e) { toast('No se pudo comprobar la sesión: ' + e.message, true); }
+    applySession(s);
+    return route();
+  }
+
+  function route() {
+    if (!state.user) return showAuth('login');
+    if (state.profile?.status === 'aprobado') return enterApp();
+    if (state.profile?.status === 'rechazado') return showAuth('rejected');
+    return showAuth('pending');
+  }
+
+  async function enterApp() {
+    $('#auth').hidden = true;
+    document.body.classList.remove('gated');
+    const first = !appOpen;
+    appOpen = true;
+    render();
+    await load();
+    if (first) {
+      const wrap = $('#cal-wrap');
+      if (wrap.scrollHeight > wrap.clientHeight) wrap.scrollTop = Math.max(0, (toMin('16:30') - DAY_START) * PX);
+    }
+    if (isCoord()) loadPeople();
+    maybeTutorial();
+  }
+
+  function leaveApp() {
+    appOpen = false;
+    document.body.classList.add('gated');
+    state.bookings = []; state.people = [];
+    closeUserMenu();
+    $$('dialog[open]').forEach(d => d.close());
+  }
+
+  const authField = (id, label, type, extra = '') => `<div class="field"><label for="${id}">${label}</label><input id="${id}" type="${type}" ${extra}></div>`;
+
+  function showAuth(view, msg) {
+    leaveApp();
+    $('#auth').hidden = false;
+    const body = $('#auth-body');
+    const demo = store.mode === 'demo';
+    const name = esc(state.profile?.full_name || state.user?.email || '');
+    const teamsTxt = t => (t || []).map(x => esc(teamOf(x).name)).join(', ');
+    const views = {
+      login: () => `
+        <div class="auth-tabs" role="tablist"><button type="button" class="on" aria-selected="true">Entrar</button><button type="button" data-go="register" aria-selected="false">Soy entrenador, quiero acceso</button></div>
+        <form id="f-login" class="auth-form" novalidate>
+          ${authField('a-email', 'Email', 'email', 'autocomplete="username" required')}
+          ${authField('a-pass', 'Contraseña', 'password', 'autocomplete="current-password" required')}
+          <p class="auth-msg" id="a-msg" ${msg ? '' : 'hidden'}>${esc(msg || '')}</p>
+          <button type="submit" class="primary wide">Entrar</button>
+          <button type="button" class="link" data-go="forgot">He olvidado mi contraseña</button>
+        </form>
+        ${demo ? `<div class="demo-quick"><p><b>Demo:</b> entra sin contraseña con un perfil de prueba</p>
+          <div><button type="button" class="ghost" data-demo="coordinador@demo">Coordinador</button><button type="button" class="ghost" data-demo="entrenador@demo">Entrenadora (Juvenil y Cadete)</button></div></div>` : ''}`,
+      register: () => `
+        <div class="auth-tabs" role="tablist"><button type="button" data-go="login" aria-selected="false">Entrar</button><button type="button" class="on" aria-selected="true">Soy entrenador, quiero acceso</button></div>
+        <form id="f-register" class="auth-form" novalidate>
+          ${authField('r-name', 'Nombre y apellidos', 'text', 'autocomplete="name" maxlength="80" required')}
+          ${authField('r-email', 'Email', 'email', 'autocomplete="email" required')}
+          ${authField('r-pass', 'Contraseña (mínimo 6 caracteres)', 'password', 'autocomplete="new-password" minlength="6" required')}
+          <div class="field"><span class="lbl">¿Qué equipos entrenas?</span>
+            <div class="team-pick" id="r-teams">${TEAMS.map(t => `<button type="button" class="chip" data-team="${t.id}" style="--c:${t.color}" aria-pressed="false"><span class="dot"></span>${esc(t.name)}</button>`).join('')}</div>
+          </div>
+          <p class="auth-msg" id="a-msg" hidden></p>
+          <button type="submit" class="primary wide">Solicitar acceso</button>
+          <p class="auth-note">El coordinador revisará tu solicitud. Cuando la acepte podrás entrar con este email y contraseña.</p>
+        </form>`,
+      forgot: () => `
+        <h2 class="auth-h">Recuperar contraseña</h2>
+        <form id="f-forgot" class="auth-form" novalidate>
+          ${authField('fg-email', 'Email de tu cuenta', 'email', 'autocomplete="email" required')}
+          <p class="auth-msg" id="a-msg" hidden></p>
+          <button type="submit" class="primary wide">Enviarme un enlace</button>
+          <button type="button" class="link" data-go="login">Volver</button>
+        </form>`,
+      reset: () => `
+        <h2 class="auth-h">Nueva contraseña</h2>
+        <form id="f-reset" class="auth-form" novalidate>
+          ${authField('rs-pass', 'Nueva contraseña (mínimo 6 caracteres)', 'password', 'autocomplete="new-password" minlength="6" required')}
+          <p class="auth-msg" id="a-msg" hidden></p>
+          <button type="submit" class="primary wide">Guardar contraseña</button>
+        </form>`,
+      sent: () => `
+        <div class="auth-state"><span class="state-ic ok">✓</span>
+          <h2 class="auth-h">Solicitud enviada</h2>
+          <p>Te hemos enviado un correo para confirmar tu email. Ábrelo y pulsa el enlace.</p>
+          <p>Después, cuando el coordinador acepte tu solicitud, podrás entrar con tu email y contraseña.</p>
+          <button type="button" class="ghost wide" data-go="login">Ir a iniciar sesión</button></div>`,
+      pending: () => `
+        <div class="auth-state"><span class="state-ic wait">⏳</span>
+          <h2 class="auth-h">Solicitud pendiente</h2>
+          <p>Hola, <b>${name}</b>. Tu solicitud${state.profile?.requested_teams?.length ? ` para <b>${teamsTxt(state.profile.requested_teams)}</b>` : ''} está esperando a que el coordinador la acepte.</p>
+          <p>Esta pantalla se abrirá sola en cuanto te den acceso.</p>
+          ${demo ? '<p class="auth-note"><b>Demo:</b> cierra sesión, entra como Coordinador y acepta la solicitud desde «Entrenadores».</p>' : ''}
+          <div class="auth-row"><button type="button" class="ghost" data-act="logout">Cerrar sesión</button><button type="button" class="primary" data-act="recheck">Comprobar ahora</button></div></div>`,
+      rejected: () => `
+        <div class="auth-state"><span class="state-ic no">×</span>
+          <h2 class="auth-h">Sin acceso</h2>
+          <p>El coordinador no ha aceptado tu solicitud o te ha retirado el acceso. Si crees que es un error, habla con la coordinación del club.</p>
+          <button type="button" class="ghost wide" data-act="logout">Cerrar sesión</button></div>`,
+    };
+    body.innerHTML = views[view]();
+    body.dataset.view = view;
+    body.querySelector('input')?.focus();
+  }
+
+  function authMsg(text, ok) {
+    const m = $('#a-msg'); if (!m) return;
+    m.textContent = text; m.hidden = !text; m.classList.toggle('ok', !!ok);
+  }
+
+  async function withBusy(form, fn) {
+    const btn = form.querySelector('button[type=submit]');
+    const label = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Un momento…';
+    try { await fn(); } catch (e) { authMsg(e.message); } finally { if (btn.isConnected) { btn.disabled = false; btn.textContent = label; } }
+  }
+
+  const validEmail = e => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e) || (store.mode === 'demo' && /^[^\s@]+@[^\s@]+$/.test(e));
+
+  function bindAuth() {
+    const body = $('#auth-body');
+    body.addEventListener('click', async e => {
+      const go = e.target.closest('[data-go]')?.dataset.go;
+      if (go) { showAuth(go); return; }
+      const demoEmail = e.target.closest('[data-demo]')?.dataset.demo;
+      if (demoEmail) { applySession(await store.auth.signIn(demoEmail)); route(); return; }
+      const act = e.target.closest('[data-act]')?.dataset.act;
+      if (act === 'logout') { await store.auth.signOut(); applySession(null); showAuth('login'); }
+      if (act === 'recheck') { await refreshSession(); if (state.profile?.status === 'pendiente') toast('Tu solicitud sigue pendiente'); }
+      const chip = e.target.closest('#r-teams .chip');
+      if (chip) { const on = !chip.classList.contains('on'); chip.classList.toggle('on', on); chip.setAttribute('aria-pressed', String(on)); }
+    });
+    body.addEventListener('submit', e => {
+      e.preventDefault();
+      const f = e.target;
+      if (f.id === 'f-login') withBusy(f, async () => {
+        const email = $('#a-email').value.trim(), pass = $('#a-pass').value;
+        if (!validEmail(email)) return authMsg('Escribe un email válido.');
+        if (!pass && store.mode !== 'demo') return authMsg('Escribe tu contraseña.');
+        applySession(await store.auth.signIn(email, pass));
+        route();
+      });
+      if (f.id === 'f-register') withBusy(f, async () => {
+        const full_name = $('#r-name').value.trim(), email = $('#r-email').value.trim(), password = $('#r-pass').value;
+        const teams = $$('#r-teams .chip.on').map(c => c.dataset.team);
+        if (full_name.length < 3) return authMsg('Escribe tu nombre y apellidos.');
+        if (!validEmail(email)) return authMsg('Escribe un email válido.');
+        if (password.length < 6) return authMsg('La contraseña debe tener al menos 6 caracteres.');
+        if (!teams.length) return authMsg('Marca al menos un equipo.');
+        const res = await store.auth.signUp({ email, password, full_name, teams });
+        if (res.session) { applySession(res.session); route(); }
+        else showAuth('sent');
+      });
+      if (f.id === 'f-forgot') withBusy(f, async () => {
+        const email = $('#fg-email').value.trim();
+        if (!validEmail(email)) return authMsg('Escribe un email válido.');
+        if (store.mode === 'demo') return authMsg('En la demo no se envían correos.', true);
+        try { await store.auth.resetPassword(email); }
+        catch (ex) { throw new Error('No se pudo enviar el correo (' + ex.message + '). Si no lo recibes, pide ayuda a la coordinación.'); }
+        authMsg('Si el email tiene cuenta, recibirás un enlace para crear una contraseña nueva. Revisa también el correo no deseado.', true);
+      });
+      if (f.id === 'f-reset') withBusy(f, async () => {
+        const pw = $('#rs-pass').value;
+        if (pw.length < 6) return authMsg('La contraseña debe tener al menos 6 caracteres.');
+        await store.auth.updatePassword(pw);
+        toast('Contraseña cambiada');
+        try { history.replaceState(null, '', location.pathname); } catch { }
+        await refreshSession();
+      });
+    });
+    $('#auth-tour').onclick = () => window.Tutorial?.start({ role: null, intro: true });
+  }
+
+  // ================================================================
+  //  Entrenadores y solicitudes (coordinador)
+  // ================================================================
+  async function loadPeople() {
+    if (!isCoord()) return;
+    const before = new Set(state.people.filter(p => p.status === 'pendiente').map(p => p.id));
+    try { state.people = await store.people.list(); }
+    catch (e) { toast('No se pudo cargar la lista de entrenadores: ' + e.message, true); return; }
+    const fresh = state.people.filter(p => p.status === 'pendiente' && !before.has(p.id));
+    if (fresh.length && peopleLoadedOnce) toast(`Nueva solicitud de acceso: ${fresh[0].full_name || fresh[0].email}`);
+    peopleLoadedOnce = true;
+    renderUser();
+    if ($('#people-dialog').open) renderPeople();
+  }
+  let peopleLoadedOnce = false;
+
+  function openPeople(tab) {
+    closeUserMenu();
+    if (tab) state.peopleTab = tab;
+    else state.peopleTab = state.people.some(p => p.status === 'pendiente') ? 'pendiente' : 'aprobado';
+    renderPeople();
+    $('#people-dialog').showModal();
+    loadPeople();
+  }
+
+  function renderPeople() {
+    const tab = state.peopleTab;
+    $$('#people-tabs button').forEach(b => { const on = b.dataset.pt === tab; b.classList.toggle('on', on); b.setAttribute('aria-selected', String(on)); });
+    const pend = state.people.filter(p => p.status === 'pendiente').length;
+    $('#pt-pend').innerHTML = pend ? `<span class="pill err">${pend}</span>` : '';
+    const list = state.people.filter(p => p.status === tab);
+    const me = state.user?.id;
+    const fmtDate = iso => { if (!iso) return ''; const d = new Date(iso); return `${d.getDate()} ${MONTHS[d.getMonth()]}`; };
+    const empty = { pendiente: 'No hay solicitudes pendientes.', aprobado: 'Todavía no hay nadie con acceso.', rechazado: 'No hay solicitudes rechazadas.' }[tab];
+    $('#people-body').innerHTML = list.length ? list.map(p => {
+      const self = p.id === me;
+      const teams = p.teams || [];
+      const changed = tab === 'pendiente' && (p.requested_teams || []).join() !== teams.join();
+      const actions = {
+        pendiente: `<button type="button" class="danger" data-pa="reject">Rechazar</button><button type="button" class="primary" data-pa="approve">Aceptar</button>`,
+        aprobado: self ? '<span class="p-self">Eres tú</span>' : `<select data-pa="role" aria-label="Rol de ${esc(p.full_name || p.email)}"><option value="entrenador" ${p.role === 'entrenador' ? 'selected' : ''}>Entrenador</option><option value="coordinador" ${p.role === 'coordinador' ? 'selected' : ''}>Coordinador</option></select><button type="button" class="danger" data-pa="revoke">Quitar acceso</button>`,
+        rechazado: `<button type="button" class="ghost" data-pa="approve">Dar acceso</button>`,
+      }[tab];
+      return `<article class="person" data-id="${esc(p.id)}">
+        <div class="p-head"><span class="avatar">${esc(initials(p.full_name || p.email))}</span>
+          <div class="p-who"><b>${esc(p.full_name || '(sin nombre)')}</b><span>${esc(p.email || '')}</span></div>
+          <span class="p-date">${tab === 'pendiente' ? 'Solicitado' : 'Desde'} ${fmtDate(tab === 'pendiente' ? p.created_at : (p.reviewed_at || p.created_at))}</span></div>
+        ${p.role === 'coordinador' && tab === 'aprobado' ? '<p class="p-note">Coordinador: ve todas las incidencias y puede editar el calendario.</p>' : `
+        <div class="p-teams"><span class="lbl">${tab === 'pendiente' ? 'Equipos que pide' + (changed ? ' (modificados)' : '') : 'Equipos'}</span>
+          <div class="team-pick small">${TEAMS.map(t => `<button type="button" class="chip ${teams.includes(t.id) ? 'on' : ''}" data-pt-team="${t.id}" style="--c:${t.color}" aria-pressed="${teams.includes(t.id)}" ${self ? 'disabled' : ''}><span class="dot"></span>${esc(t.short)}</button>`).join('')}</div></div>`}
+        <div class="p-actions">${actions}</div>
+      </article>`;
+    }).join('') : `<p class="people-empty">${empty}</p>`;
+  }
+
+  async function updatePerson(id, patch, okMsg) {
+    try {
+      await store.people.update(id, patch);
+      Object.assign(state.people.find(p => p.id === id) || {}, patch);
+      renderPeople(); renderUser();
+      if (okMsg) toast(okMsg);
+    } catch (e) { toast('No se pudo guardar: ' + e.message, true); loadPeople(); }
+  }
+
+  function bindPeople() {
+    $('#people-tabs').addEventListener('click', e => { const t = e.target.closest('button[data-pt]'); if (t) { state.peopleTab = t.dataset.pt; renderPeople(); } });
+    const body = $('#people-body');
+    body.addEventListener('click', async e => {
+      const card = e.target.closest('.person'); if (!card) return;
+      const p = state.people.find(x => x.id === card.dataset.id); if (!p) return;
+      const who = p.full_name || p.email;
+      const chip = e.target.closest('[data-pt-team]');
+      if (chip && !chip.disabled) {
+        const t = chip.dataset.ptTeam;
+        const teams = (p.teams || []).includes(t) ? p.teams.filter(x => x !== t) : [...(p.teams || []), t];
+        const ordered = TEAMS.map(x => x.id).filter(x => teams.includes(x));
+        return updatePerson(p.id, { teams: ordered }, p.status === 'aprobado' ? `Equipos de ${who} actualizados` : null);
+      }
+      const act = e.target.closest('button[data-pa]')?.dataset.pa;
+      const reviewed = { reviewed_at: new Date().toISOString(), reviewed_by: state.user?.id || null };
+      if (act === 'approve') {
+        if (p.role !== 'coordinador' && !(p.teams || []).length && !(await askConfirm(`${who} no tiene ningún equipo marcado. Verá el calendario, pero no recibirá incidencias propias.`, 'Aceptar igualmente'))) return;
+        return updatePerson(p.id, { status: 'aprobado', ...reviewed }, `${who} ya tiene acceso`);
+      }
+      if (act === 'reject') {
+        if (!(await askConfirm(`¿Rechazar la solicitud de ${who}? No podrá entrar. Podrás darle acceso más tarde desde «Rechazados».`, 'Rechazar', true))) return;
+        return updatePerson(p.id, { status: 'rechazado', ...reviewed }, `Solicitud de ${who} rechazada`);
+      }
+      if (act === 'revoke') {
+        if (!(await askConfirm(`¿Quitar el acceso a ${who}? Dejará de ver el calendario.`, 'Quitar acceso', true))) return;
+        return updatePerson(p.id, { status: 'rechazado', ...reviewed }, `${who} ya no tiene acceso`);
+      }
+    });
+    body.addEventListener('change', async e => {
+      if (e.target.dataset.pa !== 'role') return;
+      const card = e.target.closest('.person');
+      const p = state.people.find(x => x.id === card.dataset.id);
+      const role = e.target.value;
+      if (role === 'coordinador' && !(await askConfirm(`${p.full_name || p.email} podrá editar el calendario y gestionar entrenadores.`, 'Hacer coordinador'))) { e.target.value = p.role; return; }
+      updatePerson(p.id, { role }, role === 'coordinador' ? 'Ahora es coordinador' : 'Ahora es entrenador');
+    });
+  }
+
+  // ================================================================
+  //  Menú de usuario y tutorial
+  // ================================================================
+  function closeUserMenu() { $('#user-pop').hidden = true; $('#user-btn').setAttribute('aria-expanded', 'false'); }
+
+  function tutorialKey() { return 'tutorial-visto:' + (state.user?.id || 'anon'); }
+  function startTutorial(onlySince = 0) {
+    closeUserMenu();
+    if (!window.Tutorial) return;
+    if (window.innerWidth < 1000) { $('#side').classList.remove('open'); $('#side-backdrop').hidden = true; }
+    window.Tutorial.start({
+      role: state.role, onlySince,
+      onEnd: () => { try { localStorage.setItem(tutorialKey(), String(window.Tutorial.VERSION)); } catch { } },
+    });
+  }
+  function maybeTutorial() {
+    if (!window.Tutorial) return;
+    let seen = 0;
+    try { seen = parseInt(localStorage.getItem(tutorialKey()) || '0', 10) || 0; } catch { }
+    if (seen < window.Tutorial.VERSION) setTimeout(() => startTutorial(seen), 400);
   }
 
   // ================================================================
@@ -918,7 +1320,7 @@
     $('#today-btn').onclick = () => { state.dayIndex = (new Date().getDay() + 6) % 7; setWeek(new Date()); };
     $('#view-toggle').onclick = e => { const v = e.target.closest('button')?.dataset.view; if (v) { state.view = v; render(); } };
     $('#day-tabs').onclick = e => { const d = e.target.closest('button')?.dataset.day; if (d != null) { state.dayIndex = +d; render(); } };
-    $('#legend').onclick = e => { const t = e.target.closest('.chip')?.dataset.team; if (t) { state.filter = state.filter === t ? null : t; render(); } };
+    $('#legend').onclick = e => { const t = e.target.closest('.chip')?.dataset.team; if (t) { state.filter = state.filter === t ? null : t; $('#legend').classList.remove('pop-open'); $('#legend-btn').setAttribute('aria-expanded', 'false'); render(); } };
     $('#print-btn').onclick = () => window.print();
     $('#edit-toggle').onchange = e => { state.edit = e.target.checked; render(); };
     $('#new-btn').onclick = () => {
@@ -926,11 +1328,26 @@
       openEditor(newDraft(keyOf(addDays(state.weekStart, i)), toMin('17:00'), 'A'), true);
     };
     $('#copy-week-btn').onclick = copyPrevWeek;
-    $('#login-btn').onclick = async () => {
-      if (state.user) { await store.auth.signOut(); applySession(null); render(); toast('Sesión cerrada'); }
-      else openLogin();
+
+    // Menú de usuario
+    $('#user-btn').onclick = e => {
+      e.stopPropagation();
+      const pop = $('#user-pop'), open = pop.hidden;
+      pop.hidden = !open; $('#user-btn').setAttribute('aria-expanded', String(open));
     };
-    $('#login-form').addEventListener('submit', doLogin);
+    document.addEventListener('click', e => { if (!e.target.closest('.user-menu')) closeUserMenu(); if (!e.target.closest('#legend, #legend-btn')) setLegend(false); });
+    $('#m-people').onclick = () => openPeople();
+    $('#people-btn').onclick = () => openPeople();
+    $('#m-copy').onclick = () => { closeUserMenu(); copyPrevWeek(); };
+    $('#m-help').onclick = () => startTutorial(0);
+    $('#help-btn').onclick = () => startTutorial(0);
+    $('#m-logout').onclick = async () => { closeUserMenu(); await store.auth.signOut(); applySession(null); showAuth('login'); toast('Sesión cerrada'); };
+    $('#banner-close').onclick = () => { $('#banner').hidden = true; try { sessionStorage.setItem('banner-oculto', '1'); } catch { } };
+    $('#issue-scope').onclick = () => { state.issueScope = state.issueScope === 'mine' ? 'all' : 'mine'; render(); };
+
+    // Lista de equipos plegable en móvil
+    const setLegend = open => { $('#legend').classList.toggle('pop-open', open); $('#legend-btn').setAttribute('aria-expanded', String(open)); };
+    $('#legend-btn').onclick = e => { e.stopPropagation(); setLegend(!$('#legend').classList.contains('pop-open')); };
 
     // Calendario: bloques y huecos
     const cal = $('#calendar');
@@ -944,7 +1361,7 @@
         if (Math.hypot(ev.clientX - x0, ev.clientY - y0) < 8) return;
         window.removeEventListener('pointermove', mv);
         if (isCoord()) { toast('Activa «Modo edición» para mover las reservas'); $('.switch').classList.add('pulse'); setTimeout(() => $('.switch').classList.remove('pulse'), 1500); }
-        else { toast('Entra como coordinador para mover las reservas'); $('#login-btn').classList.add('pulse'); setTimeout(() => $('#login-btn').classList.remove('pulse'), 1500); }
+        else toast('Solo la coordinación puede mover reservas. Pulsa una reserva para ver su detalle.');
       };
       window.addEventListener('pointermove', mv);
       window.addEventListener('pointerup', () => window.removeEventListener('pointermove', mv), { once: true });
@@ -1041,34 +1458,61 @@
   // ================================================================
   //  Inicio
   // ================================================================
+  // Bloquea el zoom (pellizco, doble toque y Ctrl + rueda / teclas)
+  function lockZoom() {
+    ['gesturestart', 'gesturechange', 'gestureend'].forEach(ev => document.addEventListener(ev, e => e.preventDefault(), { passive: false }));
+    document.addEventListener('touchmove', e => { if (e.touches && e.touches.length > 1) e.preventDefault(); }, { passive: false });
+    let lastTouch = 0;
+    document.addEventListener('touchend', e => {
+      const now = Date.now();
+      if (now - lastTouch < 300 && !e.target.closest('input, select, textarea')) e.preventDefault();
+      lastTouch = now;
+    }, { passive: false });
+    window.addEventListener('wheel', e => { if (e.ctrlKey) e.preventDefault(); }, { passive: false });
+    window.addEventListener('keydown', e => { if ((e.ctrlKey || e.metaKey) && ['+', '-', '=', '0'].includes(e.key)) e.preventDefault(); });
+  }
+
   async function init() {
+    lockZoom();
     $('#club-name').textContent = CFG.CLUB_NAME || 'Campo';
+    $('#auth-club').textContent = CFG.CLUB_NAME || 'Campo';
     document.title = `${CFG.CLUB_NAME || 'Campo'} · Planificador`;
     fillTeamSelect();
     const m = location.hash.match(/semana=(\d{4}-\d{2}-\d{2})/);
     if (m) state.weekStart = mondayOf(parseKey(m[1]));
 
     const banner = $('#banner');
+    const showBanner = (html, error) => { banner.hidden = false; banner.classList.toggle('error', !!error); $('#banner-text').innerHTML = html; };
     try {
       store = CFG.SUPABASE_URL && CFG.SUPABASE_ANON_KEY ? await makeSupabaseStore() : makeLocalStore();
     } catch (e) {
-      banner.hidden = false; banner.classList.add('error');
-      banner.textContent = 'No se pudo conectar con Supabase (' + e.message + '). Se muestra el modo demo.';
+      showBanner('No se pudo conectar con la base de datos (' + esc(e.message) + '). Se muestra el modo demo.', true);
       store = makeLocalStore();
     }
-    if (store.mode === 'demo' && banner.hidden) {
-      banner.hidden = false;
-      banner.innerHTML = '<b>Modo demo:</b> los datos se guardan solo en este navegador. Rellena <code>SUPABASE_URL</code> y <code>SUPABASE_ANON_KEY</code> en <code>config.js</code> para compartirlos.';
-    }
-    try { applySession(await store.auth.current()); } catch { applySession(null); }
-    store.auth.onChange(async () => { try { applySession(await store.auth.current()); } catch { applySession(null); } render(); });
-    store.subscribe(() => { if (!drag) load(); });
+    let hidden = false; try { hidden = sessionStorage.getItem('banner-oculto') === '1'; } catch { }
+    if (store.mode === 'demo' && banner.hidden && !hidden) showBanner('<b>Modo demo:</b> los datos se guardan solo en este navegador.');
+
     bind();
-    render();
-    await load();
-    // Desplaza a la tarde (horario habitual de entrenos) en la primera carga
-    const wrap = $('#cal-wrap');
-    if (wrap.scrollHeight > wrap.clientHeight) wrap.scrollTop = Math.max(0, (toMin('16:30') - DAY_START) * PX);
+    bindAuth();
+    bindPeople();
+    store.auth.onChange(async ev => {
+      if (ev === 'PASSWORD_RECOVERY') { showAuth('reset'); return; }
+      if (ev === 'SIGNED_OUT') { applySession(null); showAuth('login'); return; }
+      if (ev === 'SIGNED_IN' && !appOpen && $('#auth-body').dataset.view === 'sent') await refreshSession();
+    });
+    store.subscribe(() => { if (!drag && appOpen) load(); });
+    // Cambios de perfiles: el coordinador ve solicitudes nuevas; el entrenador pendiente entra al ser aceptado
+    store.people.subscribe(async () => {
+      if (isCoord()) loadPeople();
+      if (!state.user) return;
+      const prev = JSON.stringify([state.profile?.status, state.profile?.role, state.profile?.teams]);
+      let s = null; try { s = await store.auth.current(); } catch { return; }
+      if (JSON.stringify([s?.profile?.status, s?.profile?.role, s?.profile?.teams]) === prev) return;
+      applySession(s);
+      if (appOpen && state.profile?.status === 'aprobado') { render(); toast('Tus permisos han cambiado'); if (isCoord()) loadPeople(); }
+      else route();
+    });
+    await refreshSession();
   }
 
   init();

@@ -3,14 +3,41 @@
 **En línea:** https://hectorest.github.io/horarios-cf-castalla/  
 **Base de datos:** proyecto Supabase `horarios-cf-castalla` (`wwkfaxrmmbptuithqpxn`, región París), ya creado y conectado en `config.js`.
 
-## Alta de coordinadores
+## Usuarios y acceso
 
-1. Supabase > **Authentication > Users > Add user > Create new user**: email y contraseña, marcando *Auto Confirm User*.
-2. Supabase > **SQL Editor**:
-   ```sql
-   update public.profiles set role = 'coordinador' where email = 'coordinador@ejemplo.com';
-   ```
-3. Esa persona entra en la web con «Acceso coordinador». Para quitarle permisos: `role = 'lector'`.
+Para usar la herramienta hay que **iniciar sesión**. Hay dos roles:
+
+- **Coordinador**: ve todo, edita el calendario y gestiona a los entrenadores.
+- **Entrenador**: ve el calendario de todos los equipos, pero en Incidencias solo le salen las de **sus equipos** (puede consultar las demás con un clic). No puede modificar nada.
+
+**Cómo se da de alta un entrenador**
+
+1. En la pantalla de inicio pulsa «Soy entrenador, quiero acceso» y rellena nombre, email, contraseña y los equipos que entrena.
+2. Su solicitud queda **pendiente**: no ve el calendario.
+3. El coordinador la ve en **Entrenadores** (con un número rojo), corrige los equipos si hace falta y pulsa **Aceptar** o **Rechazar**.
+4. Al aceptarla, al entrenador se le abre la herramienta sola, sin recargar.
+
+Desde **Entrenadores** el coordinador también puede cambiar equipos, nombrar a otro coordinador o quitar el acceso.
+
+**Primer coordinador** (solo una vez): regístrate desde la web como cualquier entrenador y ejecuta en Supabase > **SQL Editor**:
+
+```sql
+update public.profiles set role = 'coordinador', status = 'aprobado' where email = 'tu@email.com';
+```
+
+**Ajustes necesarios en Supabase > Authentication**
+
+| Ajuste | Valor | Por qué |
+|---|---|---|
+| *Sign In / Providers > Allow new users to sign up* | **Activado** | Es lo que permite pedir acceso desde la web. Nadie entra sin que el coordinador acepte. |
+| *Sign In / Providers > Email > Confirm email* | **Desactivado** (recomendado) | El correo integrado de Supabase solo envía a los miembros de tu organización de Supabase, así que los entrenadores no recibirían el correo de confirmación. La aprobación del coordinador ya hace de filtro. |
+| *URL Configuration > Site URL* | `https://hectorest.github.io/horarios-cf-castalla/` | Para los enlaces de los correos (recuperar contraseña). |
+
+> «He olvidado mi contraseña» envía un correo. Con el correo integrado de Supabase solo llega a direcciones de tu organización de Supabase. Para que llegue a cualquier entrenador, configura un SMTP propio en *Authentication > Emails > SMTP Settings* (por ejemplo, una cuenta de Gmail del club o Resend).
+
+## Tutorial
+
+Al entrar por primera vez se muestra un tutorial guiado adaptado al rol (también desde la pantalla de inicio, en «¿Cómo funciona la herramienta?», y desde el botón **?** o el menú de usuario). Los pasos están en `tutorial.js`. **Cada funcionalidad nueva debe añadir su paso** con un `since` mayor: quien ya vio el tutorial verá solo las novedades la próxima vez que entre.
 
 Herramienta web para organizar la ocupación semanal del campo de fútbol (lunes a domingo, 09:00–21:30) entre los 10 equipos del club. Es una página estática (HTML + CSS + JavaScript, sin compilación) pensada para alojarse en **GitHub Pages** y guardar los datos en **Supabase**.
 
@@ -24,10 +51,12 @@ Herramienta web para organizar la ocupación semanal del campo de fútbol (lunes
   - ⛔ Conflictos: dos reservas en la misma zona a la vez, un equipo en dos sitios a la vez, fuera del horario del campo, F11 sin campo entero, F8 en un cuarto, tecnificación con partido.
   - ½ Solapes entre entrenamientos: si dos entrenos coinciden un rato, comparten la zona del equipo que llega después, partida en dos (campo entero → una mitad cada uno; media → un cuarto cada uno). El calendario lo dibuja así y no cuenta como conflicto. Si el que llega después tiene un cuarto, si empiezan a la vez o si no queda sitio por un tercer equipo, sí es conflicto.
   - ⚠ Avisos: solape solo en el margen posterior, margen que pasa del cierre, entreno en un cuarto, dos entrenos el mismo día, entreno y partido el mismo día, F8 ocupando el campo entero.
-- **Roles**: cualquiera puede consultar (solo lectura). Un usuario **coordinador** inicia sesión y puede crear, editar, duplicar, eliminar, **arrastrar** bloques (día, hora y mitad), estirar la duración de un entreno y copiar los entrenos de la semana anterior. El interruptor «Modo edición» permite al coordinador consultar sin riesgo de mover nada.
+- **Roles**: el **coordinador** puede crear, editar, duplicar, eliminar, **arrastrar** bloques (día, hora y mitad), estirar la duración de un entreno y copiar los entrenos de la semana anterior. El interruptor «Modo edición» le permite consultar sin riesgo de mover nada. Los **entrenadores** consultan y ven las incidencias de sus equipos.
+- Pantalla de inicio de sesión, registro de entrenadores con aprobación y tutorial guiado.
+- Zoom bloqueado para que la herramienta se use como una app en el móvil.
 - Resumen semanal por equipo, filtro por equipo, impresión en A4 apaisado, enlace directo a una semana (`#semana=2026-10-26`) y actualización en vivo entre navegadores.
 
-Sin Supabase configurado funciona en **modo demo** (datos en el propio navegador, con una semana de ejemplo).
+Sin Supabase configurado funciona en **modo demo**: datos en el propio navegador, una semana de ejemplo y usuarios de prueba (coordinador, entrenadora y dos solicitudes pendientes).
 
 ## Archivos
 
@@ -35,7 +64,9 @@ Sin Supabase configurado funciona en **modo demo** (datos en el propio navegador
 |---|---|
 | `index.html` | Estructura de la página |
 | `styles.css` | Estilos |
-| `app.js` | Lógica: calendario, validaciones, arrastre, Supabase |
+| `app.js` | Lógica: calendario, validaciones, arrastre, acceso, entrenadores, Supabase |
+| `tutorial.js` | Pasos del tutorial guiado (añade aquí cada funcionalidad nueva) |
+| `CLAUDE.md` | Reglas para seguir desarrollando el proyecto |
 | `config.js` | **Lo que tienes que editar**: claves de Supabase, nombre del club, horario y equipos con sus duraciones |
 | `supabase/schema.sql` | Tablas, seguridad (RLS) y roles |
 
@@ -45,13 +76,9 @@ Sin Supabase configurado funciona en **modo demo** (datos en el propio navegador
 
 1. Crea un proyecto en [supabase.com](https://supabase.com).
 2. En **SQL Editor**, pega y ejecuta `supabase/schema.sql` entero.
-3. En **Authentication > Sign In / Providers**, desactiva *Allow new users to sign up* (así nadie puede registrarse por su cuenta).
-4. En **Authentication > Users > Add user**, crea cada coordinador con email y contraseña (marca *Auto Confirm User*).
-5. Dale el rol en el **SQL Editor**:
-   ```sql
-   update public.profiles set role = 'coordinador' where email = 'coordinador@miclub.com';
-   ```
-6. En **Project Settings > API** copia la *Project URL* y la clave *anon / publishable*.
+3. Aplica los ajustes de *Authentication* de la sección «Usuarios y acceso».
+4. Regístrate desde la web y hazte coordinador con el SQL de esa misma sección.
+5. En **Project Settings > API** copia la *Project URL* y la clave *anon / publishable*.
 
 ### 2. Configuración
 
@@ -63,7 +90,7 @@ SUPABASE_ANON_KEY: 'eyJhbGciOi...',   // clave anon/publishable (es pública por
 CLUB_NAME: 'CF Mi Club',
 ```
 
-> Nunca pongas aquí la clave `service_role`. La clave anon es segura porque las políticas RLS solo dejan escribir a los coordinadores.
+> Nunca pongas aquí la clave `service_role`. La clave anon es segura porque las políticas RLS solo dejan leer a usuarios aceptados y escribir a los coordinadores.
 
 ### 3. GitHub Pages
 

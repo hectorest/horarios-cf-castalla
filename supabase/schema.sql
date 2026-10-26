@@ -1,24 +1,27 @@
 -- ============================================================
---  Planificador de Campo · Esquema Supabase
---  Ejecuta este script completo en Supabase > SQL Editor.
---  Es idempotente: puedes volver a ejecutarlo sin perder datos.
+--  Planificador de Campo · Esquema Supabase (estado completo)
+--  Ejecuta este script entero en Supabase > SQL Editor para montar
+--  un proyecto desde cero. Es idempotente: se puede repetir.
 -- ============================================================
 
--- ---------- Perfiles y roles ----------
+-- ---------- Perfiles: entrenadores y coordinadores ----------
 create table if not exists public.profiles (
-  id         uuid primary key references auth.users(id) on delete cascade,
-  email      text,
-  role       text not null default 'lector' check (role in ('lector', 'coordinador')),
-  created_at timestamptz not null default now()
+  id              uuid primary key references auth.users(id) on delete cascade,
+  email           text,
+  full_name       text check (char_length(full_name) <= 80),
+  role            text not null default 'entrenador' check (role in ('entrenador', 'coordinador')),
+  status          text not null default 'pendiente' check (status in ('pendiente', 'aprobado', 'rechazado')),
+  teams           text[] not null default '{}',   -- equipos asignados (ids de config.js)
+  requested_teams text[] not null default '{}',   -- equipos que pidió al registrarse
+  created_at      timestamptz not null default now(),
+  reviewed_at     timestamptz,
+  reviewed_by     uuid references auth.users(id) on delete set null
 );
+create index if not exists profiles_reviewed_by_idx on public.profiles (reviewed_by);
+create index if not exists profiles_status_idx on public.profiles (status);
 alter table public.profiles enable row level security;
 
-drop policy if exists "Cada usuario ve su perfil" on public.profiles;
-create policy "Cada usuario ve su perfil" on public.profiles
-  for select to authenticated using (id = (select auth.uid()));
--- Nadie puede modificar perfiles desde la web: los roles se asignan por SQL (ver README).
-
--- ¿El usuario actual es coordinador?  (en un esquema privado, fuera de la API pública)
+-- ---------- Funciones de permisos (esquema privado, fuera de la API) ----------
 create schema if not exists private;
 revoke all on schema private from public, anon;
 grant usage on schema private to authenticated;
@@ -30,25 +33,47 @@ set search_path = ''
 as $$
   select exists (
     select 1 from public.profiles
-    where id = (select auth.uid()) and role = 'coordinador'
+    where id = (select auth.uid()) and role = 'coordinador' and status = 'aprobado'
   );
 $$;
 revoke all on function private.is_coordinator() from public, anon;
 grant execute on function private.is_coordinator() to authenticated;
 
--- Crea el perfil (rol lector) cuando se da de alta un usuario
+create or replace function private.is_approved()
+returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = (select auth.uid()) and status = 'aprobado'
+  );
+$$;
+revoke all on function private.is_approved() from public, anon;
+grant execute on function private.is_approved() to authenticated;
+
+-- ---------- Alta automática del perfil al registrarse (queda pendiente) ----------
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql security definer
 set search_path = ''
 as $$
+declare
+  t text[] := '{}';
 begin
-  insert into public.profiles (id, email) values (new.id, new.email)
+  if jsonb_typeof(new.raw_user_meta_data -> 'teams') = 'array' then
+    select coalesce(array_agg(x), '{}') into t
+    from (
+      select x from jsonb_array_elements_text(new.raw_user_meta_data -> 'teams') as x
+      where x ~ '^[a-z0-9-]{1,30}$' limit 12
+    ) s;
+  end if;
+  insert into public.profiles (id, email, full_name, requested_teams, teams)
+  values (new.id, new.email, left(nullif(trim(new.raw_user_meta_data ->> 'full_name'), ''), 80), t, t)
   on conflict (id) do nothing;
   return new;
 end;
 $$;
-
 revoke all on function public.handle_new_user() from public, anon, authenticated;
 
 drop trigger if exists on_auth_user_created on auth.users;
@@ -56,18 +81,34 @@ create trigger on_auth_user_created
   after insert on auth.users
   for each row execute function public.handle_new_user();
 
--- Perfiles para usuarios que ya existieran antes de este script
 insert into public.profiles (id, email)
 select id, email from auth.users
 on conflict (id) do nothing;
+
+-- Cada uno ve su perfil; el coordinador ve y gestiona todos.
+drop policy if exists "Ver perfiles" on public.profiles;
+create policy "Ver perfiles" on public.profiles
+  for select to authenticated
+  using (id = (select auth.uid()) or (select private.is_coordinator()));
+
+drop policy if exists "Coordinadores gestionan perfiles" on public.profiles;
+create policy "Coordinadores gestionan perfiles" on public.profiles
+  for update to authenticated
+  using ((select private.is_coordinator()))
+  with check ((select private.is_coordinator()));
+
+revoke all on public.profiles from anon;
+revoke update on public.profiles from authenticated;
+grant select on public.profiles to authenticated;
+grant update (full_name, role, status, teams, reviewed_at, reviewed_by) on public.profiles to authenticated;
 
 -- ---------- Reservas del campo ----------
 create table if not exists public.bookings (
   id           uuid primary key default gen_random_uuid(),
   day          date not null,
-  start_min    smallint not null check (start_min between 0 and 1439),   -- minutos desde 00:00 (entreno: inicio; partido: hora del saque, el calentamiento va antes)
-  duration_min smallint check (duration_min between 5 and 720),          -- solo entrenos; los partidos se calculan por equipo
-  team         text not null,                                            -- id del equipo (config.js)
+  start_min    smallint not null check (start_min between 0 and 1439),
+  duration_min smallint check (duration_min between 5 and 720),
+  team         text not null,
   kind         text not null check (kind in ('entreno', 'partido')),
   format       text check (format in ('F8', 'F11')),
   zone         text not null check (zone in ('full', 'A', 'B', 'A1', 'A2', 'B1', 'B2')),
@@ -79,6 +120,8 @@ create table if not exists public.bookings (
   constraint partido_con_formato check (kind <> 'partido' or format is not null),
   constraint entreno_con_duracion check (kind <> 'entreno' or duration_min is not null)
 );
+comment on column public.bookings.start_min is 'Minutos desde 00:00. Entreno: inicio. Partido: hora del saque (el calentamiento va antes).';
+comment on column public.bookings.duration_min is 'Solo entrenos; la duración de los partidos se calcula por equipo (config.js).';
 create index if not exists bookings_day_idx on public.bookings (day);
 create index if not exists bookings_updated_by_idx on public.bookings (updated_by);
 
@@ -100,9 +143,10 @@ create trigger bookings_touch
 
 alter table public.bookings enable row level security;
 
-drop policy if exists "Lectura pública" on public.bookings;
-create policy "Lectura pública" on public.bookings
-  for select to anon, authenticated using (true);
+-- Solo usuarios aceptados ven el calendario; solo coordinadores lo cambian.
+drop policy if exists "Usuarios aprobados leen" on public.bookings;
+create policy "Usuarios aprobados leen" on public.bookings
+  for select to authenticated using ((select private.is_approved()));
 
 drop policy if exists "Coordinadores crean" on public.bookings;
 create policy "Coordinadores crean" on public.bookings
@@ -116,24 +160,24 @@ drop policy if exists "Coordinadores eliminan" on public.bookings;
 create policy "Coordinadores eliminan" on public.bookings
   for delete to authenticated using ((select private.is_coordinator()));
 
--- Permisos de la API (RLS sigue filtrando fila a fila)
-grant select on public.bookings to anon, authenticated;
-grant insert, update, delete on public.bookings to authenticated;
-grant select on public.profiles to authenticated;
+revoke all on public.bookings from anon;
+grant select, insert, update, delete on public.bookings to authenticated;
 
 -- ---------- Tiempo real ----------
--- Para que todos los navegadores abiertos se actualicen al instante.
 do $$
 begin
-  if not exists (
-    select 1 from pg_publication_tables
-    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'bookings'
-  ) then
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'bookings') then
     alter publication supabase_realtime add table public.bookings;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'profiles') then
+    alter publication supabase_realtime add table public.profiles;
   end if;
 end $$;
 
 -- ============================================================
---  Dar rol de coordinador (ejecutar tras crear el usuario):
---    update public.profiles set role = 'coordinador' where email = 'persona@club.com';
+--  Primer coordinador (después de crear el usuario en Authentication
+--  o de registrarse desde la web):
+--    update public.profiles set role = 'coordinador', status = 'aprobado'
+--    where email = 'persona@club.com';
+--  El resto se gestiona desde la propia web («Entrenadores»).
 -- ============================================================

@@ -2,12 +2,12 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Planificador de Campo</title>
   <link rel="icon" type="image/png" href="assets/escudo-64.png">
   <link rel="stylesheet" href="styles.css">
 </head>
-<body>
+<body class="gated">
   <header class="topbar">
     <div class="brand">
       <img class="brand-crest" src="assets/escudo.png" alt="Escudo del Castalla C.F." width="38" height="54">
@@ -29,27 +29,45 @@
         <button data-view="week">Semana</button>
         <button data-view="day">Día</button>
       </div>
-      <span id="role-badge" class="role-badge"></span>
-      <button id="login-btn" class="ghost"></button>
+      <button id="people-btn" class="ghost people-btn" hidden>Entrenadores <span id="people-count"></span></button>
+      <button id="help-btn" class="icon-btn help-btn" title="Ver tutorial" aria-label="Ver tutorial">?</button>
+      <div class="user-menu">
+        <button id="user-btn" class="user-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="user-pop">
+          <span class="avatar" id="user-initials"></span><span class="user-name" id="user-name"></span><span class="avatar-dot" id="user-dot" hidden></span>
+        </button>
+        <div id="user-pop" class="user-pop" role="menu" hidden>
+          <div class="up-head">
+            <b id="up-name"></b>
+            <span id="up-email" class="up-email"></span>
+            <span id="up-role" class="role-badge"></span>
+          </div>
+          <div id="up-teams" class="up-teams"></div>
+          <button type="button" role="menuitem" id="m-people" hidden>Entrenadores y solicitudes <span id="m-people-count"></span></button>
+          <button type="button" role="menuitem" id="m-copy" hidden>Copiar entrenos de la semana anterior</button>
+          <button type="button" role="menuitem" id="m-help">Ver tutorial</button>
+          <button type="button" role="menuitem" id="m-logout">Cerrar sesión</button>
+        </div>
+      </div>
     </div>
   </header>
 
-  <div id="banner" class="banner" hidden></div>
+  <div id="banner" class="banner" hidden><span id="banner-text"></span><button type="button" id="banner-close" class="banner-close" aria-label="Ocultar aviso">×</button></div>
 
   <div class="toolbar">
+    <button type="button" id="legend-btn" class="ghost legend-btn" aria-expanded="false" aria-controls="legend"><span class="legend-btn-dot" id="legend-btn-dot"></span><span id="legend-btn-text">Equipos</span> ▾</button>
     <div id="legend" class="legend" aria-label="Filtrar por equipo"></div>
     <div class="toolbar-actions">
       <div class="coord-only" hidden>
         <label class="switch" title="Desactívalo para consultar sin riesgo de mover nada">
           <input type="checkbox" id="edit-toggle" checked>
           <span class="track"><span class="thumb"></span></span>
-          Modo edición
+          <span class="hide-sm">Modo edición</span><span class="show-sm">Editar</span>
         </label>
-        <button id="new-btn" class="primary edit-only">+ Nueva reserva</button>
-        <button id="copy-week-btn" class="ghost edit-only" title="Copia los entrenamientos de la semana anterior a esta">Copiar entrenos<span class="hide-sm"> sem. anterior</span></button>
+        <button id="new-btn" class="primary edit-only" aria-label="Nueva reserva">+<span class="hide-sm"> Nueva reserva</span></button>
+        <button id="copy-week-btn" class="ghost edit-only hide-mobile" title="Copia los entrenamientos de la semana anterior a esta">Copiar entrenos<span class="hide-sm"> sem. anterior</span></button>
       </div>
-      <button id="side-toggle" class="ghost side-toggle" aria-controls="side" aria-expanded="false">Incidencias <span id="side-toggle-count"></span></button>
-      <button id="print-btn" class="ghost" title="Imprimir la semana">Imprimir</button>
+      <button id="side-toggle" class="ghost side-toggle" aria-controls="side" aria-expanded="false"><span class="hide-sm">Incidencias</span><span class="show-sm">Avisos</span> <span id="side-toggle-count"></span></button>
+      <button id="print-btn" class="ghost hide-mobile" title="Imprimir la semana">Imprimir</button>
     </div>
   </div>
 
@@ -64,7 +82,8 @@
     <aside class="side" id="side">
       <button type="button" id="side-close" class="icon-btn side-close" aria-label="Cerrar panel">×</button>
       <section class="panel issues-panel">
-        <h2>Incidencias <span id="issue-count" class="count"></span></h2>
+        <h2><span id="issues-title">Incidencias</span> <span id="issue-count" class="count"></span></h2>
+        <button type="button" id="issue-scope" class="link issue-scope" hidden></button>
         <ul id="issues" class="issues"></ul>
       </section>
       <section class="panel tabs-panel">
@@ -176,21 +195,6 @@
     <div class="dlg-body" id="d-body"></div>
   </dialog>
 
-  <!-- Acceso -->
-  <dialog id="login-dialog" class="dialog narrow-dlg">
-    <form id="login-form" novalidate>
-      <header class="dlg-head">
-        <h3>Acceso coordinador</h3>
-        <button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button>
-      </header>
-      <div class="dlg-body" id="login-body"></div>
-      <footer class="dlg-foot">
-        <span class="spacer"></span>
-        <button type="button" class="ghost" data-close>Cancelar</button>
-        <button type="submit" class="primary">Entrar</button>
-      </footer>
-    </form>
-  </dialog>
 
   <!-- Confirmación -->
   <dialog id="confirm-dialog" class="dialog narrow-dlg">
@@ -199,10 +203,40 @@
     <footer class="dlg-foot"><span class="spacer"></span><button type="button" class="ghost" data-close>Cancelar</button><button type="button" id="c-ok" class="primary">Continuar</button></footer>
   </dialog>
 
+  <!-- Pantalla de acceso (inicio de sesión / registro) -->
+  <div id="auth" class="auth" hidden>
+    <div class="auth-card">
+      <div class="auth-brand">
+        <img src="assets/escudo.png" alt="Escudo del Castalla C.F." class="auth-crest" width="69" height="96">
+        <div>
+          <h1 id="auth-club">Castalla C.F.</h1>
+          <p>Planificador del campo</p>
+        </div>
+      </div>
+      <div id="auth-body" class="auth-body"></div>
+    </div>
+    <p class="auth-foot"><button type="button" id="auth-tour" class="link">¿Cómo funciona la herramienta?</button></p>
+  </div>
+
+  <!-- Entrenadores y solicitudes (coordinador) -->
+  <dialog id="people-dialog" class="dialog wide-dlg">
+    <header class="dlg-head">
+      <h3>Entrenadores</h3>
+      <button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button>
+    </header>
+    <div class="people-tabs ptabs" role="tablist" id="people-tabs">
+      <button type="button" role="tab" data-pt="pendiente" class="on">Solicitudes <span id="pt-pend"></span></button>
+      <button type="button" role="tab" data-pt="aprobado">Con acceso</button>
+      <button type="button" role="tab" data-pt="rechazado">Rechazados</button>
+    </div>
+    <div class="people-body" id="people-body"></div>
+  </dialog>
+
   <div id="drag-tip" class="drag-tip" hidden></div>
   <div id="toast" class="toast" role="status"></div>
 
   <script src="config.js"></script>
+  <script src="tutorial.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
