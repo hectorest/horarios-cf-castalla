@@ -288,6 +288,52 @@ revoke all on public.match_proposals from anon;
 grant select, insert, delete on public.match_proposals to authenticated;
 grant update (status, resolved_at) on public.match_proposals to authenticated;
 
+-- ---------- Solapes partido–entreno asumidos ----------
+create table if not exists public.overlap_acks (
+  id           uuid primary key default gen_random_uuid(),
+  entreno_id   uuid not null references public.bookings(id) on delete cascade,
+  partido_id   uuid not null references public.bookings(id) on delete cascade,
+  entreno_sig  text not null check (char_length(entreno_sig) <= 60),   -- día|inicio|duración|zona al asumirlo
+  partido_sig  text not null check (char_length(partido_sig) <= 60),
+  author_name  text check (char_length(author_name) <= 80),
+  created_by   uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at   timestamptz not null default now(),
+  constraint overlap_acks_unicos unique (entreno_id, partido_id, entreno_sig, partido_sig)
+);
+create index if not exists overlap_acks_partido_idx on public.overlap_acks (partido_id);
+create index if not exists overlap_acks_created_by_idx on public.overlap_acks (created_by);
+alter table public.overlap_acks enable row level security;
+
+-- Coordinador o entrenador de cualquiera de los dos equipos
+create or replace function private.can_ack(p_entreno uuid, p_partido uuid)
+returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1
+    from public.bookings e
+    join public.bookings m on m.id = p_partido and m.kind = 'partido'
+    join public.profiles p on p.id = (select auth.uid())
+    where e.id = p_entreno and e.kind = 'entreno' and e.day = m.day and p.status = 'aprobado'
+      and (p.role = 'coordinador' or e.team = any (p.teams) or m.team = any (p.teams))
+  );
+$$;
+revoke all on function private.can_ack(uuid, uuid) from public, anon;
+grant execute on function private.can_ack(uuid, uuid) to authenticated;
+
+drop policy if exists "Aprobados ven solapes asumidos" on public.overlap_acks;
+create policy "Aprobados ven solapes asumidos" on public.overlap_acks
+  for select to authenticated using ((select private.is_approved()));
+drop policy if exists "Entrenadores implicados asumen" on public.overlap_acks;
+create policy "Entrenadores implicados asumen" on public.overlap_acks
+  for insert to authenticated with check (private.can_ack(entreno_id, partido_id) and created_by = (select auth.uid()));
+drop policy if exists "Quitar solape asumido" on public.overlap_acks;
+create policy "Quitar solape asumido" on public.overlap_acks
+  for delete to authenticated using ((select private.is_coordinator()) or created_by = (select auth.uid()));
+revoke all on public.overlap_acks from anon, authenticated;
+grant select, insert, delete on public.overlap_acks to authenticated;
+
 -- ---------- Horario habitual (semana tipo de entrenamientos) ----------
 create table if not exists public.schedule_template (
   id           uuid primary key default gen_random_uuid(),
@@ -472,6 +518,9 @@ begin
   end if;
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'match_proposals') then
     alter publication supabase_realtime add table public.match_proposals;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'overlap_acks') then
+    alter publication supabase_realtime add table public.overlap_acks;
   end if;
 end $$;
 

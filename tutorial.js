@@ -156,6 +156,11 @@ window.TUTORIAL_STEPS = [
     body: 'Las incidencias salen agrupadas: primero los <b>conflictos</b> (lo que no puede ser), luego avisos, pendientes y cambios. El <b>reparto del campo en entrenamientos</b> (tramos compartidos y entrenos en un cuarto) va al final, plegado; ábrelo si lo necesitas. Cuando dos entrenos comparten, cada equipo conserva su zona y solo gana o pierde campo, sin saltar de un lado a otro.',
   },
   {
+    id: 'asumir-solape', since: 9, target: '.issues-panel, #side-toggle',
+    title: 'Asumir un solape con un partido',
+    body: 'Si un partido se solapa con un entreno y lo tenéis en cuenta, pulsa <b>Asumir</b> en la incidencia (o en el detalle de la reserva). Pueden hacerlo los entrenadores de los dos equipos y la coordinación. Deja de contar como conflicto y pasa a «Solapes asumidos» con el nombre de quien lo asumió. Si después cambia la hora o la zona de alguno, vuelve a ser conflicto.',
+  },
+  {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',
     title: 'Volver a ver esta guía',
     body: 'Puedes repetir el tutorial cuando quieras desde aquí. Cuando añadamos funciones nuevas, te las enseñaremos al entrar.',

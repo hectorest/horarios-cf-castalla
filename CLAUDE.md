@@ -13,6 +13,7 @@ Web estática (HTML + CSS + JS sin compilación) en GitHub Pages, con datos en S
 - **Tipos de reserva**: `entreno`, `partido` y `evento` (extraordinaria: `team` nulo, `title` obligatorio, ocupa campo). Usa `whoOf(b)` en lugar de `teamOf(b.team)` para nombre y color de cualquier reserva.
 - **Partidos**: `confirmed` y `observations` en `bookings`; propuestas en `match_proposals` (las pueden crear el coordinador y los entrenadores del equipo vía `private.can_propose`; solo el coordinador las resuelve).
 - **Horario federativo**: franjas de saque por categoría en `config.js > FED_WINDOWS` (equipos con `fed`). Fuera de franja, `bookings.rival_status` (pendiente/aprobado/rechazado); vuelve a `pendiente` si cambia día u hora.
+- **Solapes asumidos**: `overlap_acks` (partido–entreno); valen solo mientras coincidan las firmas `ackSig` de ambas reservas. Pueden asumirlos el coordinador y los entrenadores de cualquiera de los dos equipos (`private.can_ack`).
 - **Horarios**: todo en tramos de 15 minutos. En partidos, `start_min` es la hora del saque; el calentamiento se dibuja antes.
 - **Móvil**: la página no hace scroll; solo se desplaza el calendario. El zoom está bloqueado. Comprueba cada cambio también a ~390 px de ancho.
 - **Publicar**: antes de cada commit que cambie la web, ejecuta `./release.sh` (actualiza `version.txt`, `APP_VERSION` y los `?v=` de `index.html`). Así los navegadores no mezclan archivos viejos y nuevos, y las pestañas abiertas se recargan solas.

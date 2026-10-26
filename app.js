@@ -234,6 +234,7 @@
           const where = lanesName([...shared].sort());
           if (core) add('error', `Conflicto: ${na} y ${nb} coinciden en ${where} (${fmt(from)}–${fmt(to)})`, [a, b], from);
           else add('warn', `${na} y ${nb} solo coinciden en el margen posterior (${fmt(from)}–${fmt(to)}, ${where})`, [a, b], from);
+          all[all.length - 1].overlap = true;   // solape entre dos reservas distintas (se puede asumir si es partido–entreno)
         }
       }
     }
@@ -254,13 +255,16 @@
     return { byId, all, pieces };
   }
 
-  const ICON = { error: '⛔', warn: '⚠', info: '½', change: '↻', pending: '?' };
+  const ICON = { error: '⛔', warn: '⚠', info: '½', change: '↻', pending: '?', ack: '✓' };
   const pendingProps = id => (state.proposals.get(id) || []).filter(p => p.status === 'pendiente');
   // Los avisos «menores» (reparto del campo en entrenos) no marcan los bloques
   const worstLevel = issues => issues.some(i => i.level === 'error') ? 'error' : issues.some(i => i.level === 'warn' && !i.minor) ? 'warn' : '';
   /** Grupo de importancia de una incidencia: 0 conflictos … 4 reparto del campo en entrenos */
-  const ISSUE_GROUPS = ['Conflictos', 'Avisos', 'Pendientes', 'Cambios respecto a lo habitual', 'Reparto del campo en entrenamientos'];
-  const issueGroup = it => it.level === 'error' ? 0 : it.level === 'warn' ? (it.minor ? 4 : 1) : it.level === 'pending' ? 2 : it.level === 'change' ? 3 : 4;
+  const ISSUE_GROUPS = ['Conflictos', 'Avisos', 'Pendientes', 'Cambios respecto a lo habitual', 'Solapes asumidos', 'Reparto del campo en entrenamientos'];
+  const MINOR_GROUP = 5;
+  const issueGroup = it => it.level === 'error' ? 0 : it.level === 'warn' ? (it.minor ? MINOR_GROUP : 1) : it.level === 'pending' ? 2 : it.level === 'change' ? 3 : it.level === 'ack' ? 4 : MINOR_GROUP;
+  /** Firma de una reserva para saber si un solape asumido sigue siendo el mismo */
+  const ackSig = b => `${b.day}|${b.start_min}|${b.duration_min || ''}|${b.zone}`;
 
   /** Normaliza una reserva antes de guardarla. */
   function cleanRow(b) {
@@ -321,6 +325,7 @@
     const setSid = v => { sid = v; try { v ? sessionStorage.setItem(SKEY, v) : sessionStorage.removeItem(SKEY); } catch { } };
     const sessionOf = u => u ? { user: { id: u.id, email: u.email }, profile: { full_name: u.full_name, role: u.role, status: u.status, teams: u.teams || [], requested_teams: u.requested_teams || [] } } : null;
     const PKEY = 'planificador-campo-demo-proposals-v1';
+    const AKEY = 'planificador-campo-demo-acks-v1';
     const props = () => ls.get(PKEY) || [];
     const writeProps = a => ls.set(PKEY, a);
     const IKEY = 'planificador-campo-demo-invites-v1';
@@ -360,6 +365,12 @@
         let n = 0;
         write(read().map(b => b.kind === 'partido' && !b.confirmed && b.day >= from && b.day <= to ? (n++, { ...b, confirmed: true }) : b));
         return n;
+      },
+      acks: {
+        async list(ids) { return (ls.get(AKEY) || []).filter(a => ids.includes(a.entreno_id)); },
+        async add(r) { const a = { ...r, id: uid(), created_by: sid, created_at: new Date().toISOString() }; ls.set(AKEY, [...(ls.get(AKEY) || []), a]); return a; },
+        async remove(id) { ls.set(AKEY, (ls.get(AKEY) || []).filter(a => a.id !== id)); },
+        subscribe() { },
       },
       proposals: {
         async list(ids) { return props().filter(p => ids.includes(p.booking_id)).map(p => ({ ...p })); },
@@ -509,6 +520,20 @@
       async confirmMatches(from, to) {
         return chk(await sb.from(T).update({ confirmed: true }).eq('kind', 'partido').eq('confirmed', false).gte('day', from).lte('day', to).select('id')).length;
       },
+      acks: {
+        async list(ids) {
+          if (!ids.length) return [];
+          return chk(await sb.from('overlap_acks').select('id, entreno_id, partido_id, entreno_sig, partido_sig, author_name, created_by, created_at').in('entreno_id', ids));
+        },
+        async add(r) { return chk(await sb.from('overlap_acks').insert(r).select().single()); },
+        async remove(id) {
+          const rows = chk(await sb.from('overlap_acks').delete().eq('id', id).select('id'));
+          if (!rows.length) throw new Error('Solo puede deshacerlo quien lo asumió o la coordinación.');
+        },
+        subscribe(cb) {
+          sb.channel('acks-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'overlap_acks' }, debounce(cb)).subscribe();
+        },
+      },
       proposals: {
         async list(ids) {
           if (!ids.length) return [];
@@ -657,6 +682,8 @@
     template: [],
     weekGenerated: false,
     proposals: new Map(),   // id de partido → propuestas de horario
+    acks: [],               // solapes partido–entreno asumidos
+    summaryOpen: false,     // móvil: resumen y leyenda desplegados
     issueScope: 'mine',
     minorOpen: false,     // grupo «reparto del campo en entrenamientos» desplegado  // entrenadores: 'mine' | 'all'
     edit: true,
@@ -757,8 +784,48 @@
     return full;
   }
 
+  /** Solapes partido–entreno asumidos: dejan de ser conflicto mientras no cambien los horarios */
+  function applyAcks(full) {
+    if (isTpl()) return full;
+    const bk = new Map(state.bookings.map(b => [b.id, b]));
+    for (const it of full.all) {
+      if (!it.overlap || it.ids.length !== 2) continue;
+      const [x, y] = it.ids.map(id => bk.get(id)); if (!x || !y) continue;
+      const e = [x, y].find(b => b.kind === 'entreno'), m = [x, y].find(b => b.kind === 'partido');
+      if (!e || !m) continue;
+      it.pair = { e: e.id, m: m.id, teams: [e.team, m.team] };
+      const a = state.acks.find(k => k.entreno_id === e.id && k.partido_id === m.id && k.entreno_sig === ackSig(e) && k.partido_sig === ackSig(m));
+      if (a) { it.level = 'ack'; it.ack = a; it.msg = it.msg.replace(/^Conflicto: /, '') + ` · asumido por ${a.author_name || 'un entrenador'}`; }
+    }
+    return full;
+  }
+
+  const canAck = it => it.pair && (isCoord() || it.pair.teams.some(t => isMine(t)));
+  function ackButton(it) {
+    if (!it.pair) return '';
+    if (it.level === 'ack') return (isCoord() || it.ack.created_by === state.user?.id) ? `<button type="button" class="link ack-btn" data-ack="del" data-id="${esc(it.ack.id)}">Deshacer</button>` : '';
+    return canAck(it) ? `<button type="button" class="ghost ack-btn" data-ack="add" data-e="${esc(it.pair.e)}" data-m="${esc(it.pair.m)}" title="Indica que lo tenéis en cuenta">Asumir</button>` : '';
+  }
+
+  async function onAck(btn) {
+    const bk = id => state.bookings.find(b => b.id === id);
+    try {
+      if (btn.dataset.ack === 'add') {
+        const e = bk(btn.dataset.e), m = bk(btn.dataset.m); if (!e || !m) return;
+        await store.acks.add({ entreno_id: e.id, partido_id: m.id, entreno_sig: ackSig(e), partido_sig: ackSig(m), author_name: displayName().slice(0, 80) || null });
+        toast('Solape asumido: ya no cuenta como conflicto');
+      } else {
+        await store.acks.remove(btn.dataset.id);
+        toast('El solape vuelve a contar como conflicto');
+      }
+      const openDetailId = $('#detail-dialog').open && $('#detail-dialog').dataset.id;
+      await load();
+      if (openDetailId) { const b = bk(openDetailId); if (b) { $('#detail-dialog').close(); openDetail(b); } }
+    } catch (ex) { toast('No se pudo guardar: ' + ex.message, true); }
+  }
+
   function render() {
-    state.issues = scopeIssues(addChanges(computeIssues(state.bookings)));
+    state.issues = scopeIssues(applyAcks(addChanges(computeIssues(state.bookings))));
     renderHeader();
     renderLegend();
     renderDayTabs();
@@ -1008,16 +1075,17 @@
     const all = state.issues.all;
     const cnt = l => all.filter(i => i.level === l).length;
     const ne = cnt('error'), nw = all.filter(i => i.level === 'warn' && !i.minor).length, nc = cnt('change'), np = cnt('pending');
-    const nm = all.filter(i => issueGroup(i) === 4).length;
+    const nm = all.filter(i => issueGroup(i) === MINOR_GROUP).length;
     $('#issue-count').innerHTML = `${ne ? `<span class="pill err">${ne} conflicto${ne > 1 ? 's' : ''}</span>` : ''}${nw ? `<span class="pill warn">${nw} aviso${nw > 1 ? 's' : ''}</span>` : ''}${np ? `<span class="pill pend">${np} pendiente${np > 1 ? 's' : ''}</span>` : ''}${nc ? `<span class="pill chg">${nc} cambio${nc > 1 ? 's' : ''}</span>` : ''}`;
     $('#side-toggle-count').innerHTML = ne ? `<span class="pill err">${ne}</span>` : nw ? `<span class="pill warn">${nw}</span>` : '';
     // Agrupadas por importancia; dentro de cada grupo, por día y hora
-    const item = (it, n) => `<li class="${it.level}${it.minor ? ' minor' : ''}" data-n="${n}" tabindex="0"><span class="ic">${{ info: '½', change: '↻', pending: '?' }[it.level] || '!'}</span><div><span class="when">${dayText(it.day)} · ${fmt(it.at)}</span>${esc(it.msg)}</div></li>`;
+    const item = (it, n) => `<li class="${it.level}${it.minor ? ' minor' : ''}" data-n="${n}" tabindex="0"><span class="ic">${{ info: '½', change: '↻', pending: '?', ack: '✓' }[it.level] || '!'}</span><div><span class="when">${dayText(it.day)} · ${fmt(it.at)}</span>${esc(it.msg)}${ackButton(it)}</div></li>`;
     const groups = ISSUE_GROUPS.map((title, g) => ({ title, g, items: all.map((it, n) => [it, n]).filter(([it]) => issueGroup(it) === g) })).filter(x => x.items.length);
-    const major = groups.filter(x => x.g < 4);
-    const minorG = groups.find(x => x.g === 4);
-    let html = major.map(x => `<li class="ig-head g${x.g}">${x.title} <span>${x.items.length}</span></li>` + x.items.map(([it, n]) => item(it, n)).join('')).join('');
-    if (!major.length) html += `<li class="empty">${myTeams() && state.issueScope === 'mine' ? 'Tus equipos no tienen conflictos ni avisos esta semana ✓' : 'Sin conflictos ni avisos esta semana ✓'}</li>`;
+    const major = groups.filter(x => x.g < MINOR_GROUP);
+    const minorG = groups.find(x => x.g === MINOR_GROUP);
+    let html = '';
+    if (!major.some(x => x.g < 4)) html += `<li class="empty">${myTeams() && state.issueScope === 'mine' ? 'Tus equipos no tienen conflictos ni avisos esta semana ✓' : 'Sin conflictos ni avisos esta semana ✓'}</li>`;
+    html += major.map(x => `<li class="ig-head g${x.g}">${x.title} <span>${x.items.length}</span></li>` + x.items.map(([it, n]) => item(it, n)).join('')).join('');
     if (minorG) html += `<li class="ig-head g4 ig-toggle" data-minor tabindex="0" aria-expanded="${state.minorOpen ? 'true' : 'false'}">${state.minorOpen ? '▾' : '▸'} ${minorG.title} <span>${minorG.items.length}</span></li>`
       + (state.minorOpen ? minorG.items.map(([it, n]) => item(it, n)).join('') : '');
     $('#issues').innerHTML = html;
@@ -1061,6 +1129,7 @@
         state.bookings = bk; state.template = tp; state.weekGenerated = gen;
         const ids = bk.filter(b => b.kind === 'partido').map(b => b.id);
         const ps = await store.proposals.list(ids).catch(() => []);
+        state.acks = await store.acks.list(bk.filter(b => b.kind === 'entreno').map(b => b.id)).catch(() => []);
         state.proposals = new Map();
         for (const p of ps) { if (!state.proposals.has(p.booking_id)) state.proposals.set(p.booking_id, []); state.proposals.get(p.booking_id).push(p); }
       }
@@ -1447,9 +1516,10 @@
     if (b.notes) rows.push(['Notas', b.notes]);
     if (b.kind === 'partido' && b.observations) rows.push(['Observaciones', b.observations]);
     $('#d-body').innerHTML = `<dl class="detail-rows">${rows.map(([a, v]) => `<dt>${esc(a)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
-      ${issues.length ? `<ul class="pv-issues">${issues.map(i => `<li class="${i.level}">${ICON[i.level]} ${esc(i.msg)}</li>`).join('')}</ul>` : ''}
+      ${issues.length ? `<ul class="pv-issues">${issues.map(i => `<li class="${i.level}">${ICON[i.level]} ${esc(i.msg)}${ackButton(i)}</li>`).join('')}</ul>` : ''}
       ${b.kind === 'partido' ? '<div class="field"><span class="lbl">Propuestas de horario</span><div id="d-props" class="props-box"></div></div>' : ''}`;
     if (b.kind === 'partido') renderProposals($('#d-props'), b, false);
+    $('#detail-dialog').dataset.id = b.id;
     $('#detail-dialog').showModal();
     $('#d-body').scrollTop = 0;
   }
@@ -2126,6 +2196,12 @@
       $('#side-backdrop').hidden = !open;
       $('#side-toggle').setAttribute('aria-expanded', String(open));
     };
+    $('#summary-toggle').onclick = () => {
+      state.summaryOpen = !state.summaryOpen;
+      $('#side').classList.toggle('show-summary', state.summaryOpen);
+      $('#summary-toggle').setAttribute('aria-expanded', String(state.summaryOpen));
+      $('#summary-toggle').textContent = state.summaryOpen ? 'Ocultar resumen y leyenda' : 'Ver resumen y leyenda';
+    };
     $('#side-toggle').onclick = () => setSide(!$('#side').classList.contains('open'));
     $('#side-close').onclick = () => setSide(false);
     $('#side-backdrop').onclick = () => setSide(false);
@@ -2133,6 +2209,7 @@
     // Incidencias
     $('#issues').addEventListener('click', e => {
       if (e.target.closest('[data-minor]')) { state.minorOpen = !state.minorOpen; renderIssues(); return; }
+      const ab = e.target.closest('[data-ack]'); if (ab) { onAck(ab); return; }
       const li = e.target.closest('li[data-n]'); if (!li) return;
       setSide(false);
       const it = state.issues.all[+li.dataset.n]; if (!it) return;
@@ -2187,6 +2264,7 @@
     document.addEventListener('change', e => {
       if (e.target.matches('[data-pf=slot]')) e.target.parentElement.querySelector('[data-pf=time]').hidden = e.target.value !== 'exact';
     });
+    $('#detail-dialog').addEventListener('click', e => { const ab = e.target.closest('[data-ack]'); if (ab) onAck(ab); });
     $('#detail-dialog').addEventListener('click', e => { const box = e.target.closest('#d-props'); if (box) onProposalClick({ currentTarget: box, target: e.target }); });
     $('#confirm-week').onclick = confirmWeekMatches;
     $('#m-confirm').onclick = confirmWeekMatches;
@@ -2236,7 +2314,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261026112410';
+  const APP_VERSION = '20261026130943';
   async function checkVersion() {
     if (store?.mode === 'demo') return;
     try {
@@ -2286,6 +2364,7 @@
     store.subscribe(() => { if (!drag && appOpen) load(); });
     store.template.subscribe(() => { if (!drag && appOpen) load(); });
     store.proposals.subscribe(() => { if (!drag && appOpen) load(); });
+    store.acks.subscribe(() => { if (!drag && appOpen) load(); });
     // Cambios de perfiles: el coordinador ve solicitudes nuevas; el entrenador pendiente entra al ser aceptado
     store.people.subscribe(async () => {
       if (isCoord()) loadPeople();

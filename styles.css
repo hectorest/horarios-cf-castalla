@@ -669,3 +669,22 @@ button.danger-link { color: var(--err); }
   .prop-form input[data-pf=reason], .prop-form button { grid-column: 1 / -1; }
   .detail-rows { grid-template-columns: minmax(90px, auto) 1fr; }
 }
+
+/* ---------- Solapes asumidos ---------- */
+.issues li.ack { background: #eef6f0; }
+.issues li.ack .ic { background: var(--pitch-dark); }
+.issues li.ig-head.g4 { color: var(--pitch-dark); }
+.ack-btn { display: inline-block; margin-top: 4px; padding: 2px 9px; font-size: 12px; border-radius: 99px; }
+.issues li .ack-btn { margin-left: 0; }
+.issues li div .ack-btn { display: block; width: max-content; }
+.pv-issues li .ack-btn { margin-left: 8px; }
+.pv-issues li.ack { background: #eef6f0; color: var(--pitch-dark); }
+
+/* ---------- Móvil: incidencias primero, resumen plegado ---------- */
+.summary-toggle { display: none; }
+@media (max-width: 1000px) {
+  .summary-toggle { display: block; flex: none; width: 100%; padding: 8px; font-size: 13px; }
+  .side:not(.show-summary) > .tabs-panel { display: none; }
+  .side > .issues-panel { flex: 1 1 auto; }
+  .side.show-summary > .issues-panel { flex: 1 1 40%; }
+}

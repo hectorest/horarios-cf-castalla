@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Planificador de Campo</title>
   <link rel="icon" type="image/png" href="assets/escudo-64.png">
-  <link rel="stylesheet" href="styles.css?v=20261026112410">
+  <link rel="stylesheet" href="styles.css?v=20261026130943">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -97,7 +97,8 @@
         <button type="button" id="confirm-week" class="ghost confirm-week" hidden></button>
         <ul id="issues" class="issues"></ul>
       </section>
-      <section class="panel tabs-panel">
+      <button type="button" id="summary-toggle" class="ghost summary-toggle" aria-expanded="false" aria-controls="tabs-panel">Ver resumen y leyenda</button>
+      <section class="panel tabs-panel" id="tabs-panel">
         <div class="ptabs" role="tablist" aria-label="Información de la semana">
           <button type="button" role="tab" id="tab-summary" class="on" data-tab="summary" aria-selected="true" aria-controls="pane-summary">Resumen</button>
           <button type="button" role="tab" id="tab-key" data-tab="key" aria-selected="false" aria-controls="pane-key">Cómo leer</button>
@@ -296,8 +297,8 @@
   <div id="drag-tip" class="drag-tip" hidden></div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261026112410"></script>
-  <script src="tutorial.js?v=20261026112410"></script>
-  <script src="app.js?v=20261026112410"></script>
+  <script src="config.js?v=20261026130943"></script>
+  <script src="tutorial.js?v=20261026130943"></script>
+  <script src="app.js?v=20261026130943"></script>
 </body>
 </html>
