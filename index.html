@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Planificador de Campo</title>
+  <link rel="icon" type="image/png" href="assets/escudo-64.png">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <img class="brand-crest" src="assets/escudo.png" alt="Escudo del Castalla C.F." width="38" height="54">
+      <div>
+        <h1 id="club-name">Campo</h1>
+        <p>Distribución semanal del campo</p>
+      </div>
+    </div>
+
+    <nav class="week-nav" aria-label="Navegar semanas">
+      <button id="prev-week" class="icon-btn" title="Semana anterior" aria-label="Semana anterior">‹</button>
+      <button id="today-btn" class="ghost">Hoy</button>
+      <button id="next-week" class="icon-btn" title="Semana siguiente" aria-label="Semana siguiente">›</button>
+      <span id="week-label" class="week-label"></span>
+    </nav>
+
+    <div class="top-right">
+      <div class="segmented" id="view-toggle" role="group" aria-label="Vista">
+        <button data-view="week">Semana</button>
+        <button data-view="day">Día</button>
+      </div>
+      <span id="role-badge" class="role-badge"></span>
+      <button id="login-btn" class="ghost"></button>
+    </div>
+  </header>
+
+  <div id="banner" class="banner" hidden></div>
+
+  <div class="toolbar">
+    <div id="legend" class="legend" aria-label="Filtrar por equipo"></div>
+    <div class="toolbar-actions">
+      <div class="coord-only" hidden>
+        <label class="switch" title="Desactívalo para consultar sin riesgo de mover nada">
+          <input type="checkbox" id="edit-toggle" checked>
+          <span class="track"><span class="thumb"></span></span>
+          Modo edición
+        </label>
+        <button id="new-btn" class="primary edit-only">+ Nueva reserva</button>
+        <button id="copy-week-btn" class="ghost edit-only" title="Copia los entrenamientos de la semana anterior a esta">Copiar entrenos<span class="hide-sm"> sem. anterior</span></button>
+      </div>
+      <button id="side-toggle" class="ghost side-toggle" aria-controls="side" aria-expanded="false">Incidencias <span id="side-toggle-count"></span></button>
+      <button id="print-btn" class="ghost" title="Imprimir la semana">Imprimir</button>
+    </div>
+  </div>
+
+  <div id="day-tabs" class="day-tabs" hidden></div>
+
+  <main class="layout">
+    <section class="cal-wrap" id="cal-wrap">
+      <div id="calendar" class="calendar" aria-live="polite"></div>
+    </section>
+
+    <div id="side-backdrop" class="side-backdrop" hidden></div>
+    <aside class="side" id="side">
+      <button type="button" id="side-close" class="icon-btn side-close" aria-label="Cerrar panel">×</button>
+      <section class="panel issues-panel">
+        <h2>Incidencias <span id="issue-count" class="count"></span></h2>
+        <ul id="issues" class="issues"></ul>
+      </section>
+      <section class="panel tabs-panel">
+        <div class="ptabs" role="tablist" aria-label="Información de la semana">
+          <button type="button" role="tab" id="tab-summary" class="on" data-tab="summary" aria-selected="true" aria-controls="pane-summary">Resumen</button>
+          <button type="button" role="tab" id="tab-key" data-tab="key" aria-selected="false" aria-controls="pane-key">Cómo leer</button>
+        </div>
+        <div class="panes">
+          <div class="tabpane on" id="pane-summary" role="tabpanel" aria-labelledby="tab-summary">
+            <table id="summary" class="summary"></table>
+          </div>
+          <div class="tabpane key" id="pane-key" role="tabpanel" aria-labelledby="tab-key">
+            <ul class="key-list">
+              <li><span class="sw sw-training"></span>Entreno</li>
+              <li><span class="sw sw-warmup"></span>Calentamiento</li>
+              <li><span class="sw sw-half"></span>Partido</li>
+              <li><span class="sw sw-break"></span>Descanso</li>
+              <li><span class="sw sw-margin"></span>Margen</li>
+              <li><span class="sw sw-shared"></span>Compartido</li>
+              <li><span class="sw sw-err"></span>Conflicto</li>
+              <li><span class="sw sw-warn"></span>Aviso</li>
+            </ul>
+            <p class="hint">Cada día se divide en 4 carriles: <b>A1 A2</b> forman la mitad A y <b>B1 B2</b> la mitad B. F11 ocupa el campo entero; F8, una mitad. Si dos entrenos se solapan, comparten la zona del que llega después.</p>
+            <p class="hint edit-hint" hidden>Arrastra un bloque para moverlo de día, hora o mitad. Tira del borde inferior de un entreno para cambiar su duración. Haz clic en un hueco para crear una reserva.</p>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <!-- Editor de reservas -->
+  <dialog id="booking-dialog" class="dialog">
+    <form method="dialog" id="booking-form" novalidate>
+      <header class="dlg-head">
+        <h3 id="f-title">Nueva reserva</h3>
+        <button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button>
+      </header>
+      <div class="dlg-body">
+        <div class="field full">
+          <label for="f-team">Equipo</label>
+          <select id="f-team" required></select>
+        </div>
+
+        <div class="field">
+          <span class="lbl">Tipo</span>
+          <div class="segmented small" id="f-kind">
+            <button type="button" data-v="entreno">Entrenamiento</button>
+            <button type="button" data-v="partido">Partido</button>
+          </div>
+        </div>
+
+        <div class="field match-only">
+          <span class="lbl">Formato</span>
+          <div class="segmented small" id="f-format">
+            <button type="button" data-v="F11">F11</button>
+            <button type="button" data-v="F8">F8</button>
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="f-date">Fecha</label>
+          <input type="date" id="f-date" required>
+        </div>
+
+        <div class="field">
+          <label for="f-start" id="f-start-label">Hora de inicio</label>
+          <input type="time" id="f-start" step="900" required>
+        </div>
+
+        <div class="field training-only">
+          <label for="f-dur">Duración (min)</label>
+          <input type="number" id="f-dur" min="15" max="300" step="15" list="dur-list">
+          <datalist id="dur-list"><option value="45"><option value="60"><option value="75"><option value="90"><option value="105"><option value="120"></datalist>
+        </div>
+
+        <div class="field full">
+          <span class="lbl">Zona del campo</span>
+          <div class="zone-picker" id="f-zone"></div>
+        </div>
+
+        <div class="field full match-only">
+          <label for="f-opp">Rival</label>
+          <input type="text" id="f-opp" maxlength="80" placeholder="Opcional">
+        </div>
+
+        <div class="field full">
+          <label for="f-notes">Notas</label>
+          <input type="text" id="f-notes" maxlength="200" placeholder="Opcional">
+        </div>
+
+        <div class="preview full" id="f-preview"></div>
+      </div>
+      <footer class="dlg-foot">
+        <button type="button" id="f-delete" class="danger">Eliminar</button>
+        <button type="button" id="f-dup" class="ghost">Duplicar</button>
+        <span class="spacer"></span>
+        <button type="button" class="ghost" data-close>Cancelar</button>
+        <button type="submit" id="f-save" class="primary">Guardar</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Detalle (solo lectura) -->
+  <dialog id="detail-dialog" class="dialog narrow-dlg">
+    <header class="dlg-head">
+      <h3 id="d-title"></h3>
+      <button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button>
+    </header>
+    <div class="dlg-body" id="d-body"></div>
+  </dialog>
+
+  <!-- Acceso -->
+  <dialog id="login-dialog" class="dialog narrow-dlg">
+    <form id="login-form" novalidate>
+      <header class="dlg-head">
+        <h3>Acceso coordinador</h3>
+        <button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button>
+      </header>
+      <div class="dlg-body" id="login-body"></div>
+      <footer class="dlg-foot">
+        <span class="spacer"></span>
+        <button type="button" class="ghost" data-close>Cancelar</button>
+        <button type="submit" class="primary">Entrar</button>
+      </footer>
+    </form>
+  </dialog>
+
+  <!-- Confirmación -->
+  <dialog id="confirm-dialog" class="dialog narrow-dlg">
+    <header class="dlg-head"><h3>Confirmar</h3><button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button></header>
+    <div class="dlg-body"><p id="c-msg" class="confirm-msg"></p></div>
+    <footer class="dlg-foot"><span class="spacer"></span><button type="button" class="ghost" data-close>Cancelar</button><button type="button" id="c-ok" class="primary">Continuar</button></footer>
+  </dialog>
+
+  <div id="drag-tip" class="drag-tip" hidden></div>
+  <div id="toast" class="toast" role="status"></div>
+
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
