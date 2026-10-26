@@ -228,7 +228,9 @@ button.danger-solid { background: var(--err); border-color: var(--err); color: #
 .block.flash { animation: flash 1.2s ease-out 1; }
 @keyframes flash { 0%, 40% { box-shadow: 0 0 0 6px rgba(18,89,184,.55); } 100% { box-shadow: 0 0 0 0 rgba(18,89,184,0); } }
 
-.editing .block { touch-action: none; cursor: grab; }
+.editing .block { touch-action: pan-x pan-y; cursor: grab; -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+.editing .block .resize { touch-action: none; }
+.block.lifted { transform: scale(1.03); box-shadow: 0 10px 28px rgba(0,0,0,.3); z-index: 30; transition: transform .12s; }
 .editing .block:active { cursor: grabbing; }
 .pulse { animation: pulse 0.5s ease-in-out 3; }
 @keyframes pulse { 50% { box-shadow: 0 0 0 4px #fde68a; } }
@@ -688,3 +690,14 @@ button.danger-link { color: var(--err); }
   .side > .issues-panel { flex: 1 1 auto; }
   .side.show-summary > .issues-panel { flex: 1 1 40%; }
 }
+
+/* ---------- Partidos fuera (solo referencia) ---------- */
+.lanes-head.with-away { grid-template-columns: repeat(5, 1fr); }
+.lanes-head .away-h { background: var(--bg); color: var(--muted); font-weight: 600; border-left: 2px dashed var(--line-strong); }
+.lane.away-lane { border-left: 2px dashed var(--line-strong); border-right: 0; background: repeating-linear-gradient(0deg, transparent 0 10px, color-mix(in srgb, var(--bg) 70%, transparent) 10px 20px); }
+.block.kind-partido.away {
+  background: repeating-linear-gradient(135deg, var(--panel) 0 6px, color-mix(in srgb, var(--c) 12%, white) 6px 12px);
+  border: 1px dashed var(--c); border-left: 3px solid var(--c); opacity: .92;
+}
+.block.kind-partido.away .b-name::after { content: " ↗"; font-weight: 600; }
+#f-where button { flex: 1; }

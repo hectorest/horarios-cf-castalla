@@ -161,6 +161,16 @@ window.TUTORIAL_STEPS = [
     body: 'Si un partido se solapa con un entreno y lo tenéis en cuenta, pulsa <b>Asumir</b> en la incidencia (o en el detalle de la reserva). Pueden hacerlo los entrenadores de los dos equipos y la coordinación. Deja de contar como conflicto y pasa a «Solapes asumidos» con el nombre de quien lo asumió. Si después cambia la hora o la zona de alguno, vuelve a ser conflicto.',
   },
   {
+    id: 'partidos-fuera', since: 10, target: '#cal-wrap',
+    title: 'Partidos fuera, de referencia',
+    body: 'Los días en que algún equipo juega fuera aparece una columna estrecha <b>Fuera</b> a la derecha del día, con el partido rayado y la marca <b>↗</b>. No ocupa nuestro campo: sirve para ver de un vistazo quién está fuera. Ábrelo para ver el rival y dónde se juega. Si ese equipo tiene entreno a la misma hora, sale como aviso.',
+  },
+  {
+    id: 'mover-movil', since: 10, roles: ['coordinador'], target: '#cal-wrap',
+    title: 'Mover reservas en el móvil',
+    body: 'En el móvil, deslizar sobre una reserva desplaza el calendario sin moverla. Para moverla, <b>mantén el dedo pulsado</b> medio segundo hasta que se levante y luego arrástrala. Un toque corto abre el detalle.',
+  },
+  {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',
     title: 'Volver a ver esta guía',
     body: 'Puedes repetir el tutorial cuando quieras desde aquí. Cuando añadamos funciones nuevas, te las enseñaremos al entrar.',

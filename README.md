@@ -45,8 +45,13 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
   | Juveniles y seniors | — | 15:00–19:30 | 09:00–19:30 |
 
   Un partido fuera de su franja necesita la **aprobación del rival**: lleva la marca ⚑ y «Falta OK del rival», sale en Incidencias, y en el editor se marca como *Pendiente del rival*, *Aprobado por el rival* o *Rechazado* (este último cuenta como conflicto). Si se cambia el día o la hora, vuelve a quedar pendiente. Es independiente de «confirmado». Las propuestas de horario buscan primero huecos dentro de la franja federativa.
+- **Partidos fuera**: se guardan como partido con *Dónde: Fuera* y el campo donde se juega. No ocupan nuestro campo ni generan conflictos de reparto; se dibujan rayados (↗) en una columna estrecha **Fuera** a la derecha del día, solo los días en que hay alguno, para tener de referencia quién está fuera. Si el mismo equipo tiene entreno o partido en casa a la misma hora, sale como aviso. No necesitan confirmación ni aprobación del rival en la herramienta. Están cargados los de toda la temporada (calendarios FFCV e Infantil B de Jocs Escolars; los del Infantil B sin hora publicada están a las 10:00 y «por confirmar»).
 - **Observaciones**: texto libre del partido (por ejemplo, «el entrenador pide jugar el viernes porque el sábado tiene 5 bajas»). Lo escribe el coordinador; todos lo ven en el detalle.
 - **Propuestas de horario**: el coordinador y los entrenadores del equipo pueden proponer alternativas para un partido: día y hora exacta, «por la mañana», «por la tarde» o «a cualquier hora», con su motivo. Junto a cada propuesta se comprueba si el hueco está libre (sin hora exacta, se busca la primera hora libre de la franja; entre semana, a partir de las 16:00). El coordinador la **aplica** (mueve el partido) o la **descarta**. Los partidos con propuestas pendientes llevan la marca **⇄**.
+
+## Móvil
+
+- La página no hace scroll: solo se desplaza el calendario. Deslizar sobre una reserva desplaza el calendario; para **moverla**, mantén el dedo pulsado medio segundo hasta que se levante y arrástrala. Un toque corto abre el detalle.
 
 ## Horario habitual y cambios semanales
 

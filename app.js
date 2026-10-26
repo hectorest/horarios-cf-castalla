@@ -58,7 +58,7 @@
     return w.some(x => x.day === wd && start >= toMin(x.from) && start <= toMin(x.to));
   };
   const fedText = team => (fedWindows(team) || []).map(x => `${DAYS_SHORT[x.day].toLowerCase()} ${x.from}–${x.to}`).join(', ');
-  const needsRival = b => b.kind === 'partido' && !inFedWindow(b.team, b.day, b.start_min);
+  const needsRival = b => b.kind === 'partido' && !b.away && !inFedWindow(b.team, b.day, b.start_min);
   const RIVAL_LABEL = { pendiente: 'pendiente de aprobación del rival', aprobado: 'aprobado por el rival', rechazado: 'rechazado por el rival' };
   const teamOf = id => TEAM[id] || { id, name: id || '¿?', short: id || '¿?', color: '#64748b', match: null };
   const dayLabel = k => { const d = parseKey(k); return `${DAYS_SHORT[dayIndexOf(k)]} ${d.getDate()} ${MONTHS[d.getMonth()]}`; };
@@ -88,6 +88,8 @@
           segs.push({ t: 'half', from: cur, to: cur + m.half, label: `${i + 1}ª parte` }); cur += m.half;
         }
         const coreEnd = cur;
+        // Partido fuera: solo de referencia, se dibuja el partido en sí (sin calentamiento ni margen)
+        if (b.away) return { start: s, kick: s, end: coreEnd, coreEnd, segs: segs.slice(1) };
         if (m.margin) segs.push({ t: 'margin', from: cur, to: cur + m.margin, label: 'Margen' });
         return { start: s - m.warmup, kick: s, end: coreEnd + (m.margin || 0), coreEnd, segs };
       }
@@ -114,6 +116,10 @@
       const lanes = ZONES[b.zone];
       if (b.kind === 'evento') { if (!b.title) add('error', 'Reserva extraordinaria sin nombre', [b]); }
       else if (!team) add('error', `Equipo desconocido: «${b.team}»`, [b]);
+      if (b.away) {   // fuera de casa: no ocupa nuestro campo; solo cuenta para el propio equipo
+        if (team && !team.match) add('error', `${name} no juega partidos`, [b]);
+        continue;
+      }
       if (!lanes) add('error', `${name}: zona del campo no válida`, [b]);
       if (b.start_min % SNAP || (b.kind !== 'partido' && (b.duration_min || DEFAULT_DUR) % SNAP)) add('warn', `${name}: horario fuera de los tramos de ${SNAP} minutos`, [b]);
       if (t.start < DAY_START || t.coreEnd > DAY_END) {
@@ -135,7 +141,7 @@
 
     // ---- Comparación por pares dentro de cada día ----
     // pieces: ocupación real de cada reserva a lo largo del tiempo (carriles por tramo).
-    const pieces = new Map(list.map(b => [b.id, [{ from: tl.get(b.id).start, to: tl.get(b.id).end, lanes: ZONES[b.zone] || ZONES.full, shared: false }]]));
+    const pieces = new Map(list.map(b => [b.id, [{ from: tl.get(b.id).start, to: tl.get(b.id).end, lanes: b.away ? [] : (ZONES[b.zone] || ZONES.full), shared: false }]]));
     const restrict = (id, from, to, lanes) => {
       let ok = true;
       const out = [];
@@ -180,7 +186,7 @@
             }
             continue;
           }
-          if (!overlap || a.kind !== 'entreno' || b.kind !== 'entreno') continue;
+          if (!overlap || a.kind !== 'entreno' || b.kind !== 'entreno') continue;   // (los partidos fuera no llegan aquí: son partidos)
           const la = ZONES[a.zone] || [], lb = ZONES[b.zone] || [];
           if (!la.some(l => lb.includes(l))) continue;
 
@@ -216,7 +222,7 @@
       for (let i = 0; i < items.length; i++) {
         for (let j = i + 1; j < items.length; j++) {
           const a = items[i], b = items[j];
-          if (resolved.has(pairKey(a, b))) continue;
+          if (resolved.has(pairKey(a, b)) || a.away || b.away) continue;
           const ta = tl.get(a.id), tb = tl.get(b.id);
           let from = Infinity, to = -Infinity, core = false;
           const shared = new Set();
@@ -279,6 +285,8 @@
       template_id: b.template_id || null,
       confirmed: b.kind === 'partido' ? !!b.confirmed : true,
       rival_status: b.kind === 'partido' ? (b.rival_status || 'pendiente') : 'pendiente',
+      away: b.kind === 'partido' ? !!b.away : false,
+      venue: b.kind === 'partido' && b.away ? ((b.venue || '').trim().slice(0, 120) || null) : null,
       observations: b.kind === 'partido' ? ((b.observations || '').trim().slice(0, 500) || null) : null,
     };
     return r;
@@ -288,7 +296,7 @@
   //  Almacenamiento: Demo (localStorage) y Supabase
   // ================================================================
   function makeLocalStore() {
-    const KEY = 'planificador-campo-demo-v7';
+    const KEY = 'planificador-campo-demo-v8';
     const TKEY = 'planificador-campo-demo-template-v3';
     const GKEY = 'planificador-campo-demo-weeks-v3';
     const UKEY = 'planificador-campo-demo-users-v2';
@@ -654,6 +662,10 @@
       P(6, 'senior-a', '10:30', 'F11', 'full', 'CD Sant Joan'),
       P(6, 'senior-b', '13:00', 'F11', 'full', 'AE Martinenc'),
       P(6, 'infantil-a', '20:00', 'F11', 'full', 'EF Gràcia', false),
+      // Partidos fuera (solo referencia)
+      { ...P(5, 'senior-a', '17:00', 'F11', 'full', 'CD Biarense'), away: true, venue: 'Biar · Polideportivo Mpal.' },
+      { ...P(5, 'infantil-b', '10:00', 'F11', 'full', 'CE Sant Roc', false), away: true, venue: 'Alcoi · Polideportivo F. Laporta' },
+      { ...P(6, 'veteranos', '11:00', 'F11', 'full', 'Veteranos Onil'), away: true, venue: 'Onil · Estadio Mpal.' },
     ];
     const proposals = [
       { id: 'demo-prop-1', booking_id: 'demo-p-juvenil-5', day: k(4), start_min: null, slot: null, reason: '5 bajas el sábado por un torneo escolar', status: 'pendiente', created_by: 'demo-entre', author_name: 'Laura Martí', created_at: new Date().toISOString() },
@@ -768,7 +780,7 @@
       if (b.kind !== 'partido') continue;
       const nm = `${teamOf(b.team).name}${b.opponent ? ' vs ' + b.opponent : ''}`;
       const push = msg => { const it = { level: 'pending', msg, ids: [b.id], day: b.day, at: b.start_min, team: b.team }; full.all.push(it); if (!full.byId.has(b.id)) full.byId.set(b.id, []); full.byId.get(b.id).push(it); };
-      if (!b.confirmed && b.day >= today) push(`${nm}: horario por confirmar`);
+      if (!b.confirmed && !b.away && b.day >= today) push(`${nm}: horario por confirmar`);
       if (needsRival(b) && b.day >= today) {
         const fed = fedText(b.team);
         if (b.rival_status === 'rechazado') {
@@ -908,17 +920,21 @@
     }).join('');
   }
 
-  function blockGeom(t, lanes) {
+  /** Ancho (%) que ocupa el campo en un día: si hay partidos fuera, se reserva una columna a la derecha */
+  const AWAY_W = 20;
+  const fieldW = day => state.awayDays?.has(day) ? 100 - AWAY_W : 100;
+  function blockGeom(t, lanes, fw = 100) {
     let vs = Math.max(t.start, DAY_START), ve = Math.min(t.end, DAY_END);
     if (ve - vs < 15) {
       if (t.start >= DAY_END - 15) { vs = DAY_END - 15; ve = DAY_END; }
       else if (t.end <= DAY_START + 15) { vs = DAY_START; ve = DAY_START + 15; }
     }
-    return { vs, top: (vs - DAY_START) * PX, height: Math.max((ve - vs) * PX, 16), left: lanes[0] * 25, width: lanes.length * 25 };
+    return { vs, top: (vs - DAY_START) * PX, height: Math.max((ve - vs) * PX, 16), left: lanes[0] * 25 * fw / 100, width: lanes.length * 25 * fw / 100 };
   }
   const geomStyle = g => `top:${g.top}px;height:${g.height}px;left:calc(${g.left}% + 2px);width:calc(${g.width}% - 4px)`;
 
   function subLabel(b) {
+    if (b.kind === 'partido' && b.away) return `Fuera${b.opponent ? ' · vs ' + b.opponent : ''}${b.venue ? ' · ' + b.venue : ''}`;
     if (b.kind === 'partido') return `Partido ${b.format || ''}${b.opponent ? ' · vs ' + b.opponent : ''}`;
     if (b.kind === 'evento') return 'Extraordinaria' + (b.notes ? ' · ' + b.notes : '');
     return 'Entreno' + (b.zone && ZONES[b.zone]?.length === 1 ? ` · ${b.zone}` : '') + (b.notes ? ' · ' + b.notes : '');
@@ -946,21 +962,21 @@
     const chg = state.issues.changed?.get(b.id);
     const parts = ps.length ? ps : [{ from: t.start, to: t.end, lanes: ZONES[b.zone] || ZONES.full, shared: false }];
     return parts.map((p, n) => {
-      const g = blockGeom({ start: p.from, end: p.to }, p.lanes);
-      const narrow = p.lanes.length === 1;
+      const g = b.away ? awayGeom(b) : blockGeom({ start: p.from, end: p.to }, p.lanes, fieldW(b.day));
+      const narrow = b.away || p.lanes.length === 1;
       const first = n === 0, last = n === parts.length - 1;
       const unconf = b.kind === 'partido' && !b.confirmed;
       const rivalPend = needsRival(b) && b.rival_status !== 'aprobado';
-      const cls = ['block', 'kind-' + b.kind, lvl && 'lvl-' + lvl, narrow && 'narrow', g.height < 50 && 'short', chg && (chg.what[0] === 'extra' ? 'extra' : 'changed'), unconf && 'unconfirmed',
+      const cls = ['block', 'kind-' + b.kind, b.away && 'away', lvl && 'lvl-' + lvl, narrow && 'narrow', g.height < 50 && 'short', chg && (chg.what[0] === 'extra' ? 'extra' : 'changed'), unconf && 'unconfirmed',
         !first && 'cont-up', !last && 'cont-down', p.shared && 'shared',
         state.filter && state.filter !== b.team && 'dim', state.selectedId === b.id && 'selected'].filter(Boolean).join(' ');
-      const segs = b.kind === 'partido'
+      const segs = b.kind === 'partido' && !b.away
         ? `<div class="segs" style="top:${(t.start - g.vs) * PX}px">${t.segs.map(s => `<div class="seg seg-${s.t}" style="top:${(s.from - t.start) * PX}px;height:${(s.to - s.from) * PX}px"></div>`).join('')}</div>`
         : '';
       const sub = p.shared ? `Comparte · ${lanesName(p.lanes)}` : (rivalPend ? 'Falta OK del rival · ' : '') + (unconf ? 'Por confirmar · ' : '') + subLabel(b);
       const np = b.kind === 'partido' ? pendingProps(b.id).length : 0;
       const time = p.shared ? `${fmt(p.from)}–${fmt(p.to)}` : b.kind === 'partido' && t.kick != null ? `${fmt(t.kick)}–${fmt(t.coreEnd)}` : `${fmt(t.start)}–${fmt(t.end)}`;
-      const labelTop = b.kind === 'partido' && t.kick != null ? Math.max(0, (t.kick - g.vs) * PX) : 0;
+      const labelTop = b.kind === 'partido' && !b.away && t.kick != null ? Math.max(0, (t.kick - g.vs) * PX) : 0;
       return `<div class="${cls}" data-id="${esc(b.id)}" style="--c:${team.color};${geomStyle(g)}" title="${title}">
       ${segs}
       <div class="b-label" style="${labelTop ? `margin-top:${labelTop + 3}px` : ''}"><span class="b-name">${isMine(b.team) ? '★ ' : ''}${esc(narrow ? team.short : team.name)}</span><span class="b-sub">${esc(sub)}</span><span class="b-time">${time}</span></div>
@@ -973,9 +989,20 @@
     }).join('');
   }
 
+  /** Partidos fuera: en la columna «Fuera»; si coinciden varios, se reparten el ancho */
+  function awayGeom(b) {
+    const t = timeline(b);
+    const same = state.bookings.filter(x => x.away && x.kind === 'partido' && x.day === b.day && x.id !== b.id)
+      .filter(x => { const u = timeline(x); return u.start < t.end && t.start < u.end; });
+    const group = [b, ...same].sort((x, y) => x.start_min - y.start_min || String(x.id).localeCompare(String(y.id)));
+    const w = AWAY_W / group.length, i = group.findIndex(x => x.id === b.id);
+    const g = blockGeom(t, [0]);
+    return { ...g, left: 100 - AWAY_W + i * w, width: w };
+  }
+
   function ghostHTML(g) {
     const t = g.t, team = teamOf(t.team), lanes = ZONES[t.zone] || ZONES.full;
-    const geo = blockGeom({ start: t.start_min, end: t.start_min + t.duration_min }, lanes);
+    const geo = blockGeom({ start: t.start_min, end: t.start_min + t.duration_min }, lanes, fieldW(g.day));
     const dim = state.filter && state.filter !== t.team ? ' dim' : '';
     return `<div class="hab-ghost hab-ghost-${g.type}${dim}" style="--c:${team.color};${geomStyle(geo)}" aria-hidden="true">
       <span class="g-name">${esc(lanes.length === 1 ? team.short : team.name)}</span><span class="g-sub">${g.type === 'cancel' ? 'No entrena' : 'Lo habitual'}</span></div>`;
@@ -1035,6 +1062,7 @@
 
   function renderCalendar() {
     const cal = $('#calendar');
+    state.awayDays = new Set(isTpl() ? [] : state.bookings.filter(b => b.kind === 'partido' && b.away).map(b => b.day));
     const days = state.view === 'week' ? [0, 1, 2, 3, 4, 5, 6] : [state.dayIndex];
     const H = (DAY_END - DAY_START) * PX;
     const todayKey = isTpl() ? '' : keyOf(new Date());
@@ -1052,7 +1080,7 @@
       html += `<div class="day-head ${k === todayKey ? 'today' : ''} ${i >= 5 ? 'weekend' : ''}" data-day="${i}">
         <div class="dh-top"><span class="dh-name">${state.view === 'week' ? DAYS_SHORT[i] : DAYS[i]}</span>${isTpl() ? '' : `<span class="dh-date">${d.getDate()} ${MONTHS[d.getMonth()]}</span>`}
         ${ne ? `<span class="pill err" title="${ne} conflicto(s)">${ne}</span>` : ''}${nw ? `<span class="pill warn" title="${nw} aviso(s)">${nw}</span>` : ''}${nc ? `<span class="pill chg" title="${nc} cambio(s) respecto a lo habitual">↻${nc}</span>` : ''}</div>
-        <div class="lanes-head"><span>A1</span><span>A2</span><span>B1</span><span>B2</span></div></div>`;
+        <div class="lanes-head${state.awayDays.has(k) ? ' with-away' : ''}"><span>A1</span><span>A2</span><span>B1</span><span>B2</span>${state.awayDays.has(k) ? '<span class="away-h">Fuera</span>' : ''}</div></div>`;
     }
     html += '</div><div class="cal-body"><div class="time-axis" style="height:' + H + 'px">';
     for (let m = DAY_START; m <= DAY_END; m += 30) html += `<span class="${m % 60 ? 'half' : ''}" style="top:${(m - DAY_START) * PX}px">${fmt(m)}</span>`;
@@ -1061,7 +1089,7 @@
     for (const i of days) {
       const k = keyOf(addDays(state.weekStart, i));
       html += `<div class="day-col ${k === todayKey ? 'today' : ''} ${i >= 5 ? 'weekend' : ''} ${isEditor() ? 'editable' : ''}" data-day="${i}" data-key="${k}" style="height:${H}px">
-        <div class="lane l0"></div><div class="lane l1"></div><div class="lane l2"></div><div class="lane l3"></div>`;
+        ${[0, 1, 2, 3].map(i => `<div class="lane l${i}" style="left:${i * fieldW(k) / 4}%;width:${fieldW(k) / 4}%"></div>`).join('')}${state.awayDays.has(k) ? `<div class="lane away-lane" style="left:${100 - AWAY_W}%;width:${AWAY_W}%"></div>` : ''}`;
       for (const g of (state.issues.ghosts || []).filter(x => x.day === k)) html += ghostHTML(g);
       for (const b of state.bookings.filter(x => x.day === k).sort((a, c) => a.start_min - c.start_min)) html += blockHTML(b);
       if (todayKey && k === todayKey && nowMin >= DAY_START && nowMin <= DAY_END) html += `<div class="now-line" style="top:${(nowMin - DAY_START) * PX}px"></div>`;
@@ -1243,6 +1271,11 @@
     $('#f-opp').value = draft.opponent || '';
     $('#f-notes').value = draft.notes || '';
     $('#f-confirmed').checked = !!draft.confirmed;
+    const away = draft.kind === 'partido' && !!draft.away;
+    $$('#f-where button').forEach(x => x.classList.toggle('on', (x.dataset.v === 'fuera') === away));
+    $$('.away-only', dlg()).forEach(x => x.hidden = !away);
+    $('#f-zone-field').hidden = away;
+    $('#f-venue').value = draft.venue || '';
     renderRival();
     $('#f-obs').value = draft.observations || '';
     renderProposals($('#f-props'), editingId ? state.bookings.find(b => b.id === editingId) : null, true);
@@ -1260,6 +1293,7 @@
     draft.notes = $('#f-notes').value.trim();
     draft.title = $('#f-ev-title').value.trim();
     draft.confirmed = $('#f-confirmed').checked;
+    draft.venue = $('#f-venue').value.trim();
     draft.observations = $('#f-obs').value.trim();
   }
 
@@ -1274,7 +1308,7 @@
     if (draft.kind !== 'partido' || isTpl()) return;
     const w = fedWindows(draft.team);
     const out = needsRival(draft);
-    $('#f-rival-wrap').hidden = !w;
+    $('#f-rival-wrap').hidden = !w || !!draft.away;
     $('#f-fed').innerHTML = !w ? '' : out
       ? `<b class="fed-out">Fuera del horario federativo</b> de ${esc(teamOf(draft.team).name)} (${esc(fedText(draft.team))}). Necesita la aprobación del rival.`
       : `<span class="fed-in">✓ Dentro del horario federativo</span> (${esc(fedText(draft.team))}).`;
@@ -1511,7 +1545,7 @@
       if (b.opponent) rows.push(['Rival', b.opponent]);
       for (const s of t.segs) rows.push([s.label, `${fmt(s.from)} – ${fmt(s.to)}`]);
     }
-    if (b.kind === 'partido') rows.splice(1, 0, ['Horario', b.confirmed ? '✓ Confirmado' : 'Por confirmar'],
+    if (b.kind === 'partido') rows.splice(1, 0, ['Dónde', b.away ? `Fuera${b.venue ? ' · ' + b.venue : ''}` : 'En casa'], ['Horario', b.confirmed ? '✓ Confirmado' : 'Por confirmar'],
       ...(fedWindows(b.team) ? [['Horario federativo', needsRival(b) ? `Fuera (${fedText(b.team)}) · ${RIVAL_LABEL[b.rival_status || 'pendiente']}` : '✓ Dentro']] : []));
     if (b.notes) rows.push(['Notas', b.notes]);
     if (b.kind === 'partido' && b.observations) rows.push(['Observaciones', b.observations]);
@@ -1541,12 +1575,23 @@
     if (!isEditor() || e.button > 0) return;
     const b = state.bookings.find(x => x.id === el.dataset.id);
     if (!b) return;
-    e.preventDefault();
+    const touch = e.pointerType === 'touch';
+    if (!touch) e.preventDefault();
     drag = {
       el, b, x0: e.clientX, y0: e.clientY, moved: false,
       resize: !!e.target.dataset.resize,
       cand: { ...b },
+      // En pantallas táctiles: deslizar desplaza el calendario; para mover hay que mantener pulsado
+      touch, armed: !touch, timer: null,
     };
+    if (touch) {
+      drag.timer = setTimeout(() => {
+        if (!drag) return;
+        drag.armed = true;
+        el.classList.add('lifted');
+        try { navigator.vibrate?.(15); } catch { }
+      }, 450);
+    }
     window.addEventListener('pointermove', onDragMove);
     window.addEventListener('pointerup', onDragEnd, { once: true });
     window.addEventListener('pointercancel', onDragCancel, { once: true });
@@ -1555,6 +1600,10 @@
   function onDragMove(e) {
     if (!drag) return;
     const dx = e.clientX - drag.x0, dy = e.clientY - drag.y0;
+    if (!drag.armed) {   // dedo en movimiento antes de la pulsación larga: es un desplazamiento, no un arrastre
+      if (Math.hypot(dx, dy) > 8) abandonDrag();
+      return;
+    }
     if (!drag.moved && Math.hypot(dx, dy) < 5) return;
     if (!drag.moved) {
       drag.moved = true;
@@ -1573,16 +1622,16 @@
       const col = $$('.day-col').find(c => { const r = c.getBoundingClientRect(); return e.clientX >= r.left && e.clientX < r.right; });
       if (col) {
         const r = col.getBoundingClientRect();
-        const lane = clamp(Math.floor((e.clientX - r.left) / r.width * 4), 0, 3);
+        const lane = clamp(Math.floor((e.clientX - r.left) / (r.width * fieldW(col.dataset.key) / 100) * 4), 0, 3);
         cand.day = col.dataset.key;
-        cand.zone = laneZone(b.zone, lane);
+        if (!b.away) cand.zone = laneZone(b.zone, lane);
         if (el.parentElement !== col) col.appendChild(el);
       }
     }
     drag.cand = cand;
     // Actualiza posición y estado de avisos en vivo
     const t = timeline(cand);
-    const g = blockGeom(t, ZONES[cand.zone] || ZONES.full);
+    const g = b.away ? awayGeom(cand) : blockGeom(t, ZONES[cand.zone] || ZONES.full, fieldW(cand.day));
     el.style.cssText = `--c:${whoOf(b).color};${geomStyle(g)}`;
     const segs = el.querySelector('.segs');
     if (segs) segs.style.top = (t.start - g.vs) * PX + 'px';
@@ -1608,6 +1657,7 @@
     document.body.style.userSelect = '';
     const d = drag; drag = null;
     if (!d) return;
+    clearTimeout(d.timer); d.el.classList.remove('lifted');
     if (!d.moved) { openEditor(d.b, false); return; }
     suppressClickUntil = Date.now() + 400;
     const c = d.cand, b = d.b;
@@ -1625,7 +1675,20 @@
     } catch (e) { toast('No se pudo mover: ' + e.message, true); await load(); }
   }
 
+  /** Suelta el gesto sin hacer nada (el usuario estaba desplazando el calendario) */
+  function abandonDrag() {
+    if (!drag) return;
+    clearTimeout(drag.timer);
+    drag.el.classList.remove('lifted');
+    window.removeEventListener('pointermove', onDragMove);
+    window.removeEventListener('pointerup', onDragEnd);
+    window.removeEventListener('pointercancel', onDragCancel);
+    drag = null;
+  }
+
   function onDragCancel() {
+    if (drag && !drag.moved) { abandonDrag(); return; }
+    if (drag) clearTimeout(drag.timer);
     window.removeEventListener('pointermove', onDragMove);
     $('#drag-tip').hidden = true;
     document.body.style.userSelect = '';
@@ -2178,7 +2241,7 @@
       if (col && isEditor()) {
         const r = col.getBoundingClientRect();
         const m = clamp(Math.floor(((e.clientY - r.top) / PX + DAY_START) / 15) * 15, DAY_START, DAY_END - 15);
-        const lane = clamp(Math.floor((e.clientX - r.left) / r.width * 4), 0, 3);
+        const lane = clamp(Math.floor((e.clientX - r.left) / (r.width * fieldW(col.dataset.key) / 100) * 4), 0, 3);
         openEditor(newDraft(col.dataset.key, m, lane < 2 ? 'A' : 'B'), true);
       }
     });
@@ -2252,6 +2315,10 @@
     ['#f-date', '#f-start', '#f-dur', '#f-opp', '#f-notes'].forEach(s => $(s).addEventListener('input', () => { readInputs(); renderPreview(); }));
     // Al salir del campo, muestra la hora/duración ya redondeadas a 15 min
     $('#f-start').addEventListener('change', () => { readInputs(); $('#f-start').value = fmt(draft.start_min); renderPreview(); });
+    $('#f-where').addEventListener('click', e => {
+      const v = e.target.closest('button')?.dataset.v; if (!v) return;
+      readInputs(); draft.away = v === 'fuera'; if (draft.away) draft.zone = 'full'; syncForm();
+    });
     $('#f-rival').addEventListener('click', e => { const v = e.target.closest('button')?.dataset.v; if (v) { draft.rival_status = v; rivalTouched = true; renderRival(); } });
     // Si cambia el día o la hora de un partido, la aprobación del rival vuelve a pendiente (salvo que la marques tú)
     ['#f-date', '#f-start'].forEach(sel => $(sel).addEventListener('change', () => {
@@ -2314,7 +2381,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261026130943';
+  const APP_VERSION = '20261026132632';
   async function checkVersion() {
     if (store?.mode === 'demo') return;
     try {
@@ -2334,6 +2401,8 @@
 
   async function init() {
     lockZoom();
+    // Mientras se arrastra una reserva con el dedo, el calendario no debe desplazarse
+    document.addEventListener('touchmove', e => { if (drag && drag.armed) e.preventDefault(); }, { passive: false });
     $('#club-name').textContent = CFG.CLUB_NAME || 'Campo';
     $('#auth-club').textContent = CFG.CLUB_NAME || 'Campo';
     document.title = `${CFG.CLUB_NAME || 'Campo'} · Planificador`;

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Planificador de Campo</title>
   <link rel="icon" type="image/png" href="assets/escudo-64.png">
-  <link rel="stylesheet" href="styles.css?v=20261026130943">
+  <link rel="stylesheet" href="styles.css?v=20261026132632">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -188,7 +188,20 @@
           <datalist id="dur-list"><option value="45"><option value="60"><option value="75"><option value="90"><option value="105"><option value="120"></datalist>
         </div>
 
-        <div class="field full">
+        <div class="field full match-only week-only">
+          <span class="lbl">Dónde se juega</span>
+          <div class="segmented small" id="f-where" role="group" aria-label="Dónde se juega">
+            <button type="button" data-v="casa">En casa</button>
+            <button type="button" data-v="fuera">Fuera</button>
+          </div>
+        </div>
+
+        <div class="field full away-only" hidden>
+          <label for="f-venue">Campo y localidad</label>
+          <input type="text" id="f-venue" maxlength="120" placeholder="Ej.: Ibi · Estadio Mpal. Francisco Vilaplana">
+        </div>
+
+        <div class="field full" id="f-zone-field">
           <span class="lbl">Zona del campo</span>
           <div class="zone-picker" id="f-zone"></div>
         </div>
@@ -297,8 +310,8 @@
   <div id="drag-tip" class="drag-tip" hidden></div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261026130943"></script>
-  <script src="tutorial.js?v=20261026130943"></script>
-  <script src="app.js?v=20261026130943"></script>
+  <script src="config.js?v=20261026132632"></script>
+  <script src="tutorial.js?v=20261026132632"></script>
+  <script src="app.js?v=20261026132632"></script>
 </body>
 </html>

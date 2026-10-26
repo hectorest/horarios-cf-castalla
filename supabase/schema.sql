@@ -236,6 +236,10 @@ comment on column public.bookings.observations is 'Observaciones del partido (pe
 alter table public.bookings add column if not exists rival_status text not null default 'pendiente'
   check (rival_status in ('pendiente', 'aprobado', 'rechazado'));
 comment on column public.bookings.rival_status is 'Partidos fuera del horario federativo de su categoría: aprobación del rival (pendiente, aprobado, rechazado). Dentro del horario no se usa.';
+alter table public.bookings add column if not exists away boolean not null default false;
+alter table public.bookings add column if not exists venue text check (char_length(venue) <= 120);
+comment on column public.bookings.away is 'Partidos: true si se juega fuera (solo de referencia, no ocupa campo propio).';
+comment on column public.bookings.venue is 'Partidos fuera: localidad y campo donde se juega.';
 
 create table if not exists public.match_proposals (
   id          uuid primary key default gen_random_uuid(),
