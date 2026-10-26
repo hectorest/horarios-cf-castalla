@@ -824,3 +824,8 @@ button.danger-link { color: var(--err); }
 .update-bar[popover] { inset: auto; margin: 0; border: 0; left: 50%; right: auto; top: max(10px, env(safe-area-inset-top, 0px)); bottom: auto; }
 .update-bar button { flex: none; }
 @media print { .update-bar { display: none !important; } }
+
+/* ---------- Mantener la sesión ---------- */
+.keep-check { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; font-size: 14px; font-weight: 600; color: var(--ink); user-select: none; }
+.keep-check input { width: 20px; height: 20px; margin: 0; flex: none; accent-color: var(--pitch); cursor: pointer; }
+.keep-check small { display: block; font-size: 12px; font-weight: 400; color: var(--muted); margin-top: 1px; }

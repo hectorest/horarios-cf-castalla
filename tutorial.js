@@ -191,6 +191,11 @@ window.TUTORIAL_STEPS = [
     body: 'Puedes añadir la herramienta a la pantalla de inicio de tu móvil, tablet u ordenador: se abre de un toque, a pantalla completa y con el escudo como icono. Te lo sugerimos al entrar, y también lo tienes en tu menú → <b>Instalar la app</b>.',
   },
   {
+    id: 'mantener-sesion', since: 15, target: '#user-btn',
+    title: 'Mantener la sesión iniciada',
+    body: 'Al entrar, la casilla <b>Mantener la sesión iniciada</b> (marcada por defecto) hace que no tengas que volver a escribir la contraseña en este dispositivo. Desmárcala en un ordenador o tablet compartidos: la sesión se cerrará al cerrar el navegador. Puedes salir cuando quieras desde aquí, con <b>Cerrar sesión</b>.',
+  },
+  {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',
     title: 'Volver a ver esta guía',
     body: 'Puedes repetir el tutorial cuando quieras desde aquí. Cuando añadamos funciones nuevas, te las enseñaremos al entrar.',

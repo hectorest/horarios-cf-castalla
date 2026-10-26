@@ -296,6 +296,22 @@
   // ================================================================
   //  Almacenamiento: Demo (localStorage) y Supabase
   // ================================================================
+  // «Mantener la sesión iniciada»: con la casilla marcada la sesión se guarda en localStorage
+  // (sobrevive a cerrar el navegador o la app); sin marcar, en sessionStorage (se cierra con él).
+  const KEEP_KEY = 'mantener-sesion';
+  const keepSession = () => { try { return localStorage.getItem(KEEP_KEY) !== '0'; } catch { return true; } };
+  const setKeepSession = v => { try { localStorage.setItem(KEEP_KEY, v ? '1' : '0'); } catch { } };
+  const sessionStore = {
+    getItem(k) { try { return (keepSession() ? localStorage : sessionStorage).getItem(k); } catch { return null; } },
+    setItem(k, v) {
+      try {
+        const [use, other] = keepSession() ? [localStorage, sessionStorage] : [sessionStorage, localStorage];
+        use.setItem(k, v); other.removeItem(k);
+      } catch { }
+    },
+    removeItem(k) { try { localStorage.removeItem(k); } catch { } try { sessionStorage.removeItem(k); } catch { } },
+  };
+
   function makeLocalStore() {
     const KEY = 'planificador-campo-demo-v8';
     const TKEY = 'planificador-campo-demo-template-v3';
@@ -330,8 +346,8 @@
       if (e.key === UKEY) { umem = null; peopleListeners.forEach(f => f()); }
     });
     let sid = null;
-    try { sid = sessionStorage.getItem(SKEY); } catch { }
-    const setSid = v => { sid = v; try { v ? sessionStorage.setItem(SKEY, v) : sessionStorage.removeItem(SKEY); } catch { } };
+    sid = sessionStore.getItem(SKEY);
+    const setSid = v => { sid = v; v ? sessionStore.setItem(SKEY, v) : sessionStore.removeItem(SKEY); };
     const sessionOf = u => u ? { user: { id: u.id, email: u.email }, profile: { full_name: u.full_name, role: u.role, status: u.status, teams: u.teams || [], requested_teams: u.requested_teams || [] } } : null;
     const PKEY = 'planificador-campo-demo-proposals-v1';
     const AKEY = 'planificador-campo-demo-acks-v1';
@@ -491,7 +507,7 @@
 
   async function makeSupabaseStore() {
     if (!window.supabase) await loadScript('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js');
-    const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
+    const sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY, { auth: { storage: sessionStore, persistSession: true, autoRefreshToken: true } });
     const T = 'bookings';
     const here = () => location.origin + location.pathname;
     const chk = ({ data, error }) => { if (error) throw new Error(error.message); return data; };
@@ -1796,6 +1812,7 @@
         <form id="f-login" class="auth-form" novalidate>
           ${authField('a-email', 'Email', 'email', 'autocomplete="username" required')}
           ${authField('a-pass', 'Contraseña', 'password', 'autocomplete="current-password" required')}
+          <label class="keep-check"><input type="checkbox" id="a-keep" ${keepSession() ? 'checked' : ''}><span>Mantener la sesión iniciada<small>Desmárcalo en un dispositivo compartido: la sesión se cerrará al cerrar el navegador.</small></span></label>
           <p class="auth-msg" id="a-msg" ${msg ? '' : 'hidden'}>${esc(msg || '')}</p>
           <button type="submit" class="primary wide">Entrar</button>
           <button type="button" class="link" data-go="forgot">He olvidado mi contraseña</button>
@@ -1902,7 +1919,7 @@
       const go = e.target.closest('[data-go]')?.dataset.go;
       if (go) { showAuth(go); return; }
       const demoEmail = e.target.closest('[data-demo]')?.dataset.demo;
-      if (demoEmail) { applySession(await store.auth.signIn(demoEmail)); route(); return; }
+      if (demoEmail) { if ($('#a-keep')) setKeepSession($('#a-keep').checked); applySession(await store.auth.signIn(demoEmail)); route(); return; }
       const act = e.target.closest('[data-act]')?.dataset.act;
       if (act === 'logout') { await store.auth.signOut(); applySession(null); showAuth('login'); }
       if (act === 'noinvite') { clearInvite(); showAuth('login'); return; }
@@ -1915,6 +1932,7 @@
         const email = $('#a-email').value.trim(), pass = $('#a-pass').value;
         if (!validEmail(email)) return authMsg('Escribe un email válido.');
         if (!pass && store.mode !== 'demo') return authMsg('Escribe tu contraseña.');
+        setKeepSession($('#a-keep').checked);
         applySession(await store.auth.signIn(email, pass));
         route();
       });
@@ -2578,7 +2596,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261026150356';
+  const APP_VERSION = '20261026162518';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;
