@@ -25,6 +25,7 @@ window.APP_CONFIG = {
     alevin: [ { day: 4, from: '18:30', to: '19:30' }, { day: 5, from: '09:00', to: '19:30' }, { day: 6, from: '09:00', to: '19:30' } ],
     base:   [ { day: 5, from: '09:00', to: '19:30' }, { day: 6, from: '09:00', to: '19:30' } ],   // infantiles y cadete
     senior: [ { day: 5, from: '15:00', to: '19:30' }, { day: 6, from: '09:00', to: '19:30' } ],   // juveniles y seniors
+    escolar: [ { day: 5, from: '09:00', to: '13:00' } ],                                           // Infantil B (Jocs Escolars): sábado por la mañana
   },
 
   // --- Equipos --------------------------------------------------
@@ -46,7 +47,7 @@ window.APP_CONFIG = {
       match: { warmup: 30, half: 40, halves: 2, break: 15, margin: 15, format: 'F11' } },
     { id: 'infantil-a', name: 'Infantil A',      short: 'INF A', color: '#0f766e', fed: 'base',
       match: { warmup: 30, half: 35, halves: 2, break: 15, margin: 15, format: 'F11' } },
-    { id: 'infantil-b', name: 'Infantil B',      short: 'INF B', color: '#0e7490', fed: 'base',
+    { id: 'infantil-b', name: 'Infantil B',      short: 'INF B', color: '#0e7490', fed: 'escolar',
       match: { warmup: 30, half: 35, halves: 2, break: 15, margin: 15, format: 'F11' } },
     { id: 'alevin-a',   name: 'Alevín A',        short: 'ALE A', color: '#a15c07', fed: 'alevin',
       match: { warmup: 20, half: 30, halves: 2, break: 10, margin: 15, format: 'F8' } },

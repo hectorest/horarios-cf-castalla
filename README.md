@@ -41,7 +41,8 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
   | Categoría | Viernes | Sábado | Domingo |
   |---|---|---|---|
   | Alevines | 18:30–19:30 | 09:00–19:30 | 09:00–19:30 |
-  | Infantiles y cadete | — | 09:00–19:30 | 09:00–19:30 |
+  | Infantil A y cadete | — | 09:00–19:30 | 09:00–19:30 |
+  | Infantil B (Jocs Escolars) | — | 09:00–13:00 | — |
   | Juveniles y seniors | — | 15:00–19:30 | 09:00–19:30 |
 
   Un partido fuera de su franja necesita la **aprobación del rival**: lleva la marca ⚑ y «Falta OK del rival», sale en Incidencias, y en el editor se marca como *Pendiente del rival*, *Aprobado por el rival* o *Rechazado* (este último cuenta como conflicto). Si se cambia el día o la hora, vuelve a quedar pendiente. Es independiente de «confirmado». Las propuestas de horario buscan primero huecos dentro de la franja federativa.
