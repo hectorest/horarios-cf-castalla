@@ -233,6 +233,9 @@ alter table public.bookings add column if not exists confirmed boolean not null 
 alter table public.bookings add column if not exists observations text check (char_length(observations) <= 500);
 comment on column public.bookings.confirmed is 'Partidos: horario confirmado (true) o por confirmar (false).';
 comment on column public.bookings.observations is 'Observaciones del partido (peticiones del entrenador, motivos…).';
+alter table public.bookings add column if not exists rival_status text not null default 'pendiente'
+  check (rival_status in ('pendiente', 'aprobado', 'rechazado'));
+comment on column public.bookings.rival_status is 'Partidos fuera del horario federativo de su categoría: aprobación del rival (pendiente, aprobado, rechazado). Dentro del horario no se usa.';
 
 create table if not exists public.match_proposals (
   id          uuid primary key default gen_random_uuid(),

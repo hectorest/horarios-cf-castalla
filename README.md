@@ -36,6 +36,15 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
 ## Partidos: confirmación, observaciones y propuestas
 
 - **Por confirmar / confirmado**: un partido por confirmar se ve con borde discontinuo y «Por confirmar», y sale en Incidencias. El coordinador lo marca con **Horario confirmado** en el editor, o confirma todos los de la semana con el botón de Incidencias (o el menú de usuario).
+- **Horario federativo**: cada categoría tiene una franja permitida para el saque (en `config.js > FED_WINDOWS`; cada equipo indica la suya con `fed`):
+
+  | Categoría | Viernes | Sábado | Domingo |
+  |---|---|---|---|
+  | Alevines | 18:30–19:30 | 09:00–19:30 | 09:00–19:30 |
+  | Infantiles y cadete | — | 09:00–19:30 | 09:00–19:30 |
+  | Juveniles y seniors | — | 15:00–19:30 | 09:00–19:30 |
+
+  Un partido fuera de su franja necesita la **aprobación del rival**: lleva la marca ⚑ y «Falta OK del rival», sale en Incidencias, y en el editor se marca como *Pendiente del rival*, *Aprobado por el rival* o *Rechazado* (este último cuenta como conflicto). Si se cambia el día o la hora, vuelve a quedar pendiente. Es independiente de «confirmado». Las propuestas de horario buscan primero huecos dentro de la franja federativa.
 - **Observaciones**: texto libre del partido (por ejemplo, «el entrenador pide jugar el viernes porque el sábado tiene 5 bajas»). Lo escribe el coordinador; todos lo ven en el detalle.
 - **Propuestas de horario**: el coordinador y los entrenadores del equipo pueden proponer alternativas para un partido: día y hora exacta, «por la mañana», «por la tarde» o «a cualquier hora», con su motivo. Junto a cada propuesta se comprueba si el hueco está libre (sin hora exacta, se busca la primera hora libre de la franja; entre semana, a partir de las 16:00). El coordinador la **aplica** (mueve el partido) o la **descarta**. Los partidos con propuestas pendientes llevan la marca **⇄**.
 

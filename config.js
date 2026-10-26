@@ -17,6 +17,16 @@ window.APP_CONFIG = {
   DAY_END: '23:00',
   DEFAULT_TRAINING_MIN: 90,
 
+  // --- Horario federativo para el saque de los partidos ------------
+  // Fuera de estas franjas el partido necesita la aprobación del rival.
+  // day: 0 = lunes … 6 = domingo. «to» es la última hora de saque permitida.
+  // Cada equipo indica su categoría con «fed»; sin «fed», no hay restricción.
+  FED_WINDOWS: {
+    alevin: [ { day: 4, from: '18:30', to: '19:30' }, { day: 5, from: '09:00', to: '19:30' }, { day: 6, from: '09:00', to: '19:30' } ],
+    base:   [ { day: 5, from: '09:00', to: '19:30' }, { day: 6, from: '09:00', to: '19:30' } ],   // infantiles y cadete
+    senior: [ { day: 5, from: '15:00', to: '19:30' }, { day: 6, from: '09:00', to: '19:30' } ],   // juveniles y seniors
+  },
+
   // --- Equipos --------------------------------------------------
   // id: identificador que se guarda en la base de datos (no lo cambies
   //     una vez haya reservas guardadas).
@@ -24,23 +34,23 @@ window.APP_CONFIG = {
   //   warmup = calentamiento, half = minutos por parte, halves = nº de partes,
   //   break = descanso, margin = margen posterior, format = formato por defecto.
   TEAMS: [
-    { id: 'senior-a',   name: 'Senior A',        short: 'SEN A', color: '#b42318',
+    { id: 'senior-a',   name: 'Senior A',        short: 'SEN A', color: '#b42318', fed: 'senior',
       match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
-    { id: 'senior-b',   name: 'Senior B',        short: 'SEN B', color: '#c2410c',
+    { id: 'senior-b',   name: 'Senior B',        short: 'SEN B', color: '#c2410c', fed: 'senior',
       match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
     { id: 'veteranos',  name: 'Veteranos',       short: 'VET',   color: '#1f2937',
       match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
-    { id: 'juvenil',    name: 'Juvenil',         short: 'JUV',   color: '#6d28d9',
+    { id: 'juvenil',    name: 'Juvenil',         short: 'JUV',   color: '#6d28d9', fed: 'senior',
       match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
-    { id: 'cadete',     name: 'Cadete',          short: 'CAD',   color: '#1d4ed8',
+    { id: 'cadete',     name: 'Cadete',          short: 'CAD',   color: '#1d4ed8', fed: 'base',
       match: { warmup: 30, half: 40, halves: 2, break: 15, margin: 15, format: 'F11' } },
-    { id: 'infantil-a', name: 'Infantil A',      short: 'INF A', color: '#0f766e',
+    { id: 'infantil-a', name: 'Infantil A',      short: 'INF A', color: '#0f766e', fed: 'base',
       match: { warmup: 30, half: 35, halves: 2, break: 15, margin: 15, format: 'F11' } },
-    { id: 'infantil-b', name: 'Infantil B',      short: 'INF B', color: '#0e7490',
+    { id: 'infantil-b', name: 'Infantil B',      short: 'INF B', color: '#0e7490', fed: 'base',
       match: { warmup: 30, half: 35, halves: 2, break: 15, margin: 15, format: 'F11' } },
-    { id: 'alevin-a',   name: 'Alevín A',        short: 'ALE A', color: '#a15c07',
+    { id: 'alevin-a',   name: 'Alevín A',        short: 'ALE A', color: '#a15c07', fed: 'alevin',
       match: { warmup: 20, half: 30, halves: 2, break: 10, margin: 15, format: 'F8' } },
-    { id: 'alevin-b',   name: 'Alevín B',        short: 'ALE B', color: '#4d7c0f',
+    { id: 'alevin-b',   name: 'Alevín B',        short: 'ALE B', color: '#4d7c0f', fed: 'alevin',
       match: { warmup: 20, half: 30, halves: 2, break: 10, margin: 15, format: 'F8' } },
     { id: 'tec-1',      name: 'Tecnificación 1', short: 'TEC 1', color: '#be185d', match: null },
     { id: 'tec-2',      name: 'Tecnificación 2', short: 'TEC 2', color: '#475569', match: null },

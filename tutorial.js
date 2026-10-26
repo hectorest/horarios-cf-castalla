@@ -146,6 +146,11 @@ window.TUTORIAL_STEPS = [
     body: 'En el editor del partido verás las propuestas de los entrenadores. <b>Aplicar</b> mueve el partido a ese día y hora (si la propuesta es por franja, a la primera hora libre); <b>Descartar</b> la deja registrada sin cambiar nada.',
   },
   {
+    id: 'horario-federativo', since: 7, target: '#cal-wrap',
+    title: 'Horario federativo y aprobación del rival',
+    body: 'Cada categoría tiene una franja permitida para el saque (por ejemplo, juveniles y seniors: sábado de 15:00 a 19:30 y domingo de 9:00 a 19:30). Un partido fuera de su franja lleva la marca <b>⚑</b> y «Falta OK del rival» hasta que la coordinación marca en el editor que el rival lo ha <b>aprobado</b>. Si el rival lo rechaza, sale como conflicto. Si se mueve el partido, vuelve a quedar pendiente.',
+  },
+  {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',
     title: 'Volver a ver esta guía',
     body: 'Puedes repetir el tutorial cuando quieras desde aquí. Cuando añadamos funciones nuevas, te las enseñaremos al entrar.',

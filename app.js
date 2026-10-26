@@ -48,6 +48,18 @@
   const whoOf = b => b.kind === 'evento'
     ? { id: null, name: b.title || 'Reserva extraordinaria', short: (b.title || 'Reserva').slice(0, 10), color: EVENT_COLOR, match: null }
     : teamOf(b.team);
+  // ---- Horario federativo de saque por categoría ----
+  const FEDW = CFG.FED_WINDOWS || {};
+  const fedWindows = team => { const t = TEAM[team]; return t && t.fed ? FEDW[t.fed] || null : null; };
+  /** ¿El saque está dentro del horario federativo del equipo? (sin franjas definidas: siempre sí) */
+  const inFedWindow = (team, day, start) => {
+    const w = fedWindows(team); if (!w) return true;
+    const wd = dayIndexOf(day);
+    return w.some(x => x.day === wd && start >= toMin(x.from) && start <= toMin(x.to));
+  };
+  const fedText = team => (fedWindows(team) || []).map(x => `${DAYS_SHORT[x.day].toLowerCase()} ${x.from}–${x.to}`).join(', ');
+  const needsRival = b => b.kind === 'partido' && !inFedWindow(b.team, b.day, b.start_min);
+  const RIVAL_LABEL = { pendiente: 'pendiente de aprobación del rival', aprobado: 'aprobado por el rival', rechazado: 'rechazado por el rival' };
   const teamOf = id => TEAM[id] || { id, name: id || '¿?', short: id || '¿?', color: '#64748b', match: null };
   const dayLabel = k => { const d = parseKey(k); return `${DAYS_SHORT[dayIndexOf(k)]} ${d.getDate()} ${MONTHS[d.getMonth()]}`; };
   const lanesName = lanes => {
@@ -255,6 +267,7 @@
       notes: b.notes || null,
       template_id: b.template_id || null,
       confirmed: b.kind === 'partido' ? !!b.confirmed : true,
+      rival_status: b.kind === 'partido' ? (b.rival_status || 'pendiente') : 'pendiente',
       observations: b.kind === 'partido' ? ((b.observations || '').trim().slice(0, 500) || null) : null,
     };
     return r;
@@ -264,7 +277,7 @@
   //  Almacenamiento: Demo (localStorage) y Supabase
   // ================================================================
   function makeLocalStore() {
-    const KEY = 'planificador-campo-demo-v6';
+    const KEY = 'planificador-campo-demo-v7';
     const TKEY = 'planificador-campo-demo-template-v3';
     const GKEY = 'planificador-campo-demo-weeks-v3';
     const UKEY = 'planificador-campo-demo-users-v2';
@@ -601,14 +614,14 @@
     const bookings = [
       ...template.filter(t => !cancelled.includes(t.id)).map(E),
       { id: uid(), day: k(5), team: 'tec-1', kind: 'entreno', start_min: toMin('10:00'), duration_min: 60, zone: 'A', notes: 'Sesión extra', format: null, opponent: null, template_id: null },
-      { id: uid(), day: k(6), team: null, kind: 'evento', title: 'Mantenimiento del césped', start_min: toMin('19:30'), duration_min: 120, zone: 'full', notes: null, format: null, opponent: null, template_id: null },
+      { id: uid(), day: k(6), team: null, kind: 'evento', title: 'Mantenimiento del césped', start_min: toMin('09:00'), duration_min: 60, zone: 'full', notes: null, format: null, opponent: null, template_id: null },
       // Partidos: hora = saque inicial
       P(5, 'alevin-a', '11:30', 'F8', 'A', 'CF Montaña'), P(5, 'alevin-b', '11:30', 'F8', 'B', 'UD Riera'),
       P(5, 'cadete', '16:30', 'F11', 'full', 'CE Poble Nou'),
       { ...P(5, 'juvenil', '19:00', 'F11', 'full', 'FC Turó', false), observations: 'La entrenadora avisa de 5 bajas el sábado por un torneo escolar; pide adelantar el partido.' },
       P(6, 'senior-a', '10:30', 'F11', 'full', 'CD Sant Joan'),
       P(6, 'senior-b', '13:00', 'F11', 'full', 'AE Martinenc'),
-      P(6, 'infantil-a', '17:00', 'F11', 'full', 'EF Gràcia', false),
+      P(6, 'infantil-a', '20:00', 'F11', 'full', 'EF Gràcia', false),
     ];
     const proposals = [
       { id: 'demo-prop-1', booking_id: 'demo-p-juvenil-5', day: k(4), start_min: null, slot: null, reason: '5 bajas el sábado por un torneo escolar', status: 'pendiente', created_by: 'demo-entre', author_name: 'Laura Martí', created_at: new Date().toISOString() },
@@ -721,6 +734,13 @@
       const nm = `${teamOf(b.team).name}${b.opponent ? ' vs ' + b.opponent : ''}`;
       const push = msg => { const it = { level: 'pending', msg, ids: [b.id], day: b.day, at: b.start_min, team: b.team }; full.all.push(it); if (!full.byId.has(b.id)) full.byId.set(b.id, []); full.byId.get(b.id).push(it); };
       if (!b.confirmed && b.day >= today) push(`${nm}: horario por confirmar`);
+      if (needsRival(b) && b.day >= today) {
+        const fed = fedText(b.team);
+        if (b.rival_status === 'rechazado') {
+          const it = { level: 'error', msg: `${nm}: el rival no acepta jugar fuera del horario federativo (${fed})`, ids: [b.id], day: b.day, at: b.start_min, team: b.team };
+          full.all.push(it); if (!full.byId.has(b.id)) full.byId.set(b.id, []); full.byId.get(b.id).push(it);
+        } else if (b.rival_status !== 'aprobado') push(`${nm}: fuera del horario federativo (${fed}); pendiente de aprobación del rival`);
+      }
       const np = pendingProps(b.id).length;
       if (np) push(`${teamOf(b.team).name}: ${np} propuesta${np > 1 ? 's' : ''} de horario pendiente${np > 1 ? 's' : ''}`);
     }
@@ -855,13 +875,14 @@
       const narrow = p.lanes.length === 1;
       const first = n === 0, last = n === parts.length - 1;
       const unconf = b.kind === 'partido' && !b.confirmed;
+      const rivalPend = needsRival(b) && b.rival_status !== 'aprobado';
       const cls = ['block', 'kind-' + b.kind, lvl && 'lvl-' + lvl, narrow && 'narrow', g.height < 50 && 'short', chg && (chg.what[0] === 'extra' ? 'extra' : 'changed'), unconf && 'unconfirmed',
         !first && 'cont-up', !last && 'cont-down', p.shared && 'shared',
         state.filter && state.filter !== b.team && 'dim', state.selectedId === b.id && 'selected'].filter(Boolean).join(' ');
       const segs = b.kind === 'partido'
         ? `<div class="segs" style="top:${(t.start - g.vs) * PX}px">${t.segs.map(s => `<div class="seg seg-${s.t}" style="top:${(s.from - t.start) * PX}px;height:${(s.to - s.from) * PX}px"></div>`).join('')}</div>`
         : '';
-      const sub = p.shared ? `Comparte · ${lanesName(p.lanes)}` : (unconf ? 'Por confirmar · ' : '') + subLabel(b);
+      const sub = p.shared ? `Comparte · ${lanesName(p.lanes)}` : (rivalPend ? 'Falta OK del rival · ' : '') + (unconf ? 'Por confirmar · ' : '') + subLabel(b);
       const np = b.kind === 'partido' ? pendingProps(b.id).length : 0;
       const time = p.shared ? `${fmt(p.from)}–${fmt(p.to)}` : b.kind === 'partido' && t.kick != null ? `${fmt(t.kick)}–${fmt(t.coreEnd)}` : `${fmt(t.start)}–${fmt(t.end)}`;
       const labelTop = b.kind === 'partido' && t.kick != null ? Math.max(0, (t.kick - g.vs) * PX) : 0;
@@ -869,6 +890,7 @@
       ${segs}
       <div class="b-label" style="${labelTop ? `margin-top:${labelTop + 3}px` : ''}"><span class="b-name">${isMine(b.team) ? '★ ' : ''}${esc(narrow ? team.short : team.name)}</span><span class="b-sub">${esc(sub)}</span><span class="b-time">${time}</span></div>
       ${lvl && first ? `<span class="b-flag">!</span>` : ''}
+      ${rivalPend && first ? `<span class="b-rival" title="Fuera del horario federativo: ${RIVAL_LABEL[b.rival_status || 'pendiente']}">⚑</span>` : ''}
       ${np && first ? `<span class="b-prop" title="${np} propuesta(s) de horario">⇄${np}</span>` : ''}
       ${chg && first ? `<span class="b-chg" title="${chg.what[0] === 'extra' ? 'Entreno extra' : 'Cambio respecto a lo habitual'}">${chg.what[0] === 'extra' ? '+' : '↻'}</span>` : ''}
       ${b.kind !== 'partido' && isEditor() && last ? '<div class="resize" data-resize="1"></div>' : ''}
@@ -1136,6 +1158,7 @@
     $('#f-opp').value = draft.opponent || '';
     $('#f-notes').value = draft.notes || '';
     $('#f-confirmed').checked = !!draft.confirmed;
+    renderRival();
     $('#f-obs').value = draft.observations || '';
     renderProposals($('#f-props'), editingId ? state.bookings.find(b => b.id === editingId) : null, true);
     renderPreview();
@@ -1161,7 +1184,21 @@
     return computeIssues([...others, cand]).byId.get('__draft__') || [];
   }
 
+  /** Editor: muestra si el saque está en horario federativo y el estado de aprobación del rival */
+  function renderRival() {
+    if (draft.kind !== 'partido' || isTpl()) return;
+    const w = fedWindows(draft.team);
+    const out = needsRival(draft);
+    $('#f-rival-wrap').hidden = !w;
+    $('#f-fed').innerHTML = !w ? '' : out
+      ? `<b class="fed-out">Fuera del horario federativo</b> de ${esc(teamOf(draft.team).name)} (${esc(fedText(draft.team))}). Necesita la aprobación del rival.`
+      : `<span class="fed-in">✓ Dentro del horario federativo</span> (${esc(fedText(draft.team))}).`;
+    $('#f-rival').hidden = !out;
+    $$('#f-rival button').forEach(x => x.classList.toggle('on', x.dataset.v === (draft.rival_status || 'pendiente')));
+  }
+
   function renderPreview() {
+    renderRival();
     const t = timeline(draft), team = whoOf(draft);
     const total = t.end - t.start;
     const bar = t.segs.map(s => `<div class="tl-${s.t}" style="flex:${s.to - s.from}" title="${s.label} ${fmt(s.from)}–${fmt(s.to)}">${(s.to - s.from) / total > .12 ? s.label : ''}</div>`).join('');
@@ -1194,7 +1231,9 @@
       ${same ? '' : '<button type="button" class="ghost" id="f-restore">Volver a lo habitual</button>'}`;
   }
 
+  let rivalTouched = false;
   function openEditor(b, isNew) {
+    rivalTouched = false;
     draft = { ...b };
     editingId = isNew ? null : b.id;
     $('#f-title').textContent = isTpl() ? (isNew ? 'Nuevo entreno habitual' : 'Editar entreno habitual') : (isNew ? (b.template_id ? 'Recuperar entreno habitual' : 'Nueva reserva') : 'Editar reserva');
@@ -1263,16 +1302,20 @@
         const cand = { ...b, day, start_min: st, id: '__prop__' };
         return (computeIssues([...all, cand]).byId.get('__prop__') || []).filter(i => i.level === 'error' || i.level === 'warn');
       };
+      const fedNote = st => b.kind === 'partido' && !inFedWindow(b.team, day, st) ? ' · fuera del horario federativo: necesita OK del rival' : '';
       if (start_min != null) {
         const iss = test(start_min), err = iss.find(i => i.level === 'error');
         if (err) return { level: 'error', text: err.msg.replace(/^Conflicto: /, 'Choca: '), start: start_min };
-        if (iss.length) return { level: 'warn', text: iss[0].msg, start: start_min };
+        if (iss.length) return { level: 'warn', text: iss[0].msg + fedNote(start_min), start: start_min };
+        if (fedNote(start_min)) return { level: 'warn', text: 'Hueco libre' + fedNote(start_min), start: start_min };
         return { level: 'ok', text: 'Hueco libre', start: start_min };
       }
       // Entre semana, «a cualquier hora» empieza por la tarde (horario escolar)
       const weekday = dayIndexOf(day) < 5;
       const [a, z] = !slot && weekday ? [toMin('16:00'), toMin('21:00')] : SLOT_RANGE[slot || 'any'];
-      for (let st = a; st <= z; st += SNAP) if (!test(st).some(i => i.level === 'error')) return { level: 'ok', text: `Hueco libre a las ${fmt(st)}`, start: st };
+      // Primero dentro del horario federativo; si no hay, cualquier hora libre (necesitará OK del rival)
+      for (let st = a; st <= z; st += SNAP) if (!fedNote(st) && !test(st).some(i => i.level === 'error')) return { level: 'ok', text: `Hueco libre a las ${fmt(st)}`, start: st };
+      for (let st = a; st <= z; st += SNAP) if (!test(st).some(i => i.level === 'error')) return { level: 'warn', text: `Hueco libre a las ${fmt(st)}${fedNote(st)}`, start: st };
       return { level: 'error', text: `No hay hueco libre ${SLOT_LABEL[slot || 'any']}`, start: null };
     } catch { return { level: 'warn', text: 'No se pudo comprobar', start: null }; }
   }
@@ -1341,7 +1384,7 @@
         if (st == null) { toast(`${chk.text}. Mueve el partido a mano o elige otra propuesta.`, true); return; }
         const extra = chk.level === 'error' ? `\n\nOjo: ${chk.text}` : p.start_min == null ? '\n\nEs la primera hora libre de esa franja; luego puedes ajustarla.' : '';
         if (!(await askConfirm(`¿Mover el partido de ${teamOf(b.team).name} al ${dayLabel(p.day)} a las ${fmt(st)}?${extra}`, 'Aplicar propuesta'))) return;
-        await store.update(b.id, { ...b, day: p.day, start_min: st });
+        await store.update(b.id, { ...b, day: p.day, start_min: st, rival_status: 'pendiente' });
         await store.proposals.setStatus(p.id, 'aceptada');
         if (box.dataset.editor && draft && editingId === b.id) { draft.day = p.day; draft.start_min = st; }
         toast('Partido movido a la hora propuesta');
@@ -1382,7 +1425,8 @@
       if (b.opponent) rows.push(['Rival', b.opponent]);
       for (const s of t.segs) rows.push([s.label, `${fmt(s.from)} – ${fmt(s.to)}`]);
     }
-    if (b.kind === 'partido') rows.splice(1, 0, ['Horario', b.confirmed ? '✓ Confirmado' : 'Por confirmar']);
+    if (b.kind === 'partido') rows.splice(1, 0, ['Horario', b.confirmed ? '✓ Confirmado' : 'Por confirmar'],
+      ...(fedWindows(b.team) ? [['Horario federativo', needsRival(b) ? `Fuera (${fedText(b.team)}) · ${RIVAL_LABEL[b.rival_status || 'pendiente']}` : '✓ Dentro']] : []));
     if (b.notes) rows.push(['Notas', b.notes]);
     if (b.kind === 'partido' && b.observations) rows.push(['Observaciones', b.observations]);
     $('#d-body').innerHTML = `<dl class="detail-rows">${rows.map(([a, v]) => `<dt>${esc(a)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
@@ -1479,6 +1523,7 @@
     if (!d.moved) { openEditor(d.b, false); return; }
     suppressClickUntil = Date.now() + 400;
     const c = d.cand, b = d.b;
+    if (b.kind === 'partido' && (c.day !== b.day || c.start_min !== b.start_min)) c.rival_status = 'pendiente';
     if (c.day === b.day && c.start_min === b.start_min && c.zone === b.zone && c.duration_min === b.duration_min) { render(); return; }
     // Actualización optimista
     Object.assign(state.bookings.find(x => x.id === b.id), c);
@@ -2111,6 +2156,12 @@
     ['#f-date', '#f-start', '#f-dur', '#f-opp', '#f-notes'].forEach(s => $(s).addEventListener('input', () => { readInputs(); renderPreview(); }));
     // Al salir del campo, muestra la hora/duración ya redondeadas a 15 min
     $('#f-start').addEventListener('change', () => { readInputs(); $('#f-start').value = fmt(draft.start_min); renderPreview(); });
+    $('#f-rival').addEventListener('click', e => { const v = e.target.closest('button')?.dataset.v; if (v) { draft.rival_status = v; rivalTouched = true; renderRival(); } });
+    // Si cambia el día o la hora de un partido, la aprobación del rival vuelve a pendiente (salvo que la marques tú)
+    ['#f-date', '#f-start'].forEach(sel => $(sel).addEventListener('change', () => {
+      const orig = editingId && state.bookings.find(x => x.id === editingId);
+      if (draft.kind === 'partido' && orig && !rivalTouched && (draft.day !== orig.day || draft.start_min !== orig.start_min)) { draft.rival_status = 'pendiente'; renderRival(); }
+    }));
     $('#f-dur').addEventListener('change', () => { readInputs(); $('#f-dur').value = draft.duration_min; renderPreview(); });
     $('#f-delete').onclick = deleteDraft;
     $('#f-props').addEventListener('click', onProposalClick);
@@ -2166,7 +2217,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261026111232';
+  const APP_VERSION = '20261026111534';
   async function checkVersion() {
     if (store?.mode === 'demo') return;
     try {

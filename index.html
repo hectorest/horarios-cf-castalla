@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Planificador de Campo</title>
   <link rel="icon" type="image/png" href="assets/escudo-64.png">
-  <link rel="stylesheet" href="styles.css?v=20261026111232">
+  <link rel="stylesheet" href="styles.css?v=20261026111534">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -210,6 +210,16 @@
           </label>
         </div>
 
+        <div class="field full match-only week-only rival-field" id="f-rival-wrap">
+          <span class="lbl">Horario federativo</span>
+          <p class="fed-hint" id="f-fed"></p>
+          <div class="segmented small" id="f-rival" role="group" aria-label="Aprobación del rival">
+            <button type="button" data-v="pendiente">Pendiente del rival</button>
+            <button type="button" data-v="aprobado">Aprobado por el rival</button>
+            <button type="button" data-v="rechazado">Rechazado</button>
+          </div>
+        </div>
+
         <div class="field full match-only week-only">
           <label for="f-obs">Observaciones</label>
           <textarea id="f-obs" rows="2" maxlength="500" placeholder="Ej.: el entrenador pide jugar el domingo por la mañana porque el sábado tienen excursión"></textarea>
@@ -283,8 +293,8 @@
   <div id="drag-tip" class="drag-tip" hidden></div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261026111232"></script>
-  <script src="tutorial.js?v=20261026111232"></script>
-  <script src="app.js?v=20261026111232"></script>
+  <script src="config.js?v=20261026111534"></script>
+  <script src="tutorial.js?v=20261026111534"></script>
+  <script src="app.js?v=20261026111534"></script>
 </body>
 </html>

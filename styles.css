@@ -612,3 +612,16 @@ button.danger-link { color: var(--err); }
   .prop { flex-direction: column; }
   .prop-actions { justify-content: flex-start; }
 }
+
+/* ---------- Horario federativo y aprobación del rival ---------- */
+.b-rival { position: absolute; top: 3px; right: 3px; width: 17px; height: 17px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--pend); color: #fff; font-size: 10px; z-index: 3; pointer-events: none; }
+.lvl-error .b-rival, .lvl-warn .b-rival { right: 22px; }
+.fed-hint { margin: 0 0 6px; font-size: 12.5px; }
+.fed-out { color: var(--pend); }
+.fed-in { color: var(--pitch-dark); font-weight: 600; }
+#f-rival button { flex: 1; font-size: 12.5px; }
+#f-rival button[data-v="aprobado"].on { background: var(--pitch); }
+#f-rival button[data-v="rechazado"].on { background: var(--err); }
+#f-rival button[data-v="pendiente"].on { background: var(--pend); }
+@media (max-width: 720px) { #f-rival { flex-wrap: wrap; } #f-rival button { flex: 1 1 100%; border-left: 0 !important; } }
