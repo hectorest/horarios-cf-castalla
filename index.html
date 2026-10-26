@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>Planificador de Campo</title>
   <link rel="icon" type="image/png" href="assets/escudo-64.png">
-  <link rel="stylesheet" href="styles.css?v=20261026103232">
+  <link rel="stylesheet" href="styles.css?v=20261026111232">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -44,6 +44,7 @@
           <div id="up-teams" class="up-teams"></div>
           <button type="button" role="menuitem" id="m-people" hidden>Entrenadores y solicitudes <span id="m-people-count"></span></button>
           <button type="button" role="menuitem" id="m-copy" hidden>Copiar entrenos de la semana anterior</button>
+          <button type="button" role="menuitem" id="m-confirm" hidden>Confirmar los partidos de esta semana</button>
           <button type="button" role="menuitem" id="m-clear" class="danger-item" hidden>Borrar los eventos de esta semana</button>
           <button type="button" role="menuitem" id="m-mode">Ver horario habitual</button>
           <button type="button" role="menuitem" id="m-help">Ver tutorial</button>
@@ -93,6 +94,7 @@
       <section class="panel issues-panel">
         <h2><span id="issues-title">Incidencias</span> <span id="issue-count" class="count"></span></h2>
         <button type="button" id="issue-scope" class="link issue-scope" hidden></button>
+        <button type="button" id="confirm-week" class="ghost confirm-week" hidden></button>
         <ul id="issues" class="issues"></ul>
       </section>
       <section class="panel tabs-panel">
@@ -200,6 +202,24 @@
           <input type="text" id="f-notes" maxlength="200" placeholder="Opcional">
         </div>
 
+        <div class="field full match-only week-only">
+          <label class="switch conf-switch" title="Márcalo cuando la hora del partido sea definitiva">
+            <input type="checkbox" id="f-confirmed">
+            <span class="track"><span class="thumb"></span></span>
+            Horario confirmado
+          </label>
+        </div>
+
+        <div class="field full match-only week-only">
+          <label for="f-obs">Observaciones</label>
+          <textarea id="f-obs" rows="2" maxlength="500" placeholder="Ej.: el entrenador pide jugar el domingo por la mañana porque el sábado tienen excursión"></textarea>
+        </div>
+
+        <div class="field full match-only week-only">
+          <span class="lbl">Propuestas de horario</span>
+          <div id="f-props" class="props-box"></div>
+        </div>
+
         <div class="hab-note full" id="f-hab" hidden></div>
         <div class="preview full" id="f-preview"></div>
       </div>
@@ -263,8 +283,8 @@
   <div id="drag-tip" class="drag-tip" hidden></div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261026103232"></script>
-  <script src="tutorial.js?v=20261026103232"></script>
-  <script src="app.js?v=20261026103232"></script>
+  <script src="config.js?v=20261026111232"></script>
+  <script src="tutorial.js?v=20261026111232"></script>
+  <script src="app.js?v=20261026111232"></script>
 </body>
 </html>

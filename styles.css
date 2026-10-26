@@ -17,6 +17,8 @@
   --radius: 10px;
   --chg: #0d7a80;          /* cambio respecto a lo habitual */
   --chg-tint: #e3f4f4;
+  --pend: #8a5a00;          /* por confirmar / propuestas */
+  --pend-tint: #fbf1dc;
   --info: #5b47b5;
   --info-tint: #efecfa;
   --gutter: #d2dceb;
@@ -572,3 +574,41 @@ body.tpl-mode .cal-wrap { box-shadow: 0 0 0 2px var(--gold), var(--shadow); }
 .block.kind-evento .b-name::before { content: "◆ "; }
 .sw-event { background: repeating-linear-gradient(135deg, #f3e6bf 0 4px, #e6cf8a 4px 8px); border-left: 4px solid #a87b00; }
 .kind-seg button { flex: 1; }
+
+/* ---------- Partidos: confirmación y propuestas ---------- */
+.block.kind-partido.unconfirmed { border: 2px dashed var(--c); }
+.block.kind-partido.unconfirmed .b-label { background: color-mix(in srgb, var(--pend-tint) 70%, white); }
+.b-prop { position: absolute; left: 3px; bottom: 3px; padding: 0 5px; border-radius: 99px; background: var(--pend); color: #fff; font-size: 10px; font-weight: 800; line-height: 16px; z-index: 2; pointer-events: none; }
+.pill.pend { background: var(--pend-tint); color: var(--pend); border: 1px solid #ecd39b; }
+.issues li.pending { background: var(--pend-tint); }
+.issues li.pending .ic { background: var(--pend); }
+.pv-issues li.pending { background: var(--pend-tint); color: #5c3c00; }
+.confirm-week { margin: -4px 0 8px; align-self: flex-start; font-size: 12.5px; padding: 4px 10px; }
+.field textarea { padding: 7px 9px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; width: 100%; resize: vertical; font: inherit; }
+.conf-switch { margin: 2px 0; font-weight: 600; color: var(--ink); }
+.props-box { display: grid; gap: 8px; }
+.props { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.prop { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; padding: 8px 10px; border-radius: 10px; background: var(--pend-tint); border: 1px solid #ecd39b; }
+.prop.st-aceptada, .prop.st-descartada { background: var(--bg); border-color: var(--line); opacity: .75; }
+.prop-main { min-width: 0; display: grid; gap: 2px; font-size: 13px; }
+.prop-reason { margin: 0; font-size: 12.5px; }
+.prop-meta { font-size: 11.5px; color: var(--muted); }
+.prop-check { justify-self: start; font-size: 11.5px; font-weight: 600; padding: 0 6px; border-radius: 99px; background: var(--panel); }
+.prop-check.ok { color: var(--pitch-dark); }
+.prop-check.error { color: var(--err); }
+.prop-check.warn { color: var(--warn); }
+.prop-actions { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: flex-end; flex: none; }
+.prop-actions button { padding: 4px 9px; font-size: 12.5px; }
+.prop-st { font-size: 12px; color: var(--muted); font-weight: 600; }
+button.danger-link { color: var(--err); }
+.props-empty { margin: 0; font-size: 12.5px; color: var(--muted); }
+.prop-form { display: grid; grid-template-columns: auto auto 1fr auto; gap: 6px; align-items: center; }
+.prop-form input, .prop-form select { padding: 6px 8px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; min-width: 0; }
+.prop-form button { padding: 6px 10px; }
+#detail-dialog .dlg-body { gap: 12px; }
+@media (max-width: 720px) {
+  .prop-form { grid-template-columns: 1fr 1fr; }
+  .prop-form input[data-pf=reason] { grid-column: 1 / -1; }
+  .prop { flex-direction: column; }
+  .prop-actions { justify-content: flex-start; }
+}

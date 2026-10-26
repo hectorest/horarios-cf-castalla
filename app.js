@@ -239,7 +239,8 @@
     return { byId, all, pieces };
   }
 
-  const ICON = { error: '⛔', warn: '⚠', info: '½', change: '↻' };
+  const ICON = { error: '⛔', warn: '⚠', info: '½', change: '↻', pending: '?' };
+  const pendingProps = id => (state.proposals.get(id) || []).filter(p => p.status === 'pendiente');
   const worstLevel = issues => issues.some(i => i.level === 'error') ? 'error' : issues.some(i => i.level === 'warn') ? 'warn' : '';
 
   /** Normaliza una reserva antes de guardarla. */
@@ -253,6 +254,8 @@
       opponent: b.kind === 'partido' ? (b.opponent || null) : null,
       notes: b.notes || null,
       template_id: b.template_id || null,
+      confirmed: b.kind === 'partido' ? !!b.confirmed : true,
+      observations: b.kind === 'partido' ? ((b.observations || '').trim().slice(0, 500) || null) : null,
     };
     return r;
   }
@@ -261,7 +264,7 @@
   //  Almacenamiento: Demo (localStorage) y Supabase
   // ================================================================
   function makeLocalStore() {
-    const KEY = 'planificador-campo-demo-v5';
+    const KEY = 'planificador-campo-demo-v6';
     const TKEY = 'planificador-campo-demo-template-v3';
     const GKEY = 'planificador-campo-demo-weeks-v3';
     const UKEY = 'planificador-campo-demo-users-v2';
@@ -282,7 +285,7 @@
     const writeWeeks = a => ls.set(GKEY, a);
     if (!read() || !ls.get(TKEY)) {
       const seed = demoSeed();
-      writeTpl(seed.template); write(seed.bookings); writeWeeks([seed.week]);
+      writeTpl(seed.template); write(seed.bookings); writeWeeks([seed.week]); ls.set('planificador-campo-demo-proposals-v1', seed.proposals);
     }
     const thisMonday = () => keyOf(mondayOf(new Date()));
     const today = () => keyOf(new Date());
@@ -297,6 +300,9 @@
     try { sid = sessionStorage.getItem(SKEY); } catch { }
     const setSid = v => { sid = v; try { v ? sessionStorage.setItem(SKEY, v) : sessionStorage.removeItem(SKEY); } catch { } };
     const sessionOf = u => u ? { user: { id: u.id, email: u.email }, profile: { full_name: u.full_name, role: u.role, status: u.status, teams: u.teams || [], requested_teams: u.requested_teams || [] } } : null;
+    const PKEY = 'planificador-campo-demo-proposals-v1';
+    const props = () => ls.get(PKEY) || [];
+    const writeProps = a => ls.set(PKEY, a);
     const IKEY = 'planificador-campo-demo-invites-v1';
     let imem = null;
     const invites = () => imem || (imem = ls.get(IKEY) || demoInvites());
@@ -330,6 +336,18 @@
         return true;
       },
       async weekGenerated(mondayK) { return weeks().includes(mondayK); },
+      async confirmMatches(from, to) {
+        let n = 0;
+        write(read().map(b => b.kind === 'partido' && !b.confirmed && b.day >= from && b.day <= to ? (n++, { ...b, confirmed: true }) : b));
+        return n;
+      },
+      proposals: {
+        async list(ids) { return props().filter(p => ids.includes(p.booking_id)).map(p => ({ ...p })); },
+        async add(p) { const r = { ...p, id: uid(), status: 'pendiente', created_by: sid, created_at: new Date().toISOString() }; writeProps([...props(), r]); return r; },
+        async setStatus(id, status) { writeProps(props().map(p => p.id === id ? { ...p, status, resolved_at: new Date().toISOString() } : p)); },
+        async remove(id) { writeProps(props().filter(p => p.id !== id)); },
+        subscribe() { },
+      },
       async clearWeek(dayKey) {
         const m = mondayKey(dayKey), end = keyOf(addDays(parseKey(m), 6));
         const before = read().length;
@@ -468,6 +486,24 @@
         const rows = chk(await sb.from('generated_weeks').select('week_start').eq('week_start', mondayK));
         return rows.length > 0;
       },
+      async confirmMatches(from, to) {
+        return chk(await sb.from(T).update({ confirmed: true }).eq('kind', 'partido').eq('confirmed', false).gte('day', from).lte('day', to).select('id')).length;
+      },
+      proposals: {
+        async list(ids) {
+          if (!ids.length) return [];
+          return chk(await sb.from('match_proposals').select('id, booking_id, day, start_min, slot, reason, status, created_by, author_name, created_at, resolved_at').in('booking_id', ids).order('created_at'));
+        },
+        async add(p) { return chk(await sb.from('match_proposals').insert(p).select().single()); },
+        async setStatus(id, status) {
+          const rows = chk(await sb.from('match_proposals').update({ status, resolved_at: new Date().toISOString() }).eq('id', id).select('id'));
+          if (!rows.length) throw new Error('No tienes permiso para resolver esta propuesta.');
+        },
+        async remove(id) { chk(await sb.from('match_proposals').delete().eq('id', id)); },
+        subscribe(cb) {
+          sb.channel('proposals-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'match_proposals' }, debounce(cb)).subscribe();
+        },
+      },
       async clearWeek(dayKey) {
         const { data, error } = await sb.rpc('clear_week', { p_day: dayKey });
         if (error) throw new Error(error.message);
@@ -561,7 +597,7 @@
     };
     const cancelled = ['tpl-3-tec-2'];                          // no entrena esta semana
     const E = t => ({ id: uid(), day: k(t.weekday), team: t.team, kind: 'entreno', start_min: t.start_min, duration_min: t.duration_min, zone: t.zone, notes: null, format: null, opponent: null, template_id: t.id, ...(changes[t.id] || {}) });
-    const P = (d, team, start, format, zone, opponent) => ({ id: uid(), day: k(d), team, kind: 'partido', start_min: toMin(start), duration_min: null, zone, format, opponent, notes: null, template_id: null });
+    const P = (d, team, start, format, zone, opponent, confirmed = true) => ({ id: 'demo-p-' + team + '-' + d, day: k(d), team, kind: 'partido', start_min: toMin(start), duration_min: null, zone, format, opponent, notes: null, template_id: null, confirmed });
     const bookings = [
       ...template.filter(t => !cancelled.includes(t.id)).map(E),
       { id: uid(), day: k(5), team: 'tec-1', kind: 'entreno', start_min: toMin('10:00'), duration_min: 60, zone: 'A', notes: 'Sesión extra', format: null, opponent: null, template_id: null },
@@ -569,12 +605,16 @@
       // Partidos: hora = saque inicial
       P(5, 'alevin-a', '11:30', 'F8', 'A', 'CF Montaña'), P(5, 'alevin-b', '11:30', 'F8', 'B', 'UD Riera'),
       P(5, 'cadete', '16:30', 'F11', 'full', 'CE Poble Nou'),
-      P(5, 'juvenil', '19:00', 'F11', 'full', 'FC Turó'),
+      { ...P(5, 'juvenil', '19:00', 'F11', 'full', 'FC Turó', false), observations: 'La entrenadora avisa de 5 bajas el sábado por un torneo escolar; pide adelantar el partido.' },
       P(6, 'senior-a', '10:30', 'F11', 'full', 'CD Sant Joan'),
       P(6, 'senior-b', '13:00', 'F11', 'full', 'AE Martinenc'),
-      P(6, 'infantil-a', '17:00', 'F11', 'full', 'EF Gràcia'),
+      P(6, 'infantil-a', '17:00', 'F11', 'full', 'EF Gràcia', false),
     ];
-    return { template, bookings, week: k(0) };
+    const proposals = [
+      { id: 'demo-prop-1', booking_id: 'demo-p-juvenil-5', day: k(4), start_min: null, slot: null, reason: '5 bajas el sábado por un torneo escolar', status: 'pendiente', created_by: 'demo-entre', author_name: 'Laura Martí', created_at: new Date().toISOString() },
+      { id: 'demo-prop-2', booking_id: 'demo-p-juvenil-5', day: k(5), start_min: null, slot: 'manana', reason: 'Alternativa si el viernes no puede el rival', status: 'pendiente', created_by: 'demo-entre', author_name: 'Laura Martí', created_at: new Date().toISOString() },
+    ];
+    return { template, bookings, week: k(0), proposals };
   }
 
   // ================================================================
@@ -596,6 +636,7 @@
     mode: 'week',        // 'week' | 'template' (horario habitual)
     template: [],
     weekGenerated: false,
+    proposals: new Map(),   // id de partido → propuestas de horario
     issueScope: 'mine',  // entrenadores: 'mine' | 'all'
     edit: true,
     view: window.innerWidth < 820 ? 'day' : 'week',
@@ -639,7 +680,7 @@
   /** Compara la semana con el horario habitual: cambios de día/horario/campo, entrenos que no se hacen y extras */
   function addChanges(full) {
     full.ghosts = []; full.changed = new Map();
-    if (isTpl() || !state.template.length) return full;
+    if (isTpl()) return full;
     const tpl = new Map(state.template.map(t => [t.id, t]));
     const add = (msg, items, day, at, team, tplId) => {
       const it = { level: 'change', msg, ids: items.map(b => b.id), day, at, team, tplId };
@@ -662,7 +703,7 @@
           add(`${teamOf(b.team).name}: cambio de ${d.join(' y ')} (lo habitual es ${habText(t)})`, [b], b.day, b.start_min, b.team, t.id);
           full.ghosts.push({ t, day: habDay, type: 'moved' });
         }
-      } else if (state.weekGenerated) {
+      } else if (state.weekGenerated && state.template.length) {
         full.changed.set(b.id, { what: ['extra'] });
         add(`${teamOf(b.team).name}: entreno extra, fuera del horario habitual`, [b], b.day, b.start_min, b.team);
       }
@@ -673,7 +714,17 @@
       add(`${teamOf(t.team).name}: esta semana no entrena (lo habitual es ${habText(t)})`, [], day, t.start_min, t.team, t.id);
       full.ghosts.push({ t, day, type: 'cancel' });
     }
-    const rank = { error: 0, warn: 1, change: 2, info: 3 };
+    // Partidos por confirmar y propuestas de horario pendientes
+    const today = keyOf(new Date());
+    for (const b of state.bookings) {
+      if (b.kind !== 'partido') continue;
+      const nm = `${teamOf(b.team).name}${b.opponent ? ' vs ' + b.opponent : ''}`;
+      const push = msg => { const it = { level: 'pending', msg, ids: [b.id], day: b.day, at: b.start_min, team: b.team }; full.all.push(it); if (!full.byId.has(b.id)) full.byId.set(b.id, []); full.byId.get(b.id).push(it); };
+      if (!b.confirmed && b.day >= today) push(`${nm}: horario por confirmar`);
+      const np = pendingProps(b.id).length;
+      if (np) push(`${teamOf(b.team).name}: ${np} propuesta${np > 1 ? 's' : ''} de horario pendiente${np > 1 ? 's' : ''}`);
+    }
+    const rank = { error: 0, warn: 1, change: 2, pending: 3, info: 4 };
     full.all.sort((x, y) => (x.day < y.day ? -1 : x.day > y.day ? 1 : 0) || rank[x.level] - rank[y.level] || x.at - y.at);
     return full;
   }
@@ -803,19 +854,22 @@
       const g = blockGeom({ start: p.from, end: p.to }, p.lanes);
       const narrow = p.lanes.length === 1;
       const first = n === 0, last = n === parts.length - 1;
-      const cls = ['block', 'kind-' + b.kind, lvl && 'lvl-' + lvl, narrow && 'narrow', g.height < 50 && 'short', chg && (chg.what[0] === 'extra' ? 'extra' : 'changed'),
+      const unconf = b.kind === 'partido' && !b.confirmed;
+      const cls = ['block', 'kind-' + b.kind, lvl && 'lvl-' + lvl, narrow && 'narrow', g.height < 50 && 'short', chg && (chg.what[0] === 'extra' ? 'extra' : 'changed'), unconf && 'unconfirmed',
         !first && 'cont-up', !last && 'cont-down', p.shared && 'shared',
         state.filter && state.filter !== b.team && 'dim', state.selectedId === b.id && 'selected'].filter(Boolean).join(' ');
       const segs = b.kind === 'partido'
         ? `<div class="segs" style="top:${(t.start - g.vs) * PX}px">${t.segs.map(s => `<div class="seg seg-${s.t}" style="top:${(s.from - t.start) * PX}px;height:${(s.to - s.from) * PX}px"></div>`).join('')}</div>`
         : '';
-      const sub = p.shared ? `Comparte · ${lanesName(p.lanes)}` : subLabel(b);
+      const sub = p.shared ? `Comparte · ${lanesName(p.lanes)}` : (unconf ? 'Por confirmar · ' : '') + subLabel(b);
+      const np = b.kind === 'partido' ? pendingProps(b.id).length : 0;
       const time = p.shared ? `${fmt(p.from)}–${fmt(p.to)}` : b.kind === 'partido' && t.kick != null ? `${fmt(t.kick)}–${fmt(t.coreEnd)}` : `${fmt(t.start)}–${fmt(t.end)}`;
       const labelTop = b.kind === 'partido' && t.kick != null ? Math.max(0, (t.kick - g.vs) * PX) : 0;
       return `<div class="${cls}" data-id="${esc(b.id)}" style="--c:${team.color};${geomStyle(g)}" title="${title}">
       ${segs}
       <div class="b-label" style="${labelTop ? `margin-top:${labelTop + 3}px` : ''}"><span class="b-name">${isMine(b.team) ? '★ ' : ''}${esc(narrow ? team.short : team.name)}</span><span class="b-sub">${esc(sub)}</span><span class="b-time">${time}</span></div>
       ${lvl && first ? `<span class="b-flag">!</span>` : ''}
+      ${np && first ? `<span class="b-prop" title="${np} propuesta(s) de horario">⇄${np}</span>` : ''}
       ${chg && first ? `<span class="b-chg" title="${chg.what[0] === 'extra' ? 'Entreno extra' : 'Cambio respecto a lo habitual'}">${chg.what[0] === 'extra' ? '+' : '↻'}</span>` : ''}
       ${b.kind !== 'partido' && isEditor() && last ? '<div class="resize" data-resize="1"></div>' : ''}
     </div>`;
@@ -923,12 +977,17 @@
   function renderIssues() {
     const all = state.issues.all;
     const cnt = l => all.filter(i => i.level === l).length;
-    const ne = cnt('error'), nw = cnt('warn'), ni = cnt('info'), nc = cnt('change');
-    $('#issue-count').innerHTML = `${ne ? `<span class="pill err">${ne} conflicto${ne > 1 ? 's' : ''}</span>` : ''}${nw ? `<span class="pill warn">${nw} aviso${nw > 1 ? 's' : ''}</span>` : ''}${nc ? `<span class="pill chg">${nc} cambio${nc > 1 ? 's' : ''}</span>` : ''}${ni ? `<span class="pill info">${ni} compartido${ni > 1 ? 's' : ''}</span>` : ''}`;
+    const ne = cnt('error'), nw = cnt('warn'), ni = cnt('info'), nc = cnt('change'), np = cnt('pending');
+    $('#issue-count').innerHTML = `${ne ? `<span class="pill err">${ne} conflicto${ne > 1 ? 's' : ''}</span>` : ''}${nw ? `<span class="pill warn">${nw} aviso${nw > 1 ? 's' : ''}</span>` : ''}${nc ? `<span class="pill chg">${nc} cambio${nc > 1 ? 's' : ''}</span>` : ''}${np ? `<span class="pill pend">${np} pendiente${np > 1 ? 's' : ''}</span>` : ''}${ni ? `<span class="pill info">${ni} compartido${ni > 1 ? 's' : ''}</span>` : ''}`;
     $('#side-toggle-count').innerHTML = ne ? `<span class="pill err">${ne}</span>` : nw ? `<span class="pill warn">${nw}</span>` : '';
     $('#issues').innerHTML = all.length
-      ? all.map((it, n) => `<li class="${it.level}" data-n="${n}" tabindex="0"><span class="ic">${{ info: '½', change: '↻' }[it.level] || '!'}</span><div><span class="when">${dayText(it.day)} · ${fmt(it.at)}</span>${esc(it.msg)}</div></li>`).join('')
+      ? all.map((it, n) => `<li class="${it.level}" data-n="${n}" tabindex="0"><span class="ic">${{ info: '½', change: '↻', pending: '?' }[it.level] || '!'}</span><div><span class="when">${dayText(it.day)} · ${fmt(it.at)}</span>${esc(it.msg)}</div></li>`).join('')
       : `<li class="empty">${myTeams() && state.issueScope === 'mine' ? 'Tus equipos no tienen conflictos ni avisos esta semana ✓' : 'Sin conflictos ni avisos esta semana ✓'}</li>`;
+    const unconf = state.bookings.filter(b => b.kind === 'partido' && !b.confirmed && b.day >= keyOf(new Date())).length;
+    const cb = $('#confirm-week');
+    cb.hidden = !(isEditor() && !isTpl() && unconf);
+    cb.textContent = `Confirmar los ${unconf} partido${unconf > 1 ? 's' : ''} de la semana`;
+    $('#m-confirm').hidden = !(isCoord() && !isTpl() && unconf);
     const scoped = !!(isCoach() && state.profile?.teams?.length);
     $('#issues-title').textContent = scoped && state.issueScope === 'mine' ? 'Tus incidencias' : 'Incidencias';
     const sc = $('#issue-scope');
@@ -962,6 +1021,10 @@
       } else {
         const [bk, tp, gen] = await Promise.all([store.list(from, to), store.template.list(), store.weekGenerated(from)]);
         state.bookings = bk; state.template = tp; state.weekGenerated = gen;
+        const ids = bk.filter(b => b.kind === 'partido').map(b => b.id);
+        const ps = await store.proposals.list(ids).catch(() => []);
+        state.proposals = new Map();
+        for (const p of ps) { if (!state.proposals.has(p.booking_id)) state.proposals.set(p.booking_id, []); state.proposals.get(p.booking_id).push(p); }
       }
     }
     catch (e) { toast('Error al cargar: ' + e.message, true); state.bookings = []; }
@@ -1072,6 +1135,9 @@
     $('#f-dur').value = draft.duration_min || DEFAULT_DUR;
     $('#f-opp').value = draft.opponent || '';
     $('#f-notes').value = draft.notes || '';
+    $('#f-confirmed').checked = !!draft.confirmed;
+    $('#f-obs').value = draft.observations || '';
+    renderProposals($('#f-props'), editingId ? state.bookings.find(b => b.id === editingId) : null, true);
     renderPreview();
   }
 
@@ -1085,6 +1151,8 @@
     draft.opponent = $('#f-opp').value.trim();
     draft.notes = $('#f-notes').value.trim();
     draft.title = $('#f-ev-title').value.trim();
+    draft.confirmed = $('#f-confirmed').checked;
+    draft.observations = $('#f-obs').value.trim();
   }
 
   function draftIssues() {
@@ -1170,6 +1238,130 @@
   // ================================================================
   //  Detalle (solo lectura)
   // ================================================================
+  // ================================================================
+  //  Propuestas de horario para un partido
+  // ================================================================
+  const weekCache = new Map();
+  async function weekBookings(mondayK) {
+    if (mondayK === keyOf(state.weekStart) && !isTpl()) return state.bookings;
+    const c = weekCache.get(mondayK);
+    if (c && Date.now() - c.at < 30000) return c.rows;
+    const rows = await store.list(mondayK, keyOf(addDays(parseKey(mondayK), 6)));
+    weekCache.set(mondayK, { at: Date.now(), rows });
+    return rows;
+  }
+
+  const SLOT_RANGE = { manana: [toMin('09:30'), toMin('13:30')], tarde: [toMin('15:00'), toMin('20:30')], any: [toMin('09:30'), toMin('20:30')] };
+  const SLOT_LABEL = { manana: 'por la mañana', tarde: 'por la tarde', any: 'a cualquier hora' };
+
+  /** ¿Cabe el partido ese día? Con hora exacta la comprueba; sin ella busca el primer hueco libre de la franja.
+   *  Devuelve { level: 'ok'|'warn'|'error', text, start } */
+  async function checkSlot(b, day, start_min, slot) {
+    try {
+      const all = (await weekBookings(keyOf(mondayOf(parseKey(day))))).filter(x => x.id !== b.id);
+      const test = st => {
+        const cand = { ...b, day, start_min: st, id: '__prop__' };
+        return (computeIssues([...all, cand]).byId.get('__prop__') || []).filter(i => i.level === 'error' || i.level === 'warn');
+      };
+      if (start_min != null) {
+        const iss = test(start_min), err = iss.find(i => i.level === 'error');
+        if (err) return { level: 'error', text: err.msg.replace(/^Conflicto: /, 'Choca: '), start: start_min };
+        if (iss.length) return { level: 'warn', text: iss[0].msg, start: start_min };
+        return { level: 'ok', text: 'Hueco libre', start: start_min };
+      }
+      // Entre semana, «a cualquier hora» empieza por la tarde (horario escolar)
+      const weekday = dayIndexOf(day) < 5;
+      const [a, z] = !slot && weekday ? [toMin('16:00'), toMin('21:00')] : SLOT_RANGE[slot || 'any'];
+      for (let st = a; st <= z; st += SNAP) if (!test(st).some(i => i.level === 'error')) return { level: 'ok', text: `Hueco libre a las ${fmt(st)}`, start: st };
+      return { level: 'error', text: `No hay hueco libre ${SLOT_LABEL[slot || 'any']}`, start: null };
+    } catch { return { level: 'warn', text: 'No se pudo comprobar', start: null }; }
+  }
+
+  function canProposeFor(b) { return !!b && b.kind === 'partido' && (isCoord() || isMine(b.team)); }
+
+  function renderProposals(box, b, inEditor) {
+    if (!box) return;
+    if (!b) { box.innerHTML = '<p class="props-empty">Guarda el partido para poder añadir propuestas de horario.</p>'; return; }
+    const list = state.proposals.get(b.id) || [];
+    const fmtD = k => { const d = parseKey(k); return `${DAYS_SHORT[dayIndexOf(k)]} ${d.getDate()} ${MONTHS[d.getMonth()]}`; };
+    const when = iso => { const d = new Date(iso); return `${d.getDate()} ${MONTHS[d.getMonth()]}`; };
+    const order = { pendiente: 0, aceptada: 1, descartada: 2 };
+    const rows = [...list].sort((x, y) => order[x.status] - order[y.status] || x.created_at.localeCompare(y.created_at)).map(p => {
+      const mine = p.created_by && p.created_by === state.user?.id;
+      const actions = p.status !== 'pendiente' ? `<span class="prop-st">${p.status === 'aceptada' ? 'Aplicada' : 'Descartada'}</span>`
+        : [isCoord() && `<button type="button" class="primary" data-prop="apply">Aplicar</button>`, isCoord() && `<button type="button" class="ghost" data-prop="discard">Descartar</button>`,
+          (mine || isCoord()) && `<button type="button" class="link danger-link" data-prop="delete">Borrar</button>`].filter(Boolean).join('');
+      return `<li class="prop st-${p.status}" data-id="${esc(p.id)}">
+        <div class="prop-main"><b>${fmtD(p.day)} · ${p.start_min != null ? fmt(p.start_min) : SLOT_LABEL[p.slot || 'any']}</b> ${p.status === 'pendiente' ? '<span class="prop-check" data-chk>Comprobando…</span>' : ''}
+          ${p.reason ? `<p class="prop-reason">${esc(p.reason)}</p>` : ''}
+          <span class="prop-meta">Propuesta por ${esc(p.author_name || 'la coordinación')} · ${when(p.created_at)}</span></div>
+        <div class="prop-actions">${actions}</div></li>`;
+    }).join('');
+    const can = canProposeFor(b);
+    box.innerHTML = `${rows ? `<ul class="props">${rows}</ul>` : '<p class="props-empty">Sin propuestas.</p>'}
+      ${can ? `<div class="prop-form">
+        <input type="date" aria-label="Día propuesto" data-pf="day" value="${b.day}">
+        <select aria-label="Cuándo" data-pf="slot"><option value="exact">Hora exacta</option><option value="manana">Por la mañana</option><option value="tarde">Por la tarde</option><option value="any">A cualquier hora</option></select>
+        <input type="time" aria-label="Hora de saque propuesta" data-pf="time" step="900" value="${fmt(b.start_min)}">
+        <input type="text" aria-label="Motivo" data-pf="reason" maxlength="300" placeholder="Motivo (ej.: 5 bajas por un torneo escolar)">
+        <button type="button" class="ghost" data-prop="add">Proponer</button>
+      </div>` : ''}`;
+    box.dataset.booking = b.id;
+    box.dataset.editor = inEditor ? '1' : '';
+    // Comprueba cada propuesta pendiente contra el calendario de su semana
+    for (const li of box.querySelectorAll('.prop.st-pendiente')) {
+      const p = list.find(x => x.id === li.dataset.id);
+      checkSlot(b, p.day, p.start_min, p.slot).then(r => { const el = li.querySelector('[data-chk]'); if (el) { el.textContent = r.level === 'ok' ? '✓ ' + r.text : r.text; el.className = 'prop-check ' + r.level; } });
+    }
+  }
+
+  async function onProposalClick(e) {
+    const box = e.currentTarget;
+    const btn = e.target.closest('[data-prop]'); if (!btn) return;
+    const b = state.bookings.find(x => x.id === box.dataset.booking); if (!b) return;
+    const act = btn.dataset.prop;
+    const refresh = async () => { await load(); const nb = state.bookings.find(x => x.id === b.id); renderProposals(box, nb || null, !!box.dataset.editor); };
+    try {
+      if (act === 'add') {
+        const day = box.querySelector('[data-pf=day]').value, time = box.querySelector('[data-pf=time]').value;
+        const mode = box.querySelector('[data-pf=slot]').value;
+        const reason = box.querySelector('[data-pf=reason]').value.trim();
+        if (!day) { toast('Indica el día propuesto', true); return; }
+        if (mode === 'exact' && !time) { toast('Indica la hora propuesta', true); return; }
+        const start_min = mode === 'exact' ? snap(toMin(time)) : null;
+        await store.proposals.add({ booking_id: b.id, day, start_min, slot: ['manana', 'tarde'].includes(mode) ? mode : null, reason: reason || null, author_name: displayName().slice(0, 80) || null });
+        toast('Propuesta añadida'); await refresh(); return;
+      }
+      const li = btn.closest('.prop'); const p = (state.proposals.get(b.id) || []).find(x => x.id === li.dataset.id); if (!p) return;
+      if (act === 'delete') { await store.proposals.remove(p.id); toast('Propuesta borrada'); await refresh(); }
+      if (act === 'discard') { await store.proposals.setStatus(p.id, 'descartada'); toast('Propuesta descartada'); await refresh(); }
+      if (act === 'apply') {
+        const chk = await checkSlot(b, p.day, p.start_min, p.slot);
+        const st = chk.start ?? p.start_min;
+        if (st == null) { toast(`${chk.text}. Mueve el partido a mano o elige otra propuesta.`, true); return; }
+        const extra = chk.level === 'error' ? `\n\nOjo: ${chk.text}` : p.start_min == null ? '\n\nEs la primera hora libre de esa franja; luego puedes ajustarla.' : '';
+        if (!(await askConfirm(`¿Mover el partido de ${teamOf(b.team).name} al ${dayLabel(p.day)} a las ${fmt(st)}?${extra}`, 'Aplicar propuesta'))) return;
+        await store.update(b.id, { ...b, day: p.day, start_min: st });
+        await store.proposals.setStatus(p.id, 'aceptada');
+        if (box.dataset.editor && draft && editingId === b.id) { draft.day = p.day; draft.start_min = st; }
+        toast('Partido movido a la hora propuesta');
+        const ws = mondayOf(parseKey(p.day));
+        if (keyOf(ws) !== keyOf(state.weekStart)) { dlg().open && dlg().close(); $('#detail-dialog').open && $('#detail-dialog').close(); setWeek(ws); return; }
+        await refresh();
+        if (box.dataset.editor && draft) syncForm();
+      }
+    } catch (ex) { toast('No se pudo guardar: ' + ex.message, true); }
+  }
+
+  async function confirmWeekMatches() {
+    closeUserMenu();
+    const n = state.bookings.filter(b => b.kind === 'partido' && !b.confirmed && b.day >= keyOf(new Date())).length;
+    if (!n) return;
+    if (!(await askConfirm(`Se marcarán como confirmados los ${n} partidos pendientes de esta semana.`, 'Confirmar partidos'))) return;
+    try { await store.confirmMatches(keyOf(new Date()) > keyOf(state.weekStart) ? keyOf(new Date()) : keyOf(state.weekStart), keyOf(addDays(state.weekStart, 6))); toast('Partidos confirmados'); await load(); }
+    catch (e) { toast('No se pudo confirmar: ' + e.message, true); }
+  }
+
   function openDetail(b) {
     const t = timeline(b), team = whoOf(b);
     const issues = state.issues.byId.get(b.id) || [];
@@ -1190,9 +1382,13 @@
       if (b.opponent) rows.push(['Rival', b.opponent]);
       for (const s of t.segs) rows.push([s.label, `${fmt(s.from)} – ${fmt(s.to)}`]);
     }
+    if (b.kind === 'partido') rows.splice(1, 0, ['Horario', b.confirmed ? '✓ Confirmado' : 'Por confirmar']);
     if (b.notes) rows.push(['Notas', b.notes]);
+    if (b.kind === 'partido' && b.observations) rows.push(['Observaciones', b.observations]);
     $('#d-body').innerHTML = `<dl class="detail-rows">${rows.map(([a, v]) => `<dt>${esc(a)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
-      ${issues.length ? `<ul class="pv-issues">${issues.map(i => `<li class="${i.level}">${ICON[i.level]} ${esc(i.msg)}</li>`).join('')}</ul>` : ''}`;
+      ${issues.length ? `<ul class="pv-issues">${issues.map(i => `<li class="${i.level}">${ICON[i.level]} ${esc(i.msg)}</li>`).join('')}</ul>` : ''}
+      ${b.kind === 'partido' ? '<div class="field"><span class="lbl">Propuestas de horario</span><div id="d-props" class="props-box"></div></div>' : ''}`;
+    if (b.kind === 'partido') renderProposals($('#d-props'), b, false);
     $('#detail-dialog').showModal();
   }
 
@@ -1917,6 +2113,13 @@
     $('#f-start').addEventListener('change', () => { readInputs(); $('#f-start').value = fmt(draft.start_min); renderPreview(); });
     $('#f-dur').addEventListener('change', () => { readInputs(); $('#f-dur').value = draft.duration_min; renderPreview(); });
     $('#f-delete').onclick = deleteDraft;
+    $('#f-props').addEventListener('click', onProposalClick);
+    document.addEventListener('change', e => {
+      if (e.target.matches('[data-pf=slot]')) e.target.parentElement.querySelector('[data-pf=time]').hidden = e.target.value !== 'exact';
+    });
+    $('#detail-dialog').addEventListener('click', e => { const box = e.target.closest('#d-props'); if (box) onProposalClick({ currentTarget: box, target: e.target }); });
+    $('#confirm-week').onclick = confirmWeekMatches;
+    $('#m-confirm').onclick = confirmWeekMatches;
     $('#f-weekday').addEventListener('change', () => { readInputs(); renderPreview(); });
     $('#f-hab').addEventListener('click', e => {
       if (e.target.id !== 'f-restore') return;
@@ -1963,7 +2166,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261026103232';
+  const APP_VERSION = '20261026111232';
   async function checkVersion() {
     if (store?.mode === 'demo') return;
     try {
@@ -2012,6 +2215,7 @@
     });
     store.subscribe(() => { if (!drag && appOpen) load(); });
     store.template.subscribe(() => { if (!drag && appOpen) load(); });
+    store.proposals.subscribe(() => { if (!drag && appOpen) load(); });
     // Cambios de perfiles: el coordinador ve solicitudes nuevas; el entrenador pendiente entra al ser aceptado
     store.people.subscribe(async () => {
       if (isCoord()) loadPeople();

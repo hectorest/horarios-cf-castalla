@@ -131,6 +131,21 @@ window.TUTORIAL_STEPS = [
     body: 'Los bloques dorados rayados con <b>◆</b> son reservas extraordinarias: un torneo, el mantenimiento del césped, un acto… No son de ningún equipo, pero ocupan campo y cuentan para los conflictos. La coordinación las crea en <b>Nueva reserva › Extraordinaria</b> poniéndoles un nombre.',
   },
   {
+    id: 'confirmar-partidos', since: 6, target: '#cal-wrap',
+    title: 'Partidos por confirmar',
+    body: 'Un partido con <b>borde discontinuo</b> y «Por confirmar» aún no tiene la hora definitiva. Cuando lo esté, la coordinación lo marca como <b>Horario confirmado</b> en el editor (o confirma todos los de la semana de golpe desde Incidencias). Las <b>observaciones</b> del partido aparecen en su detalle.',
+  },
+  {
+    id: 'propuestas', since: 6, target: '#cal-wrap',
+    title: 'Proponer otro horario',
+    body: 'Pulsa un partido de tu equipo y, en <b>Propuestas de horario</b>, indica el día, la hora (o «por la mañana», «por la tarde»…) y el motivo; por ejemplo: «5 bajas por un torneo escolar». Junto a cada propuesta se ve si ese hueco está libre. Un partido con propuestas lleva la marca <b>⇄</b>.',
+  },
+  {
+    id: 'aplicar-propuesta', since: 6, roles: ['coordinador'], target: '#cal-wrap',
+    title: 'Aplicar o descartar propuestas',
+    body: 'En el editor del partido verás las propuestas de los entrenadores. <b>Aplicar</b> mueve el partido a ese día y hora (si la propuesta es por franja, a la primera hora libre); <b>Descartar</b> la deja registrada sin cambiar nada.',
+  },
+  {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',
     title: 'Volver a ver esta guía',
     body: 'Puedes repetir el tutorial cuando quieras desde aquí. Cuando añadamos funciones nuevas, te las enseñaremos al entrar.',

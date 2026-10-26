@@ -33,6 +33,12 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
 
 > «He olvidado mi contraseña» envía un correo. Con el correo integrado de Supabase solo llega a direcciones de tu organización de Supabase. Para que llegue a cualquier entrenador, configura un SMTP propio en *Authentication > Emails > SMTP Settings* (por ejemplo, una cuenta de Gmail del club o Resend).
 
+## Partidos: confirmación, observaciones y propuestas
+
+- **Por confirmar / confirmado**: un partido por confirmar se ve con borde discontinuo y «Por confirmar», y sale en Incidencias. El coordinador lo marca con **Horario confirmado** en el editor, o confirma todos los de la semana con el botón de Incidencias (o el menú de usuario).
+- **Observaciones**: texto libre del partido (por ejemplo, «el entrenador pide jugar el viernes porque el sábado tiene 5 bajas»). Lo escribe el coordinador; todos lo ven en el detalle.
+- **Propuestas de horario**: el coordinador y los entrenadores del equipo pueden proponer alternativas para un partido: día y hora exacta, «por la mañana», «por la tarde» o «a cualquier hora», con su motivo. Junto a cada propuesta se comprueba si el hueco está libre (sin hora exacta, se busca la primera hora libre de la franja; entre semana, a partir de las 16:00). El coordinador la **aplica** (mueve el partido) o la **descarta**. Los partidos con propuestas pendientes llevan la marca **⇄**.
+
 ## Horario habitual y cambios semanales
 
 - **Horario habitual**: es la semana tipo de entrenamientos. Se ve con el botón **Horario habitual** (en el móvil, desde el menú de usuario). El coordinador lo edita igual que una semana: crear, arrastrar, alargar o borrar.

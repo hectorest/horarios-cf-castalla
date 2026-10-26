@@ -228,6 +228,63 @@ create policy "Coordinadores eliminan" on public.bookings
 revoke all on public.bookings from anon;
 grant select, insert, update, delete on public.bookings to authenticated;
 
+-- ---------- Partidos: confirmación, observaciones y propuestas de horario ----------
+alter table public.bookings add column if not exists confirmed boolean not null default false;
+alter table public.bookings add column if not exists observations text check (char_length(observations) <= 500);
+comment on column public.bookings.confirmed is 'Partidos: horario confirmado (true) o por confirmar (false).';
+comment on column public.bookings.observations is 'Observaciones del partido (peticiones del entrenador, motivos…).';
+
+create table if not exists public.match_proposals (
+  id          uuid primary key default gen_random_uuid(),
+  booking_id  uuid not null references public.bookings(id) on delete cascade,
+  day         date not null,
+  start_min   smallint check (start_min between 0 and 1439),   -- nula si es por franja o a cualquier hora
+  slot        text check (slot in ('manana', 'tarde')),
+  reason      text check (char_length(reason) <= 300),
+  status      text not null default 'pendiente' check (status in ('pendiente', 'aceptada', 'descartada')),
+  author_name text check (char_length(author_name) <= 80),
+  created_by  uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  resolved_at timestamptz
+);
+create index if not exists match_proposals_booking_idx on public.match_proposals (booking_id);
+create index if not exists match_proposals_created_by_idx on public.match_proposals (created_by);
+alter table public.match_proposals enable row level security;
+
+-- Coordinador o entrenador del equipo del partido
+create or replace function private.can_propose(p_booking uuid)
+returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.bookings b
+    join public.profiles p on p.id = (select auth.uid())
+    where b.id = p_booking and b.kind = 'partido' and p.status = 'aprobado'
+      and (p.role = 'coordinador' or b.team = any (p.teams))
+  );
+$$;
+revoke all on function private.can_propose(uuid) from public, anon;
+grant execute on function private.can_propose(uuid) to authenticated;
+
+drop policy if exists "Aprobados ven propuestas" on public.match_proposals;
+create policy "Aprobados ven propuestas" on public.match_proposals
+  for select to authenticated using ((select private.is_approved()));
+drop policy if exists "Coordinadores y entrenadores del equipo proponen" on public.match_proposals;
+create policy "Coordinadores y entrenadores del equipo proponen" on public.match_proposals
+  for insert to authenticated
+  with check (private.can_propose(booking_id) and created_by = (select auth.uid()) and status = 'pendiente');
+drop policy if exists "Coordinadores resuelven propuestas" on public.match_proposals;
+create policy "Coordinadores resuelven propuestas" on public.match_proposals
+  for update to authenticated using ((select private.is_coordinator())) with check ((select private.is_coordinator()));
+drop policy if exists "Borrar propuestas" on public.match_proposals;
+create policy "Borrar propuestas" on public.match_proposals
+  for delete to authenticated
+  using ((select private.is_coordinator()) or (created_by = (select auth.uid()) and status = 'pendiente'));
+revoke all on public.match_proposals from anon;
+grant select, insert, delete on public.match_proposals to authenticated;
+grant update (status, resolved_at) on public.match_proposals to authenticated;
+
 -- ---------- Horario habitual (semana tipo de entrenamientos) ----------
 create table if not exists public.schedule_template (
   id           uuid primary key default gen_random_uuid(),
@@ -409,6 +466,9 @@ begin
   end if;
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'schedule_template') then
     alter publication supabase_realtime add table public.schedule_template;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'match_proposals') then
+    alter publication supabase_realtime add table public.match_proposals;
   end if;
 end $$;
 
