@@ -18,7 +18,7 @@ window.TUTORIAL_STEPS = [
   {
     id: 'bienvenida', since: 1, target: null,
     title: 'Bienvenido al planificador del campo',
-    body: 'Aquí se organiza la ocupación semanal del campo: entrenamientos y partidos de todos los equipos del club, de lunes a domingo y de 09:00 a 21:30. Te enseñamos lo básico en un minuto.',
+    body: 'Aquí se organiza la ocupación semanal del campo: entrenamientos y partidos de todos los equipos del club, de lunes a domingo y de 09:00 a 23:00. Te enseñamos lo básico en un minuto.',
   },
   {
     id: 'semana', since: 1, target: '.week-nav',

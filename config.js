@@ -14,7 +14,7 @@ window.APP_CONFIG = {
   // --- General --------------------------------------------------
   CLUB_NAME: 'Castalla C.F.',
   DAY_START: '09:00',
-  DAY_END: '21:30',
+  DAY_END: '23:00',
   DEFAULT_TRAINING_MIN: 90,
 
   // --- Equipos --------------------------------------------------

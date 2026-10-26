@@ -45,7 +45,7 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
 
 Al entrar por primera vez se muestra un tutorial guiado adaptado al rol (también desde la pantalla de inicio, en «¿Cómo funciona la herramienta?», y desde el botón **?** o el menú de usuario). Los pasos están en `tutorial.js`. **Cada funcionalidad nueva debe añadir su paso** con un `since` mayor: quien ya vio el tutorial verá solo las novedades la próxima vez que entre.
 
-Herramienta web para organizar la ocupación semanal del campo de fútbol (lunes a domingo, 09:00–21:30) entre los 10 equipos del club. Es una página estática (HTML + CSS + JavaScript, sin compilación) pensada para alojarse en **GitHub Pages** y guardar los datos en **Supabase**.
+Herramienta web para organizar la ocupación semanal del campo de fútbol (lunes a domingo, 09:00–23:00) entre los 11 equipos del club. Es una página estática (HTML + CSS + JavaScript, sin compilación) pensada para alojarse en **GitHub Pages** y guardar los datos en **Supabase**.
 
 ## Qué hace
 

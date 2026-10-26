@@ -1963,7 +1963,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261026102828';
+  const APP_VERSION = '20261026103232';
   async function checkVersion() {
     if (store?.mode === 'demo') return;
     try {
