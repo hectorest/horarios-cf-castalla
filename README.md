@@ -33,6 +33,13 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
 
 > «He olvidado mi contraseña» envía un correo. Con el correo integrado de Supabase solo llega a direcciones de tu organización de Supabase. Para que llegue a cualquier entrenador, configura un SMTP propio en *Authentication > Emails > SMTP Settings* (por ejemplo, una cuenta de Gmail del club o Resend).
 
+## Horario habitual y cambios semanales
+
+- **Horario habitual**: es la semana tipo de entrenamientos. Se ve con el botón **Horario habitual** (en el móvil, desde el menú de usuario). El coordinador lo edita igual que una semana: crear, arrastrar, alargar o borrar.
+- **Publicar una semana**: las semanas nuevas empiezan vacías. Cuando el coordinador ya sabe los horarios de una semana, entra en ella y pulsa **Aplicar horario habitual**. Mientras no lo haga, los entrenadores ven el aviso «La coordinación aún no ha publicado los entrenamientos de esta semana». Si ya había entrenos puestos a mano para el mismo equipo y día, se enlazan en vez de duplicarse.
+- **Cambios de una semana concreta**: se hacen en esa semana. El entreno queda marcado con **↻** y borde verde azulado, y en su lugar habitual aparece un hueco punteado «Lo habitual». Si se borra, queda el hueco «No entrena». Un entreno que no está en el habitual se marca con **+** («extra»). Todo sale en Incidencias como **cambio**, también para los entrenadores de ese equipo. Al editarlo, el botón **Volver a lo habitual** lo restaura.
+- **Cambios para siempre**: se hacen en el horario habitual y se aplican **desde hoy** en las semanas ya publicadas, sin tocar los entrenos cambiados a mano en una semana concreta.
+
 ## Tutorial
 
 Al entrar por primera vez se muestra un tutorial guiado adaptado al rol (también desde la pantalla de inicio, en «¿Cómo funciona la herramienta?», y desde el botón **?** o el menú de usuario). Los pasos están en `tutorial.js`. **Cada funcionalidad nueva debe añadir su paso** con un `since` mayor: quien ya vio el tutorial verá solo las novedades la próxima vez que entre.

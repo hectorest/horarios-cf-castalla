@@ -44,6 +44,7 @@
           <div id="up-teams" class="up-teams"></div>
           <button type="button" role="menuitem" id="m-people" hidden>Entrenadores y solicitudes <span id="m-people-count"></span></button>
           <button type="button" role="menuitem" id="m-copy" hidden>Copiar entrenos de la semana anterior</button>
+          <button type="button" role="menuitem" id="m-mode">Ver horario habitual</button>
           <button type="button" role="menuitem" id="m-help">Ver tutorial</button>
           <button type="button" role="menuitem" id="m-logout">Cerrar sesión</button>
         </div>
@@ -57,6 +58,10 @@
     <button type="button" id="legend-btn" class="ghost legend-btn" aria-expanded="false" aria-controls="legend"><span class="legend-btn-dot" id="legend-btn-dot"></span><span id="legend-btn-text">Equipos</span> ▾</button>
     <div id="legend" class="legend" aria-label="Filtrar por equipo"></div>
     <div class="toolbar-actions">
+      <div class="segmented mode-toggle hide-mobile" id="mode-toggle" role="group" aria-label="Qué ver">
+        <button type="button" data-mode="week" class="on">Semana</button>
+        <button type="button" data-mode="template">Horario habitual</button>
+      </div>
       <div class="coord-only" hidden>
         <label class="switch" title="Desactívalo para consultar sin riesgo de mover nada">
           <input type="checkbox" id="edit-toggle" checked>
@@ -70,6 +75,8 @@
       <button id="print-btn" class="ghost hide-mobile" title="Imprimir la semana">Imprimir</button>
     </div>
   </div>
+
+  <div id="week-strip" class="week-strip" hidden></div>
 
   <div id="day-tabs" class="day-tabs" hidden></div>
 
@@ -105,6 +112,8 @@
               <li><span class="sw sw-shared"></span>Compartido</li>
               <li><span class="sw sw-err"></span>Conflicto</li>
               <li><span class="sw sw-warn"></span>Aviso</li>
+              <li><span class="sw sw-chg"></span>Cambiado esta semana</li>
+              <li><span class="sw sw-ghost"></span>Hueco de lo habitual</li>
             </ul>
             <p class="hint">Cada día se divide en 4 carriles: <b>A1 A2</b> forman la mitad A y <b>B1 B2</b> la mitad B. F11 ocupa el campo entero; F8, una mitad. Si dos entrenos se solapan, comparten la zona del que llega después.</p>
             <p class="hint edit-hint" hidden>Arrastra un bloque para moverlo de día, hora o mitad. Tira del borde inferior de un entreno para cambiar su duración. Haz clic en un hueco para crear una reserva.</p>
@@ -127,7 +136,7 @@
           <select id="f-team" required></select>
         </div>
 
-        <div class="field">
+        <div class="field week-only">
           <span class="lbl">Tipo</span>
           <div class="segmented small" id="f-kind">
             <button type="button" data-v="entreno">Entrenamiento</button>
@@ -143,9 +152,17 @@
           </div>
         </div>
 
-        <div class="field">
+        <div class="field week-only">
           <label for="f-date">Fecha</label>
           <input type="date" id="f-date" required>
+        </div>
+
+        <div class="field tpl-only" hidden>
+          <label for="f-weekday">Día de la semana</label>
+          <select id="f-weekday">
+            <option value="0">Lunes</option><option value="1">Martes</option><option value="2">Miércoles</option><option value="3">Jueves</option>
+            <option value="4">Viernes</option><option value="5">Sábado</option><option value="6">Domingo</option>
+          </select>
         </div>
 
         <div class="field">
@@ -174,6 +191,7 @@
           <input type="text" id="f-notes" maxlength="200" placeholder="Opcional">
         </div>
 
+        <div class="hab-note full" id="f-hab" hidden></div>
         <div class="preview full" id="f-preview"></div>
       </div>
       <footer class="dlg-foot">

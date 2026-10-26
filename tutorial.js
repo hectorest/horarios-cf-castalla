@@ -101,6 +101,26 @@ window.TUTORIAL_STEPS = [
     body: 'En <b>Con acceso</b> cambias los equipos de cada entrenador, nombras a otro coordinador o quitas el acceso. Los que no tienen acceso quedan en <b>Sin acceso</b> por si quieres devolvérselo.',
   },
   {
+    id: 'habitual', since: 3, target: '#mode-toggle, #user-btn',
+    title: 'Horario habitual',
+    body: 'Es la semana tipo de entrenamientos del club. Pulsa <b>Horario habitual</b> para verla (en el móvil, desde tu menú) y <b>Semana</b> para volver a las fechas reales.',
+  },
+  {
+    id: 'cambios', since: 3, target: '#cal-wrap',
+    title: 'Cambios respecto a lo habitual',
+    body: 'Si una semana un entreno cambia de <b>día, horario o campo</b>, se marca con <b>↻</b> y un borde verde azulado, y queda un hueco punteado donde iba lo habitual. Si no se entrena, el hueco dice «No entrena». Un <b>+</b> indica un entreno extra. Todo aparece también en Incidencias como «cambio».',
+  },
+  {
+    id: 'aplicar', since: 3, roles: ['coordinador'], target: '#week-strip, #cal-wrap',
+    title: 'Publicar los entrenos de una semana',
+    body: 'Las semanas nuevas empiezan vacías. Cuando ya sepas los horarios de una semana, ve a ella y pulsa <b>Aplicar horario habitual</b>: se añaden todos los entrenos habituales y luego cambias solo lo que sea distinto esa semana. Los entrenadores ven el aviso de que está pendiente hasta que la publiques.',
+  },
+  {
+    id: 'editar-habitual', since: 3, roles: ['coordinador'], target: '#mode-toggle, #user-btn',
+    title: 'Cambios para siempre',
+    body: 'Si cambia algo para toda la temporada, edítalo en <b>Horario habitual</b> igual que una semana: arrastrar, crear o borrar. Se aplica desde hoy en las semanas ya publicadas, salvo en los entrenos que hayas cambiado a mano. Al editar un entreno cambiado, <b>Volver a lo habitual</b> lo deja como siempre.',
+  },
+  {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',
     title: 'Volver a ver esta guía',
     body: 'Puedes repetir el tutorial cuando quieras desde aquí. Cuando añadamos funciones nuevas, te las enseñaremos al entrar.',

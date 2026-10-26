@@ -233,7 +233,7 @@
     return { byId, all, pieces };
   }
 
-  const ICON = { error: '⛔', warn: '⚠', info: '½' };
+  const ICON = { error: '⛔', warn: '⚠', info: '½', change: '↻' };
   const worstLevel = issues => issues.some(i => i.level === 'error') ? 'error' : issues.some(i => i.level === 'warn') ? 'warn' : '';
 
   /** Normaliza una reserva antes de guardarla. */
@@ -244,6 +244,7 @@
       format: b.kind === 'partido' ? (b.format || null) : null,
       opponent: b.kind === 'partido' ? (b.opponent || null) : null,
       notes: b.notes || null,
+      template_id: b.template_id || null,
     };
     return r;
   }
@@ -252,7 +253,9 @@
   //  Almacenamiento: Demo (localStorage) y Supabase
   // ================================================================
   function makeLocalStore() {
-    const KEY = 'planificador-campo-demo-v2';
+    const KEY = 'planificador-campo-demo-v3';
+    const TKEY = 'planificador-campo-demo-template-v1';
+    const GKEY = 'planificador-campo-demo-weeks-v1';
     const UKEY = 'planificador-campo-demo-users-v2';
     const SKEY = 'planificador-campo-demo-session';
     let mem = null, umem = null;
@@ -265,7 +268,18 @@
     const users = () => umem || (umem = ls.get(UKEY));
     const writeUsers = a => { umem = a; ls.set(UKEY, a); peopleListeners.forEach(f => f()); };
     const listeners = [], peopleListeners = [];
-    if (!read()) write(demoSeed());
+    const tpl = () => ls.get(TKEY) || [];
+    const writeTpl = a => { ls.set(TKEY, a); };
+    const weeks = () => ls.get(GKEY) || [];
+    const writeWeeks = a => ls.set(GKEY, a);
+    if (!read() || !ls.get(TKEY)) {
+      const seed = demoSeed();
+      writeTpl(seed.template); write(seed.bookings); writeWeeks([seed.week]);
+    }
+    const thisMonday = () => keyOf(mondayOf(new Date()));
+    const today = () => keyOf(new Date());
+    const mondayKey = k => keyOf(mondayOf(parseKey(k)));
+    const sameAsTpl = (b, t) => b.team === t.team && b.start_min === t.start_min && b.duration_min === t.duration_min && b.zone === t.zone && dayIndexOf(b.day) === t.weekday;
     if (!users()) writeUsers(demoUsers());
     window.addEventListener('storage', e => {
       if (e.key === KEY) { mem = null; listeners.forEach(f => f()); }
@@ -289,6 +303,48 @@
       async update(id, row) { write(read().map(b => b.id === id ? { ...cleanRow(row), id } : b)); },
       async remove(id) { write(read().filter(b => b.id !== id)); },
       subscribe(cb) { listeners.push(cb); },
+      async applyTemplate(dayKey) {
+        const m = mondayKey(dayKey);
+        if (m < thisMonday()) throw new Error('No se puede aplicar el horario habitual a semanas pasadas');
+        if (weeks().includes(m)) return false;
+        writeWeeks([...weeks(), m]);
+        const end = keyOf(addDays(parseKey(m), 6));
+        let all = read();
+        const linked = new Set(all.filter(b => b.template_id && b.day >= m && b.day <= end).map(b => b.template_id));
+        for (const t of tpl()) {
+          if (linked.has(t.id)) continue;
+          const d = keyOf(addDays(parseKey(m), t.weekday));
+          const manual = all.find(b => b.day === d && b.team === t.team && b.kind === 'entreno' && !b.template_id);
+          if (manual) { manual.template_id = t.id; continue; }
+          all.push({ ...cleanRow({ ...t, kind: 'entreno', day: d, template_id: t.id }), id: uid() });
+        }
+        write([...all]);
+        return true;
+      },
+      async weekGenerated(mondayK) { return weeks().includes(mondayK); },
+      template: {
+        async list() { return tpl().map(t => ({ ...t })); },
+        async insert(row) {
+          const t = { ...row, id: uid() }; writeTpl([...tpl(), t]);
+          const add = weeks().map(w => keyOf(addDays(parseKey(w), t.weekday))).filter(d => d >= today())
+            .map(d => ({ ...cleanRow({ ...t, kind: 'entreno', day: d, template_id: t.id }), id: uid() }));
+          write([...read(), ...add]); listeners.forEach(f => f()); return t;
+        },
+        async update(id, row) {
+          const old = tpl().find(t => t.id === id); if (!old) return;
+          const nu = { ...old, ...row };
+          writeTpl(tpl().map(t => t.id === id ? nu : t));
+          write(read().map(b => b.template_id === id && b.day >= today() && sameAsTpl(b, old)
+            ? { ...b, team: nu.team, start_min: nu.start_min, duration_min: nu.duration_min, zone: nu.zone, notes: nu.notes || null, day: keyOf(addDays(mondayOf(parseKey(b.day)), nu.weekday)) } : b));
+        },
+        async remove(id) {
+          const old = tpl().find(t => t.id === id); if (!old) return;
+          writeTpl(tpl().filter(t => t.id !== id));
+          write(read().filter(b => !(b.template_id === id && b.day >= today() && sameAsTpl(b, old)))
+            .map(b => b.template_id === id ? { ...b, template_id: null } : b));
+        },
+        subscribe() { },
+      },
       auth: {
         async current() { return sessionOf(users().find(u => u.id === sid)); },
         async signIn(email) {
@@ -346,6 +402,7 @@
     ];
   }
 
+  const tplRow = r => ({ weekday: r.weekday, team: r.team, start_min: r.start_min, duration_min: r.duration_min || DEFAULT_DUR, zone: r.zone, notes: r.notes || null });
   const INVITE_BAD = 'Este enlace de invitación no es válido, ya se ha usado o ha caducado. Pide uno nuevo a la coordinación.';
   const INV_COLS = 'id, token, label, role, teams, max_uses, uses, expires_at, revoked, created_at, last_used_at';
 
@@ -386,6 +443,27 @@
       async remove(id) { chk(await sb.from(T).delete().eq('id', id)); },
       subscribe(cb) {
         sb.channel('bookings-changes').on('postgres_changes', { event: '*', schema: 'public', table: T }, debounce(cb)).subscribe();
+      },
+      async applyTemplate(dayKey) {
+        const { data, error } = await sb.rpc('apply_template', { p_day: dayKey });
+        if (error) throw new Error(error.message);
+        return !!data;
+      },
+      async weekGenerated(mondayK) {
+        const rows = chk(await sb.from('generated_weeks').select('week_start').eq('week_start', mondayK));
+        return rows.length > 0;
+      },
+      template: {
+        async list() { return chk(await sb.from('schedule_template').select('id, weekday, team, start_min, duration_min, zone, notes').order('weekday').order('start_min')); },
+        async insert(row) { return chk(await sb.from('schedule_template').insert(tplRow(row)).select().single()); },
+        async update(id, row) {
+          const rows = chk(await sb.from('schedule_template').update(tplRow(row)).eq('id', id).select('id'));
+          if (!rows.length) throw new Error('No tienes permiso para cambiar el horario habitual.');
+        },
+        async remove(id) { chk(await sb.from('schedule_template').delete().eq('id', id)); },
+        subscribe(cb) {
+          sb.channel('template-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'schedule_template' }, debounce(cb)).subscribe();
+        },
       },
       auth: {
         async current() { const { data } = await sb.auth.getSession(); return sessionOf(data.session?.user); },
@@ -445,33 +523,36 @@
   function demoSeed() {
     const mon = mondayOf(new Date());
     const k = i => keyOf(addDays(mon, i));
-    const E = (d, team, start, dur, zone, notes) => ({ id: uid(), day: k(d), team, kind: 'entreno', start_min: toMin(start), duration_min: dur, zone, notes: notes || null, format: null, opponent: null });
-    const P = (d, team, start, format, zone, opponent) => ({ id: uid(), day: k(d), team, kind: 'partido', start_min: toMin(start), duration_min: null, zone, format, opponent, notes: null });
-    return [
-      E(0, 'alevin-a', '17:30', 60, 'A'), E(0, 'alevin-b', '17:30', 60, 'B'),
-      E(0, 'infantil-a', '18:30', 90, 'A'), E(0, 'infantil-b', '18:30', 90, 'B'),
-      E(0, 'juvenil', '20:00', 90, 'full'),
-      E(1, 'tec-1', '17:00', 60, 'A1'), E(1, 'tec-2', '17:00', 60, 'A2'),
-      E(1, 'cadete', '18:00', 90, 'A'), E(1, 'senior-b', '18:00', 90, 'B'),
-      E(1, 'infantil-a', '19:00', 60, 'A1', 'Sesión de porteros'),
-      E(1, 'senior-a', '20:00', 90, 'full'),
-      E(2, 'alevin-a', '17:30', 60, 'A'), E(2, 'alevin-b', '17:30', 60, 'B'),
-      E(2, 'juvenil', '18:30', 90, 'A'), E(2, 'cadete', '18:30', 105, 'B'),
-      E(2, 'senior-a', '20:00', 90, 'full'),
-      E(3, 'infantil-a', '17:00', 75, 'A'), E(3, 'infantil-b', '17:00', 75, 'B'),
-      E(3, 'senior-b', '18:30', 90, 'A'), E(3, 'juvenil', '18:30', 90, 'B'),
-      E(3, 'senior-a', '20:00', 90, 'full'),
-      E(4, 'tec-1', '17:00', 60, 'B1'), E(4, 'tec-2', '17:00', 60, 'B2'),
-      E(4, 'alevin-a', '17:00', 60, 'A'), E(4, 'cadete', '18:15', 90, 'full'),
+    // Horario habitual real del club
+    const T = (weekday, team, start, dur, zone) => ({ id: 'tpl-' + weekday + '-' + team, weekday, team, start_min: toMin(start), duration_min: dur, zone, notes: null });
+    const template = [
+      T(0, 'alevin-a', '17:00', 90, 'A'), T(0, 'alevin-b', '17:00', 90, 'B1'), T(0, 'tec-1', '17:00', 90, 'B2'), T(0, 'cadete', '18:00', 90, 'A'), T(0, 'senior-a', '19:30', 90, 'full'),
+      T(1, 'tec-2', '17:00', 90, 'A'), T(1, 'infantil-a', '17:30', 90, 'A'), T(1, 'infantil-b', '17:30', 90, 'B'), T(1, 'juvenil', '18:30', 120, 'A'), T(1, 'senior-b', '20:00', 90, 'full'),
+      T(2, 'alevin-a', '17:00', 90, 'A'), T(2, 'alevin-b', '17:00', 90, 'B'), T(2, 'senior-a', '19:30', 90, 'full'),
+      T(3, 'tec-1', '17:00', 90, 'A'), T(3, 'tec-2', '17:00', 90, 'B'), T(3, 'juvenil', '18:30', 90, 'A'), T(3, 'cadete', '18:30', 90, 'B'), T(3, 'senior-a', '20:00', 90, 'A'), T(3, 'senior-b', '20:00', 90, 'B'),
+      T(4, 'infantil-a', '17:30', 90, 'A'), T(4, 'infantil-b', '17:30', 90, 'B'),
+    ];
+    // Esta semana: lo habitual con algunos cambios de ejemplo
+    const changes = {
+      'tpl-2-senior-a': { start_min: toMin('20:00') },          // cambio de horario
+      'tpl-2-alevin-b': { zone: 'B1' },                        // cambio de campo
+      'tpl-4-infantil-b': { start_min: toMin('18:00') },       // cambio de horario
+    };
+    const cancelled = ['tpl-3-tec-2'];                          // no entrena esta semana
+    const E = t => ({ id: uid(), day: k(t.weekday), team: t.team, kind: 'entreno', start_min: t.start_min, duration_min: t.duration_min, zone: t.zone, notes: null, format: null, opponent: null, template_id: t.id, ...(changes[t.id] || {}) });
+    const P = (d, team, start, format, zone, opponent) => ({ id: uid(), day: k(d), team, kind: 'partido', start_min: toMin(start), duration_min: null, zone, format, opponent, notes: null, template_id: null });
+    const bookings = [
+      ...template.filter(t => !cancelled.includes(t.id)).map(E),
+      { id: uid(), day: k(5), team: 'tec-1', kind: 'entreno', start_min: toMin('10:00'), duration_min: 60, zone: 'A', notes: 'Sesión extra', format: null, opponent: null, template_id: null },
       // Partidos: hora = saque inicial
-      P(5, 'alevin-a', '10:00', 'F8', 'A', 'CF Montaña'), P(5, 'alevin-b', '10:00', 'F8', 'B', 'UD Riera'),
-      P(5, 'infantil-a', '11:45', 'F11', 'full', 'AE Llevant'),
+      P(5, 'alevin-a', '11:30', 'F8', 'A', 'CF Montaña'), P(5, 'alevin-b', '11:30', 'F8', 'B', 'UD Riera'),
       P(5, 'cadete', '16:30', 'F11', 'full', 'CE Poble Nou'),
       P(5, 'juvenil', '19:00', 'F11', 'full', 'FC Turó'),
       P(6, 'senior-a', '10:30', 'F11', 'full', 'CD Sant Joan'),
       P(6, 'senior-b', '13:00', 'F11', 'full', 'AE Martinenc'),
-      P(6, 'infantil-b', '17:00', 'F11', 'full', 'EF Gràcia'),
+      P(6, 'infantil-a', '17:00', 'F11', 'full', 'EF Gràcia'),
     ];
+    return { template, bookings, week: k(0) };
   }
 
   // ================================================================
@@ -490,6 +571,9 @@
     inviteDraft: { label: '', role: 'entrenador', teams: [], max_uses: 1, days: 7 },
     newInviteId: null,
     inviteToken: null,   // token del enlace de invitación abierto
+    mode: 'week',        // 'week' | 'template' (horario habitual)
+    template: [],
+    weekGenerated: false,
     issueScope: 'mine',  // entrenadores: 'mine' | 'all'
     edit: true,
     view: window.innerWidth < 820 ? 'day' : 'week',
@@ -504,6 +588,16 @@
   /** Equipos del entrenador (null si no aplica el filtro) */
   const myTeams = () => isCoach() && state.profile?.teams?.length ? state.profile.teams : null;
   const isMine = team => !!myTeams()?.includes(team);
+  // Horario habitual: se dibuja sobre la semana visible como una semana tipo
+  const isTpl = () => state.mode === 'template';
+  const tplToBooking = t => ({ id: t.id, day: keyOf(addDays(state.weekStart, t.weekday)), team: t.team, kind: 'entreno', start_min: t.start_min, duration_min: t.duration_min, zone: t.zone, notes: t.notes || null, format: null, opponent: null, template_id: null });
+  const bookingToTpl = b => ({ weekday: dayIndexOf(b.day), team: b.team, start_min: b.start_min, duration_min: b.duration_min || DEFAULT_DUR, zone: b.zone, notes: b.notes || null });
+  const api = () => isTpl()
+    ? { insert: b => store.template.insert(bookingToTpl(b)), update: (id, b) => store.template.update(id, bookingToTpl(b)), remove: id => store.template.remove(id) }
+    : store;
+  const dayText = k => isTpl() ? DAYS[dayIndexOf(k)] : dayLabel(k);
+  const isPastWeek = () => keyOf(state.weekStart) < keyOf(mondayOf(new Date()));
+  const habText = t => `${DAYS[t.weekday].toLowerCase()} ${fmt(t.start_min)}–${fmt(t.start_min + t.duration_min)}, ${ZONE_LABEL[t.zone].replace(/^./, c => c.toLowerCase())}`;
   const isEditor = () => isCoord() && state.edit;
 
   // ================================================================
@@ -514,14 +608,56 @@
     const mine = myTeams();
     if (!mine || state.issueScope === 'all') return full;
     const teamOfId = new Map(state.bookings.map(b => [b.id, b.team]));
-    const all = full.all.filter(it => it.ids.some(id => mine.includes(teamOfId.get(id))));
+    const all = full.all.filter(it => it.ids.some(id => mine.includes(teamOfId.get(id))) || (it.team && mine.includes(it.team)));
     const byId = new Map();
     for (const it of all) for (const id of it.ids) { if (!byId.has(id)) byId.set(id, []); byId.get(id).push(it); }
     return { ...full, all, byId };
   }
 
+  /** Compara la semana con el horario habitual: cambios de día/horario/campo, entrenos que no se hacen y extras */
+  function addChanges(full) {
+    full.ghosts = []; full.changed = new Map();
+    if (isTpl() || !state.template.length) return full;
+    const tpl = new Map(state.template.map(t => [t.id, t]));
+    const add = (msg, items, day, at, team, tplId) => {
+      const it = { level: 'change', msg, ids: items.map(b => b.id), day, at, team, tplId };
+      full.all.push(it);
+      for (const b of items) { if (!full.byId.has(b.id)) full.byId.set(b.id, []); full.byId.get(b.id).push(it); }
+    };
+    const used = new Set();
+    for (const b of state.bookings) {
+      if (b.kind !== 'entreno') continue;
+      const t = b.template_id && tpl.get(b.template_id);
+      if (t) {
+        used.add(t.id);
+        const habDay = keyOf(addDays(state.weekStart, t.weekday));
+        const d = [];
+        if (b.day !== habDay) d.push('día');
+        if (b.start_min !== t.start_min || (b.duration_min || DEFAULT_DUR) !== t.duration_min) d.push('horario');
+        if (b.zone !== t.zone) d.push('campo');
+        if (d.length) {
+          full.changed.set(b.id, { what: d, tpl: t });
+          add(`${teamOf(b.team).name}: cambio de ${d.join(' y ')} (lo habitual es ${habText(t)})`, [b], b.day, b.start_min, b.team, t.id);
+          full.ghosts.push({ t, day: habDay, type: 'moved' });
+        }
+      } else if (state.weekGenerated) {
+        full.changed.set(b.id, { what: ['extra'] });
+        add(`${teamOf(b.team).name}: entreno extra, fuera del horario habitual`, [b], b.day, b.start_min, b.team);
+      }
+    }
+    if (state.weekGenerated) for (const t of state.template) {
+      if (used.has(t.id)) continue;
+      const day = keyOf(addDays(state.weekStart, t.weekday));
+      add(`${teamOf(t.team).name}: esta semana no entrena (lo habitual es ${habText(t)})`, [], day, t.start_min, t.team, t.id);
+      full.ghosts.push({ t, day, type: 'cancel' });
+    }
+    const rank = { error: 0, warn: 1, change: 2, info: 3 };
+    full.all.sort((x, y) => (x.day < y.day ? -1 : x.day > y.day ? 1 : 0) || rank[x.level] - rank[y.level] || x.at - y.at);
+    return full;
+  }
+
   function render() {
-    state.issues = scopeIssues(computeIssues(state.bookings));
+    state.issues = scopeIssues(addChanges(computeIssues(state.bookings)));
     renderHeader();
     renderLegend();
     renderDayTabs();
@@ -533,13 +669,19 @@
   function renderHeader() {
     const a = state.weekStart, b = addDays(a, 6);
     const sameMonth = a.getMonth() === b.getMonth();
-    $('#week-label').textContent = sameMonth
+    $('#week-label').textContent = isTpl() ? 'Horario habitual' : sameMonth
       ? `${a.getDate()} – ${b.getDate()} ${MONTHS[b.getMonth()]} ${b.getFullYear()}`
       : `${a.getDate()} ${MONTHS[a.getMonth()]} – ${b.getDate()} ${MONTHS[b.getMonth()]} ${b.getFullYear()}`;
+    document.body.classList.toggle('tpl-mode', isTpl());
+    $$('#mode-toggle button').forEach(x => { const on = x.dataset.mode === state.mode; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
+    $('#m-mode').textContent = isTpl() ? 'Volver a la semana' : 'Ver horario habitual';
+    $('#new-btn').innerHTML = `+<span class="hide-sm"> ${isTpl() ? 'Nuevo entreno habitual' : 'Nueva reserva'}</span>`;
+    renderStrip();
     $$('#view-toggle button').forEach(x => x.classList.toggle('on', x.dataset.view === state.view));
     const coord = isCoord();
     $('.coord-only').hidden = !coord;
     $$('.edit-only').forEach(x => x.hidden = !state.edit);
+    $('#copy-week-btn').hidden = !state.edit || isTpl();
     $('.edit-hint').hidden = !isEditor();
     $('#edit-toggle').checked = state.edit;
     renderUser();
@@ -565,7 +707,7 @@
     $('#up-teams').hidden = !isCoach();
     $('#people-btn').hidden = !coord;
     $('#m-people').hidden = !coord;
-    $('#m-copy').hidden = !coord;
+    $('#m-copy').hidden = !coord || isTpl();
     const badge = pending ? `<span class="pill err">${pending}</span>` : '';
     $('#people-count').innerHTML = badge;
     $('#m-people-count').innerHTML = badge;
@@ -591,7 +733,8 @@
       const k = keyOf(addDays(state.weekStart, i));
       const lvl = worstLevel(state.issues.all.filter(x => x.day === k));
       const dot = lvl ? `<span class="mini-dot" style="background:var(--${lvl === 'error' ? 'err' : 'warn'})"></span>` : '';
-      return `<button data-day="${i}" class="${i === state.dayIndex ? 'on' : ''}">${d} ${parseKey(k).getDate()}${dot}</button>`;
+      const chg = !lvl && state.issues.all.some(x => x.day === k && x.level === 'change');
+      return `<button data-day="${i}" class="${i === state.dayIndex ? 'on' : ''}">${d}${isTpl() ? '' : ' ' + parseKey(k).getDate()}${dot || (chg ? '<span class="mini-dot" style="background:var(--chg)"></span>' : '')}</button>`;
     }).join('');
   }
 
@@ -629,12 +772,13 @@
     const lvl = worstLevel(issues);
     const title = esc(blockTitle(b, t, issues));
     const ps = b.kind === 'entreno' ? (state.issues.pieces.get(b.id) || []) : [];
+    const chg = state.issues.changed?.get(b.id);
     const parts = ps.length ? ps : [{ from: t.start, to: t.end, lanes: ZONES[b.zone] || ZONES.full, shared: false }];
     return parts.map((p, n) => {
       const g = blockGeom({ start: p.from, end: p.to }, p.lanes);
       const narrow = p.lanes.length === 1;
       const first = n === 0, last = n === parts.length - 1;
-      const cls = ['block', 'kind-' + b.kind, lvl && 'lvl-' + lvl, narrow && 'narrow', g.height < 50 && 'short',
+      const cls = ['block', 'kind-' + b.kind, lvl && 'lvl-' + lvl, narrow && 'narrow', g.height < 50 && 'short', chg && (chg.what[0] === 'extra' ? 'extra' : 'changed'),
         !first && 'cont-up', !last && 'cont-down', p.shared && 'shared',
         state.filter && state.filter !== b.team && 'dim', state.selectedId === b.id && 'selected'].filter(Boolean).join(' ');
       const segs = b.kind === 'partido'
@@ -647,16 +791,64 @@
       ${segs}
       <div class="b-label" style="${labelTop ? `margin-top:${labelTop + 3}px` : ''}"><span class="b-name">${isMine(b.team) ? '★ ' : ''}${esc(narrow ? team.short : team.name)}</span><span class="b-sub">${esc(sub)}</span><span class="b-time">${time}</span></div>
       ${lvl && first ? `<span class="b-flag">!</span>` : ''}
+      ${chg && first ? `<span class="b-chg" title="${chg.what[0] === 'extra' ? 'Entreno extra' : 'Cambio respecto a lo habitual'}">${chg.what[0] === 'extra' ? '+' : '↻'}</span>` : ''}
       ${b.kind === 'entreno' && isEditor() && last ? '<div class="resize" data-resize="1"></div>' : ''}
     </div>`;
     }).join('');
+  }
+
+  function ghostHTML(g) {
+    const t = g.t, team = teamOf(t.team), lanes = ZONES[t.zone] || ZONES.full;
+    const geo = blockGeom({ start: t.start_min, end: t.start_min + t.duration_min }, lanes);
+    const dim = state.filter && state.filter !== t.team ? ' dim' : '';
+    return `<div class="hab-ghost hab-ghost-${g.type}${dim}" style="--c:${team.color};${geomStyle(geo)}" aria-hidden="true">
+      <span class="g-name">${esc(lanes.length === 1 ? team.short : team.name)}</span><span class="g-sub">${g.type === 'cancel' ? 'No entrena' : 'Lo habitual'}</span></div>`;
+  }
+
+  function renderStrip() {
+    const el = $('#week-strip');
+    const back = '<button type="button" class="ghost" data-strip="week">Volver a la semana</button>';
+    if (isTpl()) {
+      el.className = 'week-strip tpl';
+      el.innerHTML = isCoord()
+        ? `<span><b>Horario habitual.</b> <span class="hide-sm">Si lo cambias, se aplica desde hoy en las semanas ya publicadas, sin tocar los entrenos que hayas cambiado a mano.</span></span>${back}`
+        : `<span><b>Horario habitual</b> de entrenamientos del club.</span>${back}`;
+      el.hidden = false; return;
+    }
+    if (appOpen && !state.loading && !state.weekGenerated && !isPastWeek() && state.template.length) {
+      el.className = 'week-strip pending';
+      el.innerHTML = isCoord()
+        ? `<span>Esta semana aún no tiene los <b>entrenos habituales</b>.</span><button type="button" class="primary" data-strip="apply">Aplicar horario habitual</button>`
+        : '<span>La coordinación aún no ha publicado los entrenamientos de esta semana.</span>';
+      el.hidden = false; return;
+    }
+    el.hidden = true;
+  }
+
+  async function applyTemplateWeek() {
+    const a = state.weekStart;
+    const manual = state.bookings.filter(b => b.kind === 'entreno').length;
+    const msg = `Se añadirán los ${state.template.length} entrenos del horario habitual a la semana del ${a.getDate()} de ${MONTHS[a.getMonth()]}.`
+      + (manual ? ' Los entrenos que ya hayas puesto a mano para el mismo equipo y día se mantienen y se comparan con lo habitual.' : '')
+      + ' Después podrás cambiar lo que haga falta solo para esa semana.';
+    if (!(await askConfirm(msg, 'Aplicar horario habitual'))) return;
+    try { await store.applyTemplate(keyOf(a)); toast('Horario habitual aplicado a esta semana'); await load(); }
+    catch (e) { toast('No se pudo aplicar: ' + e.message, true); }
+  }
+
+  function setMode(m) {
+    if (state.mode === m) return;
+    state.mode = m; state.selectedId = null;
+    closeUserMenu();
+    render();
+    load();
   }
 
   function renderCalendar() {
     const cal = $('#calendar');
     const days = state.view === 'week' ? [0, 1, 2, 3, 4, 5, 6] : [state.dayIndex];
     const H = (DAY_END - DAY_START) * PX;
-    const todayKey = keyOf(new Date());
+    const todayKey = isTpl() ? '' : keyOf(new Date());
     cal.style.setProperty('--ncols', days.length);
     cal.style.setProperty('--hour', 60 * PX + 'px');
     cal.style.setProperty('--q30', 30 * PX + 'px');
@@ -667,10 +859,10 @@
     for (const i of days) {
       const d = addDays(state.weekStart, i), k = keyOf(d);
       const iss = state.issues.all.filter(x => x.day === k);
-      const ne = iss.filter(x => x.level === 'error').length, nw = iss.filter(x => x.level === 'warn').length;
+      const ne = iss.filter(x => x.level === 'error').length, nw = iss.filter(x => x.level === 'warn').length, nc = iss.filter(x => x.level === 'change').length;
       html += `<div class="day-head ${k === todayKey ? 'today' : ''} ${i >= 5 ? 'weekend' : ''}" data-day="${i}">
-        <div class="dh-top"><span class="dh-name">${state.view === 'week' ? DAYS_SHORT[i] : DAYS[i]}</span><span class="dh-date">${d.getDate()} ${MONTHS[d.getMonth()]}</span>
-        ${ne ? `<span class="pill err" title="${ne} conflicto(s)">${ne}</span>` : ''}${nw ? `<span class="pill warn" title="${nw} aviso(s)">${nw}</span>` : ''}</div>
+        <div class="dh-top"><span class="dh-name">${state.view === 'week' ? DAYS_SHORT[i] : DAYS[i]}</span>${isTpl() ? '' : `<span class="dh-date">${d.getDate()} ${MONTHS[d.getMonth()]}</span>`}
+        ${ne ? `<span class="pill err" title="${ne} conflicto(s)">${ne}</span>` : ''}${nw ? `<span class="pill warn" title="${nw} aviso(s)">${nw}</span>` : ''}${nc ? `<span class="pill chg" title="${nc} cambio(s) respecto a lo habitual">↻${nc}</span>` : ''}</div>
         <div class="lanes-head"><span>A1</span><span>A2</span><span>B1</span><span>B2</span></div></div>`;
     }
     html += '</div><div class="cal-body"><div class="time-axis" style="height:' + H + 'px">';
@@ -681,8 +873,9 @@
       const k = keyOf(addDays(state.weekStart, i));
       html += `<div class="day-col ${k === todayKey ? 'today' : ''} ${i >= 5 ? 'weekend' : ''} ${isEditor() ? 'editable' : ''}" data-day="${i}" data-key="${k}" style="height:${H}px">
         <div class="lane l0"></div><div class="lane l1"></div><div class="lane l2"></div><div class="lane l3"></div>`;
+      for (const g of (state.issues.ghosts || []).filter(x => x.day === k)) html += ghostHTML(g);
       for (const b of state.bookings.filter(x => x.day === k).sort((a, c) => a.start_min - c.start_min)) html += blockHTML(b);
-      if (k === todayKey && nowMin >= DAY_START && nowMin <= DAY_END) html += `<div class="now-line" style="top:${(nowMin - DAY_START) * PX}px"></div>`;
+      if (todayKey && k === todayKey && nowMin >= DAY_START && nowMin <= DAY_END) html += `<div class="now-line" style="top:${(nowMin - DAY_START) * PX}px"></div>`;
       html += '</div>';
     }
     html += '</div>';
@@ -691,11 +884,12 @@
 
   function renderIssues() {
     const all = state.issues.all;
-    const ne = all.filter(i => i.level === 'error').length, nw = all.filter(i => i.level === 'warn').length, ni = all.length - ne - nw;
-    $('#issue-count').innerHTML = `${ne ? `<span class="pill err">${ne} conflicto${ne > 1 ? 's' : ''}</span>` : ''}${nw ? `<span class="pill warn">${nw} aviso${nw > 1 ? 's' : ''}</span>` : ''}${ni ? `<span class="pill info">${ni} compartido${ni > 1 ? 's' : ''}</span>` : ''}`;
+    const cnt = l => all.filter(i => i.level === l).length;
+    const ne = cnt('error'), nw = cnt('warn'), ni = cnt('info'), nc = cnt('change');
+    $('#issue-count').innerHTML = `${ne ? `<span class="pill err">${ne} conflicto${ne > 1 ? 's' : ''}</span>` : ''}${nw ? `<span class="pill warn">${nw} aviso${nw > 1 ? 's' : ''}</span>` : ''}${nc ? `<span class="pill chg">${nc} cambio${nc > 1 ? 's' : ''}</span>` : ''}${ni ? `<span class="pill info">${ni} compartido${ni > 1 ? 's' : ''}</span>` : ''}`;
     $('#side-toggle-count').innerHTML = ne ? `<span class="pill err">${ne}</span>` : nw ? `<span class="pill warn">${nw}</span>` : '';
     $('#issues').innerHTML = all.length
-      ? all.map((it, n) => `<li class="${it.level}" data-n="${n}" tabindex="0"><span class="ic">${it.level === 'info' ? '½' : '!'}</span><div><span class="when">${dayLabel(it.day)} · ${fmt(it.at)}</span>${esc(it.msg)}</div></li>`).join('')
+      ? all.map((it, n) => `<li class="${it.level}" data-n="${n}" tabindex="0"><span class="ic">${{ info: '½', change: '↻' }[it.level] || '!'}</span><div><span class="when">${dayText(it.day)} · ${fmt(it.at)}</span>${esc(it.msg)}</div></li>`).join('')
       : `<li class="empty">${myTeams() && state.issueScope === 'mine' ? 'Tus equipos no tienen conflictos ni avisos esta semana ✓' : 'Sin conflictos ni avisos esta semana ✓'}</li>`;
     const scoped = !!(isCoach() && state.profile?.teams?.length);
     $('#issues-title').textContent = scoped && state.issueScope === 'mine' ? 'Tus incidencias' : 'Incidencias';
@@ -722,7 +916,16 @@
   async function load() {
     state.loading = true;
     const from = keyOf(state.weekStart), to = keyOf(addDays(state.weekStart, 6));
-    try { state.bookings = await store.list(from, to); }
+    try {
+      if (isTpl()) {
+        state.template = await store.template.list();
+        state.bookings = state.template.map(tplToBooking);
+        state.weekGenerated = false;
+      } else {
+        const [bk, tp, gen] = await Promise.all([store.list(from, to), store.template.list(), store.weekGenerated(from)]);
+        state.bookings = bk; state.template = tp; state.weekGenerated = gen;
+      }
+    }
     catch (e) { toast('Error al cargar: ' + e.message, true); state.bookings = []; }
     state.loading = false;
     render();
@@ -810,6 +1013,10 @@
     const opts = zoneOptions(draft.kind, draft.format);
     if (!opts.includes(draft.zone)) draft.zone = opts.includes('A') && draft.zone && draft.zone.startsWith('B') ? 'B' : opts[0] === 'full' && draft.kind === 'entreno' ? 'A' : opts[0];
 
+    if (isTpl()) draft.kind = 'entreno';
+    $$('.week-only', dlg()).forEach(x => x.hidden = isTpl());
+    $$('.tpl-only', dlg()).forEach(x => x.hidden = !isTpl());
+    $('#f-weekday').value = String(dayIndexOf(draft.day));
     $('#f-team').value = draft.team;
     $$('#f-kind button').forEach(x => { x.classList.toggle('on', x.dataset.v === draft.kind); x.disabled = x.dataset.v === 'partido' && !team.match; });
     $$('#f-kind button')[1].title = team.match ? '' : `${team.name} no juega partidos`;
@@ -828,7 +1035,8 @@
 
   function readInputs() {
     draft.team = $('#f-team').value;
-    if ($('#f-date').value) draft.day = $('#f-date').value;
+    if (isTpl()) draft.day = keyOf(addDays(state.weekStart, +$('#f-weekday').value));
+    else if ($('#f-date').value) draft.day = $('#f-date').value;
     if ($('#f-start').value) draft.start_min = snap(toMin($('#f-start').value));
     const dur = parseInt($('#f-dur').value, 10);
     if (dur > 0) draft.duration_min = clamp(snap(dur), 15, 600);
@@ -848,11 +1056,12 @@
     const bar = t.segs.map(s => `<div class="tl-${s.t}" style="flex:${s.to - s.from}" title="${s.label} ${fmt(s.from)}–${fmt(s.to)}">${(s.to - s.from) / total > .12 ? s.label : ''}</div>`).join('');
     const issues = draftIssues();
     const weekEnd = keyOf(addDays(state.weekStart, 6));
-    const outside = draft.day < keyOf(state.weekStart) || draft.day > weekEnd;
+    const outside = !isTpl() && (draft.day < keyOf(state.weekStart) || draft.day > weekEnd);
+    renderHabNote();
     const detail = draft.kind === 'partido'
       ? t.segs.map(s => `${s.label}: <b>${fmt(s.from)}–${fmt(s.to)}</b>`).join(' · ')
       : `Ocupa <b>${fmt(t.start)}–${fmt(t.end)}</b> (${total} min)`;
-    $('#f-preview').innerHTML = `<div><b>${esc(team.name)}</b> · ${KIND_LABEL[draft.kind]}${draft.kind === 'partido' ? ' ' + (draft.format || '') : ''} · ${ZONE_LABEL[draft.zone]} · ${dayLabel(draft.day)}</div>
+    $('#f-preview').innerHTML = `<div><b>${esc(team.name)}</b> · ${KIND_LABEL[draft.kind]}${draft.kind === 'partido' ? ' ' + (draft.format || '') : ''} · ${ZONE_LABEL[draft.zone]} · ${dayText(draft.day)}</div>
       <div class="tl" style="--c:${team.color}">${bar}</div>
       <div class="tl-times"><span>${fmt(t.start)}</span><span>${fmt(t.end)}</span></div>
       <div style="margin-top:4px">${detail}</div>
@@ -861,10 +1070,23 @@
     return issues;
   }
 
+  /** En una semana concreta: muestra lo habitual de ese entreno y permite volver a ello */
+  function renderHabNote() {
+    const el = $('#f-hab');
+    const t = !isTpl() && draft.template_id && state.template.find(x => x.id === draft.template_id);
+    if (!t) { el.hidden = true; return; }
+    const habDay = keyOf(addDays(mondayOf(parseKey(draft.day)), t.weekday));
+    const same = draft.day === habDay && draft.start_min === t.start_min && (draft.duration_min || DEFAULT_DUR) === t.duration_min && draft.zone === t.zone && draft.team === t.team;
+    el.hidden = false;
+    el.classList.toggle('diff', !same);
+    el.innerHTML = `<span><b>Habitual:</b> ${esc(teamOf(t.team).name)}, ${esc(habText(t))}${same ? ' · <span class="ok-txt">sin cambios</span>' : ''}</span>
+      ${same ? '' : '<button type="button" class="ghost" id="f-restore">Volver a lo habitual</button>'}`;
+  }
+
   function openEditor(b, isNew) {
     draft = { ...b };
     editingId = isNew ? null : b.id;
-    $('#f-title').textContent = isNew ? 'Nueva reserva' : 'Editar reserva';
+    $('#f-title').textContent = isTpl() ? (isNew ? 'Nuevo entreno habitual' : 'Editar entreno habitual') : (isNew ? (b.template_id ? 'Recuperar entreno habitual' : 'Nueva reserva') : 'Editar reserva');
     $('#f-delete').hidden = isNew;
     $('#f-dup').hidden = isNew;
     syncForm();
@@ -882,19 +1104,22 @@
     const errs = issues.filter(i => i.level === 'error');
     if (errs.length && !(await askConfirm(`Hay ${errs.length} conflicto(s):\n\n• ${errs.map(e => e.msg).join('\n• ')}\n\n¿Guardar igualmente?`, 'Guardar igualmente'))) return;
     try {
-      if (editingId) await store.update(editingId, draft);
-      else await store.insert(draft);
+      if (editingId) await api().update(editingId, draft);
+      else await api().insert(draft);
       dlg().close();
-      toast(editingId ? 'Reserva actualizada' : 'Reserva creada');
+      toast(isTpl() ? (editingId ? 'Horario habitual actualizado' : 'Entreno añadido al horario habitual') : (editingId ? 'Reserva actualizada' : 'Reserva creada'));
       const ws = mondayOf(parseKey(draft.day));
-      if (keyOf(ws) !== keyOf(state.weekStart)) setWeek(ws); else await load();
+      if (!isTpl() && keyOf(ws) !== keyOf(state.weekStart)) setWeek(ws); else await load();
     } catch (e) { toast('No se pudo guardar: ' + e.message, true); }
   }
 
   async function deleteDraft() {
     if (!editingId) return;
-    if (!(await askConfirm(`¿Eliminar la reserva de ${teamOf(draft.team).name} (${dayLabel(draft.day)} ${fmt(draft.start_min)})?`, 'Eliminar', true))) return;
-    try { await store.remove(editingId); dlg().close(); toast('Reserva eliminada'); await load(); }
+    const msg = isTpl()
+      ? `¿Quitar el entreno de ${teamOf(draft.team).name} (${dayText(draft.day)} ${fmt(draft.start_min)}) del horario habitual? También se quitará desde hoy de las semanas ya publicadas, salvo donde lo hayas cambiado a mano.`
+      : `¿Eliminar la reserva de ${teamOf(draft.team).name} (${dayLabel(draft.day)} ${fmt(draft.start_min)})?${draft.template_id ? ' Quedará marcado como que esta semana no entrena.' : ''}`;
+    if (!(await askConfirm(msg, isTpl() ? 'Quitar del habitual' : 'Eliminar', true))) return;
+    try { await api().remove(editingId); dlg().close(); toast(isTpl() ? 'Quitado del horario habitual' : 'Reserva eliminada'); await load(); }
     catch (e) { toast('No se pudo eliminar: ' + e.message, true); }
   }
 
@@ -910,6 +1135,12 @@
       ['Día', dayLabel(b.day)],
       ...(t.kick != null ? [['Partido', `${fmt(t.kick)} – ${fmt(t.coreEnd)}`], ['Ocupa el campo', `${fmt(t.start)} – ${fmt(t.end)}`]] : [['Horario', `${fmt(t.start)} – ${fmt(t.end)}`]]),
       ['Zona', ZONE_LABEL[b.zone] || b.zone],
+      ...(() => {
+        const t = b.template_id && state.template.find(x => x.id === b.template_id);
+        const c = state.issues.changed?.get(b.id);
+        if (c?.what[0] === 'extra') return [['Habitual', 'Entreno extra, no está en el horario habitual']];
+        return t ? [['Habitual', habText(t) + (c ? ' · ↻ cambiado esta semana' : '')]] : [];
+      })(),
     ];
     if (b.kind === 'partido') {
       if (b.opponent) rows.push(['Rival', b.opponent]);
@@ -1014,10 +1245,10 @@
     state.selectedId = b.id;
     render();
     try {
-      await store.update(b.id, c);
+      await api().update(b.id, c);
       const iss = state.issues.byId.get(b.id) || [];
       const ne = iss.filter(i => i.level === 'error').length;
-      toast(ne ? `Movido · ${ne} conflicto(s) pendiente(s)` : `Movido a ${dayLabel(c.day)} ${fmt(c.start_min)}`, false);
+      toast(ne ? `Movido · ${ne} conflicto(s) pendiente(s)` : `Movido a ${dayText(c.day)} ${fmt(c.start_min)}`, false);
     } catch (e) { toast('No se pudo mover: ' + e.message, true); await load(); }
   }
 
@@ -1040,7 +1271,7 @@
     if (!prev.length) return toast('La semana anterior no tiene entrenamientos');
     const sig = b => [b.day, b.team, b.start_min, b.zone, b.kind].join('|');
     const existing = new Set(state.bookings.map(sig));
-    const rows = prev.map(b => ({ ...b, day: keyOf(addDays(parseKey(b.day), 7)) })).filter(r => !existing.has(sig(r)));
+    const rows = prev.map(b => ({ ...b, template_id: null, day: keyOf(addDays(parseKey(b.day), 7)) })).filter(r => !existing.has(sig(r)));
     if (!rows.length) return toast('Esos entrenamientos ya están en esta semana');
     if (!(await askConfirm(`Se copiarán ${rows.length} entrenamiento(s) de la semana anterior a esta semana.`, 'Copiar'))) return;
     try { await store.insertMany(rows); toast(`${rows.length} entrenamiento(s) copiados`); await load(); }
@@ -1598,7 +1829,11 @@
     $('#issues').addEventListener('click', e => {
       const li = e.target.closest('li[data-n]'); if (!li) return;
       setSide(false);
-      const it = state.issues.all[+li.dataset.n]; if (it) focusBooking(it.ids[0]);
+      const it = state.issues.all[+li.dataset.n]; if (!it) return;
+      if (it.ids.length) return focusBooking(it.ids[0]);
+      const t = it.tplId && state.template.find(x => x.id === it.tplId);
+      if (t && isEditor()) openEditor({ ...tplToBooking(t), id: undefined, template_id: t.id }, true);
+      else if (state.view === 'day') { state.dayIndex = dayIndexOf(it.day); render(); }
     });
     $('#issues').addEventListener('keydown', e => { if (e.key === 'Enter') e.target.click(); });
 
@@ -1635,6 +1870,21 @@
     $('#f-start').addEventListener('change', () => { readInputs(); $('#f-start').value = fmt(draft.start_min); renderPreview(); });
     $('#f-dur').addEventListener('change', () => { readInputs(); $('#f-dur').value = draft.duration_min; renderPreview(); });
     $('#f-delete').onclick = deleteDraft;
+    $('#f-weekday').addEventListener('change', () => { readInputs(); renderPreview(); });
+    $('#f-hab').addEventListener('click', e => {
+      if (e.target.id !== 'f-restore') return;
+      const t = state.template.find(x => x.id === draft.template_id); if (!t) return;
+      readInputs();
+      Object.assign(draft, { team: t.team, day: keyOf(addDays(mondayOf(parseKey(draft.day)), t.weekday)), start_min: t.start_min, duration_min: t.duration_min, zone: t.zone });
+      syncForm();
+    });
+    $('#mode-toggle').addEventListener('click', e => { const m = e.target.closest('button')?.dataset.mode; if (m) setMode(m); });
+    $('#m-mode').onclick = () => setMode(isTpl() ? 'week' : 'template');
+    $('#week-strip').addEventListener('click', e => {
+      const a = e.target.closest('[data-strip]')?.dataset.strip;
+      if (a === 'week') setMode('week');
+      if (a === 'apply') applyTemplateWeek();
+    });
     $('#f-dup').onclick = () => { readInputs(); openEditor({ ...draft, id: undefined }, true); toast('Copia creada: ajusta día u hora y guarda'); };
 
     document.addEventListener('keydown', e => {
@@ -1695,6 +1945,7 @@
       if (ev === 'SIGNED_IN' && !appOpen && $('#auth-body').dataset.view === 'sent') await refreshSession();
     });
     store.subscribe(() => { if (!drag && appOpen) load(); });
+    store.template.subscribe(() => { if (!drag && appOpen) load(); });
     // Cambios de perfiles: el coordinador ve solicitudes nuevas; el entrenador pendiente entra al ser aceptado
     store.people.subscribe(async () => {
       if (isCoord()) loadPeople();

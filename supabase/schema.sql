@@ -216,6 +216,146 @@ create policy "Coordinadores eliminan" on public.bookings
 revoke all on public.bookings from anon;
 grant select, insert, update, delete on public.bookings to authenticated;
 
+-- ---------- Horario habitual (semana tipo de entrenamientos) ----------
+create table if not exists public.schedule_template (
+  id           uuid primary key default gen_random_uuid(),
+  weekday      smallint not null check (weekday between 0 and 6),   -- 0 = lunes … 6 = domingo
+  team         text not null,
+  start_min    smallint not null check (start_min between 0 and 1439),
+  duration_min smallint not null check (duration_min between 15 and 720),
+  zone         text not null check (zone in ('full', 'A', 'B', 'A1', 'A2', 'B1', 'B2')),
+  notes        text check (char_length(notes) <= 200),
+  created_at   timestamptz not null default now(),
+  updated_at   timestamptz not null default now(),
+  updated_by   uuid default auth.uid() references auth.users(id) on delete set null
+);
+create index if not exists schedule_template_updated_by_idx on public.schedule_template (updated_by);
+alter table public.schedule_template enable row level security;
+
+drop policy if exists "Aprobados ven el horario habitual" on public.schedule_template;
+create policy "Aprobados ven el horario habitual" on public.schedule_template
+  for select to authenticated using ((select private.is_approved()));
+drop policy if exists "Coordinadores crean horario habitual" on public.schedule_template;
+create policy "Coordinadores crean horario habitual" on public.schedule_template
+  for insert to authenticated with check ((select private.is_coordinator()));
+drop policy if exists "Coordinadores modifican horario habitual" on public.schedule_template;
+create policy "Coordinadores modifican horario habitual" on public.schedule_template
+  for update to authenticated using ((select private.is_coordinator())) with check ((select private.is_coordinator()));
+drop policy if exists "Coordinadores borran horario habitual" on public.schedule_template;
+create policy "Coordinadores borran horario habitual" on public.schedule_template
+  for delete to authenticated using ((select private.is_coordinator()));
+revoke all on public.schedule_template from anon;
+grant select, insert, update, delete on public.schedule_template to authenticated;
+
+-- Cada entreno semanal recuerda de qué entreno habitual viene (para detectar cambios)
+alter table public.bookings add column if not exists template_id uuid references public.schedule_template(id) on delete set null;
+create index if not exists bookings_template_id_idx on public.bookings (template_id);
+
+-- Semanas en las que el coordinador ya ha aplicado el horario habitual
+create table if not exists public.generated_weeks (
+  week_start   date primary key,
+  generated_at timestamptz not null default now()
+);
+alter table public.generated_weeks enable row level security;
+drop policy if exists "Aprobados ven semanas generadas" on public.generated_weeks;
+create policy "Aprobados ven semanas generadas" on public.generated_weeks
+  for select to authenticated using ((select private.is_approved()));
+revoke all on public.generated_weeks from anon, authenticated;
+grant select on public.generated_weeks to authenticated;
+
+-- Aplicar el horario habitual a una semana (solo coordinadores, semana actual o futuras)
+create or replace function private.ensure_week(p_day date)
+returns boolean
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  monday date := p_day - (extract(isodow from p_day)::int - 1);
+  this_monday date := (now() at time zone 'Europe/Madrid')::date - (extract(isodow from (now() at time zone 'Europe/Madrid'))::int - 1);
+begin
+  if not private.is_coordinator() then
+    raise exception 'Solo la coordinación puede aplicar el horario habitual' using errcode = '42501';
+  end if;
+  if monday < this_monday then
+    raise exception 'No se puede aplicar el horario habitual a semanas pasadas';
+  end if;
+  insert into public.generated_weeks (week_start) values (monday) on conflict do nothing;
+  if not found then return false; end if;
+
+  -- Entrenos creados a mano ese día por el mismo equipo: se enlazan en vez de duplicarse
+  update public.bookings b set template_id = t.id
+    from public.schedule_template t
+   where b.day = monday + t.weekday and b.team = t.team and b.kind = 'entreno' and b.template_id is null
+     and not exists (select 1 from public.bookings x where x.template_id = t.id and x.day between monday and monday + 6);
+
+  insert into public.bookings (day, start_min, duration_min, team, kind, zone, notes, template_id)
+  select monday + t.weekday, t.start_min, t.duration_min, t.team, 'entreno', t.zone, t.notes, t.id
+    from public.schedule_template t
+   where not exists (select 1 from public.bookings x where x.template_id = t.id and x.day between monday and monday + 6);
+  return true;
+end;
+$$;
+revoke all on function private.ensure_week(date) from public, anon;
+grant execute on function private.ensure_week(date) to authenticated;
+
+create or replace function public.apply_template(p_day date)
+returns boolean
+language sql
+set search_path = ''
+as $$ select private.ensure_week(p_day); $$;
+revoke all on function public.apply_template(date) from public, anon;
+grant execute on function public.apply_template(date) to authenticated;
+
+-- Cambios en el horario habitual: se aplican desde hoy a las semanas ya publicadas,
+-- solo en los entrenos que no se hayan modificado a mano.
+create or replace function private.template_changed()
+returns trigger
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  today date := (now() at time zone 'Europe/Madrid')::date;
+begin
+  if tg_op = 'INSERT' then
+    insert into public.bookings (day, start_min, duration_min, team, kind, zone, notes, template_id)
+    select g.week_start + new.weekday, new.start_min, new.duration_min, new.team, 'entreno', new.zone, new.notes, new.id
+    from public.generated_weeks g
+    where g.week_start + new.weekday >= today;
+    return new;
+  elsif tg_op = 'UPDATE' then
+    new.updated_at := now();
+    update public.bookings b
+       set day = (b.day - (extract(isodow from b.day)::int - 1)) + new.weekday,
+           start_min = new.start_min, duration_min = new.duration_min, zone = new.zone, team = new.team, notes = new.notes
+     where b.template_id = new.id
+       and b.day >= today
+       and b.day = (b.day - (extract(isodow from b.day)::int - 1)) + old.weekday
+       and b.start_min = old.start_min and b.duration_min = old.duration_min
+       and b.zone = old.zone and b.team = old.team;
+    return new;
+  else
+    delete from public.bookings b
+     where b.template_id = old.id
+       and b.day >= today
+       and b.day = (b.day - (extract(isodow from b.day)::int - 1)) + old.weekday
+       and b.start_min = old.start_min and b.duration_min = old.duration_min
+       and b.zone = old.zone and b.team = old.team;
+    return old;
+  end if;
+end;
+$$;
+revoke all on function private.template_changed() from public, anon, authenticated;
+
+drop trigger if exists template_after_insert on public.schedule_template;
+create trigger template_after_insert after insert on public.schedule_template
+  for each row execute function private.template_changed();
+drop trigger if exists template_before_update on public.schedule_template;
+create trigger template_before_update before update on public.schedule_template
+  for each row execute function private.template_changed();
+drop trigger if exists template_before_delete on public.schedule_template;
+create trigger template_before_delete before delete on public.schedule_template
+  for each row execute function private.template_changed();
+
 -- ---------- Tiempo real ----------
 do $$
 begin
@@ -224,6 +364,9 @@ begin
   end if;
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'profiles') then
     alter publication supabase_realtime add table public.profiles;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'schedule_template') then
+    alter publication supabase_realtime add table public.schedule_template;
   end if;
 end $$;
 
