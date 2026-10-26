@@ -63,7 +63,7 @@ button.danger-solid { background: var(--err); border-color: var(--err); color: #
 
 /* ---------- Cabecera ---------- */
 .topbar { display: flex; align-items: center; gap: 16px 24px; flex-wrap: wrap; padding: 10px 20px; color: #fff;
-  background: linear-gradient(105deg, var(--pitch-dark) 0 55%, #0d4597 55% 100%); border-bottom: 3px solid var(--gold); }
+  background: var(--pitch-dark); border-bottom: 3px solid var(--gold); }
 .brand {
   display: flex; align-items: center; gap: 12px; align-self: stretch;
   margin: -10px 0 -10px -20px; padding: 6px 56px 6px 20px; color: var(--pitch-dark);
@@ -344,6 +344,22 @@ button.danger-solid { background: var(--err); border-color: var(--err); color: #
   .side.open { transform: none; visibility: visible; }
   .side-close { display: inline-grid; position: absolute; top: 8px; right: 10px; }
   .side-backdrop:not([hidden]) { display: block; position: fixed; inset: 0; z-index: 55; background: rgba(8,24,54,.35); }
+}
+/* Tablet: cabecera compacta en una sola línea (sin subtítulo ni nombre de usuario) */
+@media (max-width: 1240px) and (min-width: 721px) {
+  .topbar { flex-wrap: nowrap; gap: 12px; padding: 8px 14px; }
+  .brand { margin: -8px 0 -8px -14px; padding: 4px 44px 4px 14px; gap: 10px; }
+  .brand p, .user-name { display: none; }
+  .brand h1 { font-size: 17px; white-space: nowrap; }
+  .brand-crest { height: 46px; }
+  .week-nav { min-width: 0; flex: 1; }
+  .week-label { min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .top-right { gap: 8px; flex: none; }
+}
+@media (max-width: 960px) and (min-width: 721px) {
+  .brand > div { display: none; }
+  .brand { padding-right: 34px; }
+  .people-btn { display: none !important; }   /* Partidos y Entrenadores siguen en el menú de usuario */
 }
 @media (max-width: 720px) {
   /* Cabecera de una sola línea */

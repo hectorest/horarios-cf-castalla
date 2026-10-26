@@ -52,6 +52,15 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
 - **Observaciones**: texto libre del partido (por ejemplo, «el entrenador pide jugar el viernes porque el sábado tiene 5 bajas»). Lo escribe el coordinador; todos lo ven en el detalle.
 - **Propuestas de horario**: el coordinador y los entrenadores del equipo pueden proponer alternativas para un partido: día y hora exacta, «por la mañana», «por la tarde» o «a cualquier hora», con su motivo. Junto a cada propuesta se comprueba si el hueco está libre (sin hora exacta, se busca la primera hora libre de la franja; entre semana, a partir de las 16:00). El coordinador la **aplica** (mueve el partido) o la **descarta**. Los partidos con propuestas pendientes llevan la marca **⇄**.
 
+## Instalar como app
+
+La web se puede añadir a la pantalla de inicio y se abre a pantalla completa, con el escudo como icono:
+
+- **iPhone / iPad** (Safari o Chrome): botón Compartir → *Añadir a pantalla de inicio*.
+- **Android / ordenador** (Chrome o Edge): menú → *Instalar aplicación* (o *Añadir a pantalla de inicio*).
+
+Los iconos están en `assets/` (`apple-touch-icon.png` 180 px, `icon-192/512.png` y versiones `maskable` con margen para Android) y la configuración en `manifest.webmanifest`. Si ya la tenías instalada antes de este cambio, bórrala de la pantalla de inicio y vuelve a añadirla para que coja el icono nuevo.
+
 ## Panel lateral
 
 - Las **incidencias** ocupan todo el alto del panel; el resumen de horas y la leyenda están plegados en **Ver resumen y leyenda** (en móvil, tablet y escritorio).

@@ -2529,7 +2529,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261026145129';
+  const APP_VERSION = '20261026145907';
   async function checkVersion() {
     if (store?.mode === 'demo') return;
     try {

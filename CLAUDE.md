@@ -18,5 +18,6 @@ Web estática (HTML + CSS + JS sin compilación) en GitHub Pages, con datos en S
 - **Solapes asumidos**: `overlap_acks` (partido–entreno); valen solo mientras coincidan las firmas `ackSig` de ambas reservas. Pueden asumirlos el coordinador y los entrenadores de cualquiera de los dos equipos (`private.can_ack`).
 - **Horarios**: todo en tramos de 15 minutos. En partidos, `start_min` es la hora del saque; el calentamiento se dibuja antes.
 - **Móvil**: la página no hace scroll; solo se desplaza el calendario. El zoom está bloqueado. Comprueba cada cambio también a ~390 px de ancho.
+- **Instalable**: `manifest.webmanifest` + iconos en `assets/` (generados desde el escudo original con fondo blanco; los `maskable` llevan margen). Mantén las etiquetas `apple-*` y `theme-color` de `index.html`.
 - **Publicar**: antes de cada commit que cambie la web, ejecuta `./release.sh` (actualiza `version.txt`, `APP_VERSION` y los `?v=` de `index.html`). Así los navegadores no mezclan archivos viejos y nuevos, y las pestañas abiertas se recargan solas.
 - Documenta los cambios relevantes para el usuario en `README.md`.

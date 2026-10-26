@@ -1,0 +1,20 @@
+{
+  "name": "Castalla C.F. · Planificador de campo",
+  "short_name": "Castalla C.F.",
+  "description": "Distribución semanal del campo del Castalla C.F.: entrenamientos, partidos y reservas.",
+  "lang": "es-ES",
+  "dir": "ltr",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f1f5fa",
+  "theme_color": "#0a3a82",
+  "icons": [
+    { "src": "assets/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "assets/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
