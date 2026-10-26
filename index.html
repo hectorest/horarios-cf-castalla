@@ -44,6 +44,7 @@
           <div id="up-teams" class="up-teams"></div>
           <button type="button" role="menuitem" id="m-people" hidden>Entrenadores y solicitudes <span id="m-people-count"></span></button>
           <button type="button" role="menuitem" id="m-copy" hidden>Copiar entrenos de la semana anterior</button>
+          <button type="button" role="menuitem" id="m-clear" class="danger-item" hidden>Borrar los eventos de esta semana</button>
           <button type="button" role="menuitem" id="m-mode">Ver horario habitual</button>
           <button type="button" role="menuitem" id="m-help">Ver tutorial</button>
           <button type="button" role="menuitem" id="m-logout">Cerrar sesión</button>
@@ -70,6 +71,7 @@
         </label>
         <button id="new-btn" class="primary edit-only" aria-label="Nueva reserva">+<span class="hide-sm"> Nueva reserva</span></button>
         <button id="copy-week-btn" class="ghost edit-only hide-mobile" title="Copia los entrenamientos de la semana anterior a esta">Copiar entrenos<span class="hide-sm"> sem. anterior</span></button>
+        <button id="clear-week-btn" class="danger edit-only hide-mobile" title="Borra todos los entrenos y partidos de la semana visible">Borrar semana</button>
       </div>
       <button id="side-toggle" class="ghost side-toggle" aria-controls="side" aria-expanded="false"><span class="hide-sm">Incidencias</span><span class="show-sm">Avisos</span> <span id="side-toggle-count"></span></button>
       <button id="print-btn" class="ghost hide-mobile" title="Imprimir la semana">Imprimir</button>

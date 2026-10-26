@@ -38,6 +38,7 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
 - **Horario habitual**: es la semana tipo de entrenamientos. Se ve con el botón **Horario habitual** (en el móvil, desde el menú de usuario). El coordinador lo edita igual que una semana: crear, arrastrar, alargar o borrar.
 - **Publicar una semana**: las semanas nuevas empiezan vacías. Cuando el coordinador ya sabe los horarios de una semana, entra en ella y pulsa **Aplicar horario habitual**. Mientras no lo haga, los entrenadores ven el aviso «La coordinación aún no ha publicado los entrenamientos de esta semana». Si ya había entrenos puestos a mano para el mismo equipo y día, se enlazan en vez de duplicarse.
 - **Cambios de una semana concreta**: se hacen en esa semana. El entreno queda marcado con **↻** y borde verde azulado, y en su lugar habitual aparece un hueco punteado «Lo habitual». Si se borra, queda el hueco «No entrena». Un entreno que no está en el habitual se marca con **+** («extra»). Todo sale en Incidencias como **cambio**, también para los entrenadores de ese equipo. Al editarlo, el botón **Volver a lo habitual** lo restaura.
+- **Borrar semana**: el coordinador puede borrar de golpe todos los entrenos y partidos de la semana visible (botón **Borrar semana**; en el móvil, en el menú de usuario). La semana queda sin publicar.
 - **Cambios para siempre**: se hacen en el horario habitual y se aplican **desde hoy** en las semanas ya publicadas, sin tocar los entrenos cambiados a mano en una semana concreta.
 
 ## Tutorial
@@ -117,7 +118,7 @@ Todo está en `config.js > TEAMS`. Cada equipo tiene un `id` (lo que se guarda e
 
 | Equipo | Calentamiento | Partido | Margen | Total |
 |---|---|---|---|---|
-| Senior A / Senior B / Juvenil | 30 | 45 + 15 + 45 | 15 | 2 h 30 |
+| Senior A / Senior B / Veteranos / Juvenil | 30 | 45 + 15 + 45 | 15 | 2 h 30 |
 | Cadete | 30 | 40 + 15 + 40 | 15 | 2 h 20 |
 | Infantil A / B | 30 | 35 + 15 + 35 | 15 | 2 h 10 |
 | Alevín A / B | 20 | 30 + 10 + 30 | 15 | 1 h 45 |

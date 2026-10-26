@@ -121,6 +121,11 @@ window.TUTORIAL_STEPS = [
     body: 'Si cambia algo para toda la temporada, edítalo en <b>Horario habitual</b> igual que una semana: arrastrar, crear o borrar. Se aplica desde hoy en las semanas ya publicadas, salvo en los entrenos que hayas cambiado a mano. Al editar un entreno cambiado, <b>Volver a lo habitual</b> lo deja como siempre.',
   },
   {
+    id: 'borrar-semana', since: 4, roles: ['coordinador'], target: '#clear-week-btn, #user-btn',
+    title: 'Borrar los eventos de una semana',
+    body: '<b>Borrar semana</b> elimina de golpe todos los entrenos y partidos de la semana que estás viendo (en el móvil, desde tu menú). Te pide confirmación y la semana vuelve a quedar sin publicar, así que puedes aplicar de nuevo el horario habitual.',
+  },
+  {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',
     title: 'Volver a ver esta guía',
     body: 'Puedes repetir el tutorial cuando quieras desde aquí. Cuando añadamos funciones nuevas, te las enseñaremos al entrar.',

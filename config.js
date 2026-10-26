@@ -28,6 +28,8 @@ window.APP_CONFIG = {
       match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
     { id: 'senior-b',   name: 'Senior B',        short: 'SEN B', color: '#c2410c',
       match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
+    { id: 'veteranos',  name: 'Veteranos',       short: 'VET',   color: '#1f2937',
+      match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
     { id: 'juvenil',    name: 'Juvenil',         short: 'JUV',   color: '#6d28d9',
       match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
     { id: 'cadete',     name: 'Cadete',          short: 'CAD',   color: '#1d4ed8',

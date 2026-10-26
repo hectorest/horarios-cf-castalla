@@ -306,6 +306,36 @@ as $$ select private.ensure_week(p_day); $$;
 revoke all on function public.apply_template(date) from public, anon;
 grant execute on function public.apply_template(date) to authenticated;
 
+-- Borra todos los eventos de una semana y la deja sin publicar (solo coordinadores)
+create or replace function private.clear_week(p_day date)
+returns integer
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  monday date := p_day - (extract(isodow from p_day)::int - 1);
+  n integer;
+begin
+  if not private.is_coordinator() then
+    raise exception 'Solo la coordinación puede borrar una semana' using errcode = '42501';
+  end if;
+  delete from public.bookings where day between monday and monday + 6;
+  get diagnostics n = row_count;
+  delete from public.generated_weeks where week_start = monday;
+  return n;
+end;
+$$;
+revoke all on function private.clear_week(date) from public, anon;
+grant execute on function private.clear_week(date) to authenticated;
+
+create or replace function public.clear_week(p_day date)
+returns integer
+language sql
+set search_path = ''
+as $$ select private.clear_week(p_day); $$;
+revoke all on function public.clear_week(date) from public, anon;
+grant execute on function public.clear_week(date) to authenticated;
+
 -- Cambios en el horario habitual: se aplican desde hoy a las semanas ya publicadas,
 -- solo en los entrenos que no se hayan modificado a mano.
 create or replace function private.template_changed()

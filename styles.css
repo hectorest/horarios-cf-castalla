@@ -561,3 +561,5 @@ body.tpl-mode .cal-wrap { box-shadow: 0 0 0 2px var(--gold), var(--shadow); }
   .week-strip { padding: 5px 10px; font-size: 12px; gap: 8px; }
   .week-strip button { padding: 4px 9px; font-size: 12px; }
 }
+.topbar .user-pop button.danger-item { color: var(--err); }
+.topbar .user-pop button.danger-item:hover { background: var(--err-tint); }

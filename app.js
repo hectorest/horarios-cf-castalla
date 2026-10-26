@@ -253,9 +253,9 @@
   //  Almacenamiento: Demo (localStorage) y Supabase
   // ================================================================
   function makeLocalStore() {
-    const KEY = 'planificador-campo-demo-v3';
-    const TKEY = 'planificador-campo-demo-template-v1';
-    const GKEY = 'planificador-campo-demo-weeks-v1';
+    const KEY = 'planificador-campo-demo-v4';
+    const TKEY = 'planificador-campo-demo-template-v2';
+    const GKEY = 'planificador-campo-demo-weeks-v2';
     const UKEY = 'planificador-campo-demo-users-v2';
     const SKEY = 'planificador-campo-demo-session';
     let mem = null, umem = null;
@@ -322,6 +322,13 @@
         return true;
       },
       async weekGenerated(mondayK) { return weeks().includes(mondayK); },
+      async clearWeek(dayKey) {
+        const m = mondayKey(dayKey), end = keyOf(addDays(parseKey(m), 6));
+        const before = read().length;
+        write(read().filter(b => b.day < m || b.day > end));
+        writeWeeks(weeks().filter(w => w !== m));
+        return before - read().length;
+      },
       template: {
         async list() { return tpl().map(t => ({ ...t })); },
         async insert(row) {
@@ -453,6 +460,11 @@
         const rows = chk(await sb.from('generated_weeks').select('week_start').eq('week_start', mondayK));
         return rows.length > 0;
       },
+      async clearWeek(dayKey) {
+        const { data, error } = await sb.rpc('clear_week', { p_day: dayKey });
+        if (error) throw new Error(error.message);
+        return data || 0;
+      },
       template: {
         async list() { return chk(await sb.from('schedule_template').select('id, weekday, team, start_min, duration_min, zone, notes').order('weekday').order('start_min')); },
         async insert(row) { return chk(await sb.from('schedule_template').insert(tplRow(row)).select().single()); },
@@ -531,6 +543,7 @@
       T(2, 'alevin-a', '17:00', 90, 'A'), T(2, 'alevin-b', '17:00', 90, 'B'), T(2, 'senior-a', '19:30', 90, 'full'),
       T(3, 'tec-1', '17:00', 90, 'A'), T(3, 'tec-2', '17:00', 90, 'B'), T(3, 'juvenil', '18:30', 90, 'A'), T(3, 'cadete', '18:30', 90, 'B'), T(3, 'senior-a', '20:00', 90, 'A'), T(3, 'senior-b', '20:00', 90, 'B'),
       T(4, 'infantil-a', '17:30', 90, 'A'), T(4, 'infantil-b', '17:30', 90, 'B'),
+      T(0, 'veteranos', '20:00', 90, 'full'), T(4, 'veteranos', '20:00', 90, 'full'),
     ];
     // Esta semana: lo habitual con algunos cambios de ejemplo
     const changes = {
@@ -682,6 +695,7 @@
     $('.coord-only').hidden = !coord;
     $$('.edit-only').forEach(x => x.hidden = !state.edit);
     $('#copy-week-btn').hidden = !state.edit || isTpl();
+    $('#clear-week-btn').hidden = !state.edit || isTpl();
     $('.edit-hint').hidden = !isEditor();
     $('#edit-toggle').checked = state.edit;
     renderUser();
@@ -708,6 +722,7 @@
     $('#people-btn').hidden = !coord;
     $('#m-people').hidden = !coord;
     $('#m-copy').hidden = !coord || isTpl();
+    $('#m-clear').hidden = !coord || isTpl();
     const badge = pending ? `<span class="pill err">${pending}</span>` : '';
     $('#people-count').innerHTML = badge;
     $('#m-people-count').innerHTML = badge;
@@ -834,6 +849,19 @@
     if (!(await askConfirm(msg, 'Aplicar horario habitual'))) return;
     try { await store.applyTemplate(keyOf(a)); toast('Horario habitual aplicado a esta semana'); await load(); }
     catch (e) { toast('No se pudo aplicar: ' + e.message, true); }
+  }
+
+  async function clearWeekEvents() {
+    closeUserMenu();
+    const a = state.weekStart;
+    const ne = state.bookings.filter(b => b.kind === 'entreno').length, np = state.bookings.filter(b => b.kind === 'partido').length;
+    if (!ne && !np) { toast('Esta semana no tiene eventos'); return; }
+    const parts = [ne && `${ne} entreno${ne > 1 ? 's' : ''}`, np && `${np} partido${np > 1 ? 's' : ''}`].filter(Boolean).join(' y ');
+    const msg = `Se borrarán ${parts} de la semana del ${a.getDate()} de ${MONTHS[a.getMonth()]}. No se puede deshacer.`
+      + (state.weekGenerated ? ' La semana quedará sin publicar y podrás volver a aplicar el horario habitual.' : '');
+    if (!(await askConfirm(msg, 'Borrar la semana', true))) return;
+    try { const n = await store.clearWeek(keyOf(a)); toast(`Semana vaciada: ${n} evento${n === 1 ? '' : 's'} borrado${n === 1 ? '' : 's'}`); await load(); }
+    catch (e) { toast('No se pudo borrar: ' + e.message, true); }
   }
 
   function setMode(m) {
@@ -1763,6 +1791,8 @@
     $('#m-people').onclick = () => openPeople();
     $('#people-btn').onclick = () => openPeople();
     $('#m-copy').onclick = () => { closeUserMenu(); copyPrevWeek(); };
+    $('#m-clear').onclick = clearWeekEvents;
+    $('#clear-week-btn').onclick = clearWeekEvents;
     $('#m-help').onclick = () => startTutorial(0);
     $('#help-btn').onclick = () => startTutorial(0);
     $('#m-logout').onclick = async () => { closeUserMenu(); await store.auth.signOut(); applySession(null); showAuth('login'); toast('Sesión cerrada'); };
