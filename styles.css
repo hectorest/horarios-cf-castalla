@@ -625,3 +625,14 @@ button.danger-link { color: var(--err); }
 #f-rival button[data-v="rechazado"].on { background: var(--err); }
 #f-rival button[data-v="pendiente"].on { background: var(--pend); }
 @media (max-width: 720px) { #f-rival { flex-wrap: wrap; } #f-rival button { flex: 1 1 100%; border-left: 0 !important; } }
+
+/* ---------- Incidencias agrupadas por importancia ---------- */
+.issues li.ig-head { display: flex; align-items: center; gap: 6px; padding: 8px 2px 2px; background: none; cursor: default; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); border: 0; }
+.issues li.ig-head:first-child { padding-top: 0; }
+.issues li.ig-head span { font-weight: 600; letter-spacing: 0; padding: 0 6px; border-radius: 99px; background: var(--bg); }
+.issues li.ig-head.g0 { color: var(--err); }
+.issues li.ig-toggle { cursor: pointer; margin-top: 4px; border-top: 1px solid var(--line); padding-top: 10px; }
+.issues li.ig-toggle:hover { color: var(--ink); }
+.issues li.minor { background: var(--bg); }
+.issues li.minor .ic { background: #9aa6b8; }
+.issues li.info.minor .ic, .issues li.info .ic { background: var(--info); }

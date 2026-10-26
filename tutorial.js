@@ -151,6 +151,11 @@ window.TUTORIAL_STEPS = [
     body: 'Cada categoría tiene una franja permitida para el saque (por ejemplo, juveniles y seniors: sábado de 15:00 a 19:30 y domingo de 9:00 a 19:30). Un partido fuera de su franja lleva la marca <b>⚑</b> y «Falta OK del rival» hasta que la coordinación marca en el editor que el rival lo ha <b>aprobado</b>. Si el rival lo rechaza, sale como conflicto. Si se mueve el partido, vuelve a quedar pendiente.',
   },
   {
+    id: 'incidencias-orden', since: 8, target: '.issues-panel, #side-toggle',
+    title: 'Incidencias por importancia',
+    body: 'Las incidencias salen agrupadas: primero los <b>conflictos</b> (lo que no puede ser), luego avisos, pendientes y cambios. El <b>reparto del campo en entrenamientos</b> (tramos compartidos y entrenos en un cuarto) va al final, plegado; ábrelo si lo necesitas. Cuando dos entrenos comparten, cada equipo conserva su zona y solo gana o pierde campo, sin saltar de un lado a otro.',
+  },
+  {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',
     title: 'Volver a ver esta guía',
     body: 'Puedes repetir el tutorial cuando quieras desde aquí. Cuando añadamos funciones nuevas, te las enseñaremos al entrar.',

@@ -129,6 +129,7 @@
         if (!b.format) add('warn', `${name}: partido sin formato (F8/F11)`, [b]);
       } else if (lanes && lanes.length === 1) {
         add('warn', `${name}: entrena en un cuarto de campo (división excepcional)`, [b]);
+        all[all.length - 1].minor = true;
       }
     }
 
@@ -196,7 +197,9 @@
             continue;
           }
           const h1 = Z.slice(0, Z.length / 2), h2 = Z.slice(Z.length / 2);
-          const eL = ZONES[early.zone] || ZONES.full;
+          // Continuidad: el que ya estaba conserva la mitad en la que se encontraba justo antes del solape
+          const before = pieces.get(early.id).find(p => p.from < from && p.to >= from);
+          const eL = before ? before.lanes : (ZONES[early.zone] || ZONES.full);
           const score = h => h.filter(l => eL.includes(l)).length;
           const [hE, hL] = score(h2) > score(h1) ? [h2, h1] : [h1, h2];
           const okE = restrict(early.id, from, to, hE);
@@ -253,7 +256,11 @@
 
   const ICON = { error: '⛔', warn: '⚠', info: '½', change: '↻', pending: '?' };
   const pendingProps = id => (state.proposals.get(id) || []).filter(p => p.status === 'pendiente');
-  const worstLevel = issues => issues.some(i => i.level === 'error') ? 'error' : issues.some(i => i.level === 'warn') ? 'warn' : '';
+  // Los avisos «menores» (reparto del campo en entrenos) no marcan los bloques
+  const worstLevel = issues => issues.some(i => i.level === 'error') ? 'error' : issues.some(i => i.level === 'warn' && !i.minor) ? 'warn' : '';
+  /** Grupo de importancia de una incidencia: 0 conflictos … 4 reparto del campo en entrenos */
+  const ISSUE_GROUPS = ['Conflictos', 'Avisos', 'Pendientes', 'Cambios respecto a lo habitual', 'Reparto del campo en entrenamientos'];
+  const issueGroup = it => it.level === 'error' ? 0 : it.level === 'warn' ? (it.minor ? 4 : 1) : it.level === 'pending' ? 2 : it.level === 'change' ? 3 : 4;
 
   /** Normaliza una reserva antes de guardarla. */
   function cleanRow(b) {
@@ -650,7 +657,8 @@
     template: [],
     weekGenerated: false,
     proposals: new Map(),   // id de partido → propuestas de horario
-    issueScope: 'mine',  // entrenadores: 'mine' | 'all'
+    issueScope: 'mine',
+    minorOpen: false,     // grupo «reparto del campo en entrenamientos» desplegado  // entrenadores: 'mine' | 'all'
     edit: true,
     view: window.innerWidth < 820 ? 'day' : 'week',
     dayIndex: (new Date().getDay() + 6) % 7,
@@ -973,7 +981,7 @@
     for (const i of days) {
       const d = addDays(state.weekStart, i), k = keyOf(d);
       const iss = state.issues.all.filter(x => x.day === k);
-      const ne = iss.filter(x => x.level === 'error').length, nw = iss.filter(x => x.level === 'warn').length, nc = iss.filter(x => x.level === 'change').length;
+      const ne = iss.filter(x => x.level === 'error').length, nw = iss.filter(x => x.level === 'warn' && !x.minor).length, nc = iss.filter(x => x.level === 'change').length;
       html += `<div class="day-head ${k === todayKey ? 'today' : ''} ${i >= 5 ? 'weekend' : ''}" data-day="${i}">
         <div class="dh-top"><span class="dh-name">${state.view === 'week' ? DAYS_SHORT[i] : DAYS[i]}</span>${isTpl() ? '' : `<span class="dh-date">${d.getDate()} ${MONTHS[d.getMonth()]}</span>`}
         ${ne ? `<span class="pill err" title="${ne} conflicto(s)">${ne}</span>` : ''}${nw ? `<span class="pill warn" title="${nw} aviso(s)">${nw}</span>` : ''}${nc ? `<span class="pill chg" title="${nc} cambio(s) respecto a lo habitual">↻${nc}</span>` : ''}</div>
@@ -999,12 +1007,20 @@
   function renderIssues() {
     const all = state.issues.all;
     const cnt = l => all.filter(i => i.level === l).length;
-    const ne = cnt('error'), nw = cnt('warn'), ni = cnt('info'), nc = cnt('change'), np = cnt('pending');
-    $('#issue-count').innerHTML = `${ne ? `<span class="pill err">${ne} conflicto${ne > 1 ? 's' : ''}</span>` : ''}${nw ? `<span class="pill warn">${nw} aviso${nw > 1 ? 's' : ''}</span>` : ''}${nc ? `<span class="pill chg">${nc} cambio${nc > 1 ? 's' : ''}</span>` : ''}${np ? `<span class="pill pend">${np} pendiente${np > 1 ? 's' : ''}</span>` : ''}${ni ? `<span class="pill info">${ni} compartido${ni > 1 ? 's' : ''}</span>` : ''}`;
+    const ne = cnt('error'), nw = all.filter(i => i.level === 'warn' && !i.minor).length, nc = cnt('change'), np = cnt('pending');
+    const nm = all.filter(i => issueGroup(i) === 4).length;
+    $('#issue-count').innerHTML = `${ne ? `<span class="pill err">${ne} conflicto${ne > 1 ? 's' : ''}</span>` : ''}${nw ? `<span class="pill warn">${nw} aviso${nw > 1 ? 's' : ''}</span>` : ''}${np ? `<span class="pill pend">${np} pendiente${np > 1 ? 's' : ''}</span>` : ''}${nc ? `<span class="pill chg">${nc} cambio${nc > 1 ? 's' : ''}</span>` : ''}`;
     $('#side-toggle-count').innerHTML = ne ? `<span class="pill err">${ne}</span>` : nw ? `<span class="pill warn">${nw}</span>` : '';
-    $('#issues').innerHTML = all.length
-      ? all.map((it, n) => `<li class="${it.level}" data-n="${n}" tabindex="0"><span class="ic">${{ info: '½', change: '↻', pending: '?' }[it.level] || '!'}</span><div><span class="when">${dayText(it.day)} · ${fmt(it.at)}</span>${esc(it.msg)}</div></li>`).join('')
-      : `<li class="empty">${myTeams() && state.issueScope === 'mine' ? 'Tus equipos no tienen conflictos ni avisos esta semana ✓' : 'Sin conflictos ni avisos esta semana ✓'}</li>`;
+    // Agrupadas por importancia; dentro de cada grupo, por día y hora
+    const item = (it, n) => `<li class="${it.level}${it.minor ? ' minor' : ''}" data-n="${n}" tabindex="0"><span class="ic">${{ info: '½', change: '↻', pending: '?' }[it.level] || '!'}</span><div><span class="when">${dayText(it.day)} · ${fmt(it.at)}</span>${esc(it.msg)}</div></li>`;
+    const groups = ISSUE_GROUPS.map((title, g) => ({ title, g, items: all.map((it, n) => [it, n]).filter(([it]) => issueGroup(it) === g) })).filter(x => x.items.length);
+    const major = groups.filter(x => x.g < 4);
+    const minorG = groups.find(x => x.g === 4);
+    let html = major.map(x => `<li class="ig-head g${x.g}">${x.title} <span>${x.items.length}</span></li>` + x.items.map(([it, n]) => item(it, n)).join('')).join('');
+    if (!major.length) html += `<li class="empty">${myTeams() && state.issueScope === 'mine' ? 'Tus equipos no tienen conflictos ni avisos esta semana ✓' : 'Sin conflictos ni avisos esta semana ✓'}</li>`;
+    if (minorG) html += `<li class="ig-head g4 ig-toggle" data-minor tabindex="0" aria-expanded="${state.minorOpen ? 'true' : 'false'}">${state.minorOpen ? '▾' : '▸'} ${minorG.title} <span>${minorG.items.length}</span></li>`
+      + (state.minorOpen ? minorG.items.map(([it, n]) => item(it, n)).join('') : '');
+    $('#issues').innerHTML = html;
     const unconf = state.bookings.filter(b => b.kind === 'partido' && !b.confirmed && b.day >= keyOf(new Date())).length;
     const cb = $('#confirm-week');
     cb.hidden = !(isEditor() && !isTpl() && unconf);
@@ -2114,6 +2130,7 @@
 
     // Incidencias
     $('#issues').addEventListener('click', e => {
+      if (e.target.closest('[data-minor]')) { state.minorOpen = !state.minorOpen; renderIssues(); return; }
       const li = e.target.closest('li[data-n]'); if (!li) return;
       setSide(false);
       const it = state.issues.all[+li.dataset.n]; if (!it) return;
@@ -2217,7 +2234,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261026111534';
+  const APP_VERSION = '20261026112202';
   async function checkVersion() {
     if (store?.mode === 'demo') return;
     try {
