@@ -34,7 +34,7 @@ html, body { margin: 0; background: var(--bg); color: var(--ink); font: 14px/1.4
 /* Pantalla fija: solo se desplaza el calendario */
 html, body { height: 100%; overflow: hidden; }
 html { touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-body.gated > :not(.auth):not(.tt-root):not(.toast):not(dialog) { visibility: hidden; }
+body.gated > :not(.auth):not(.tt-root):not(.toast):not(.update-bar):not(dialog) { visibility: hidden; }
 body { display: flex; flex-direction: column; }
 .topbar, .banner, .toolbar, .day-tabs { flex: none; }
 button, input, select { font: inherit; color: inherit; }
@@ -797,3 +797,30 @@ button.danger-link { color: var(--err); }
   .mx-cell span { max-width: 84px; }
   .mx-legend { font-size: 11px; }
 }
+
+/* ---------- Sugerencia de instalación ---------- */
+.install-card { position: fixed; z-index: 150; right: 20px; bottom: 20px; width: min(380px, calc(100vw - 24px)); display: flex; gap: 12px; align-items: flex-start;
+  padding: 14px 40px 14px 14px; background: var(--panel); color: var(--ink); border: 1px solid var(--line); border-top: 3px solid var(--pitch); border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(10,58,130,.22); opacity: 0; transform: translateY(12px); transition: opacity .2s, transform .2s; }
+.install-card.on { opacity: 1; transform: none; }
+.install-icon { width: 48px; height: 48px; border-radius: 11px; flex: none; border: 1px solid var(--line); }
+.install-body { min-width: 0; font-size: 13.5px; line-height: 1.45; }
+.install-body > b { display: block; font-size: 15px; margin-bottom: 2px; }
+.install-body ol { margin: 6px 0 0; padding-left: 20px; }
+.install-actions { display: flex; gap: 8px; margin-top: 10px; }
+.install-actions button[hidden] + button { margin-left: 0; }
+.install-close { position: absolute; top: 6px; right: 6px; border: 0; background: transparent; color: var(--muted); }
+.ios-share { display: inline-block; width: 13px; height: 16px; vertical-align: -2px; margin-left: 2px;
+  background: no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 30' fill='none' stroke='%231259b8' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 2v17M6 8l6-6 6 6M5 13H3v15h18V13h-2'/%3E%3C/svg%3E"); }
+@media (max-width: 720px) {
+  .install-card { left: 12px; right: 12px; width: auto; bottom: max(12px, env(safe-area-inset-bottom, 0px)); }
+}
+@media (prefers-reduced-motion: reduce) { .install-card { transition: none; } }
+@media print { .install-card { display: none !important; } }
+
+/* ---------- Aviso de versión nueva ---------- */
+.update-bar { position: fixed; z-index: 1000; left: 50%; top: max(10px, env(safe-area-inset-top, 0px)); transform: translateX(-50%); display: flex; align-items: center; gap: 12px;
+  padding: 8px 8px 8px 14px; background: var(--ink); color: #fff; border-radius: 10px; box-shadow: 0 10px 28px rgba(0,0,0,.25); font-size: 13.5px; max-width: calc(100vw - 24px); }
+.update-bar[popover] { inset: auto; margin: 0; border: 0; left: 50%; right: auto; top: max(10px, env(safe-area-inset-top, 0px)); bottom: auto; }
+.update-bar button { flex: none; }
+@media print { .update-bar { display: none !important; } }

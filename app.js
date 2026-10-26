@@ -2303,7 +2303,7 @@
     if (window.innerWidth < 1000) { $('#side').classList.remove('open'); $('#side-backdrop').hidden = true; }
     window.Tutorial.start({
       role: state.role, onlySince,
-      onEnd: () => { try { localStorage.setItem(tutorialKey(), String(window.Tutorial.VERSION)); } catch { } },
+      onEnd: () => { try { localStorage.setItem(tutorialKey(), String(window.Tutorial.VERSION)); } catch { } setTimeout(maybeInstall, 1500); },
     });
   }
   function maybeTutorial() {
@@ -2311,12 +2311,61 @@
     let seen = 0;
     try { seen = parseInt(localStorage.getItem(tutorialKey()) || '0', 10) || 0; } catch { }
     if (seen < window.Tutorial.VERSION) setTimeout(() => startTutorial(seen), 400);
+    else setTimeout(maybeInstall, 2500);
+  }
+
+  // ---------- Sugerir instalar la app (pantalla de inicio) ----------
+  let installEvt = null;
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installEvt = e; refreshInstallItem(); });
+  window.addEventListener('appinstalled', () => { installEvt = null; hideInstall(); refreshInstallItem(); });
+  const isStandalone = () => window.matchMedia?.('(display-mode: standalone)').matches || window.navigator.standalone === true;
+  const isIOS = () => /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const canSuggestInstall = () => !isStandalone() && (!!installEvt || isIOS());
+  const INSTALL_KEY = 'instalar-descartado';
+  function refreshInstallItem() { const m = $('#m-install'); if (m) m.hidden = !canSuggestInstall(); }
+  function maybeInstall() {
+    if (!appOpen || !canSuggestInstall() || $('.tt-root')) return;
+    let until = 0;
+    try { until = parseInt(localStorage.getItem(INSTALL_KEY) || '0', 10) || 0; } catch { }
+    if (Date.now() < until) return;
+    showInstall();
+  }
+  function showInstall() {
+    closeUserMenu();
+    const card = $('#install-card');
+    const ios = !installEvt && isIOS();
+    const chromeIOS = /CriOS/.test(navigator.userAgent);
+    $('#install-text').innerHTML = ios
+      ? `Añádela a la pantalla de inicio para entrar de un toque, a pantalla completa:<ol><li>Pulsa <b>Compartir</b> <span class="ios-share" aria-hidden="true"></span>${chromeIOS ? ' (arriba, junto a la barra de direcciones)' : ''}.</li><li>Elige <b>Añadir a pantalla de inicio</b>.</li></ol>`
+      : 'Instálala en este dispositivo para entrar de un toque, a pantalla completa y con el escudo como icono.';
+    $('#install-go').hidden = ios;
+    card.hidden = false;
+    requestAnimationFrame(() => card.classList.add('on'));
+  }
+  function hideInstall(days) {
+    const card = $('#install-card');
+    card.classList.remove('on');
+    setTimeout(() => { card.hidden = true; }, 200);
+    if (days) try { localStorage.setItem(INSTALL_KEY, String(Date.now() + days * 864e5)); } catch { }
+  }
+  async function doInstall() {
+    if (!installEvt) return;
+    const e = installEvt; installEvt = null;
+    e.prompt();
+    const r = await e.userChoice.catch(() => null);
+    hideInstall(r?.outcome === 'accepted' ? 0 : 14);
+    refreshInstallItem();
   }
 
   // ================================================================
   //  Eventos
   // ================================================================
   function bind() {
+    $('#install-go').onclick = doInstall;
+    $('#install-later').onclick = () => hideInstall(14);
+    $('#install-close').onclick = () => hideInstall(14);
+    $('#m-install').onclick = showInstall;
+    refreshInstallItem();
     $('#prev-week').onclick = () => setWeek(addDays(state.weekStart, -7));
     $('#next-week').onclick = () => setWeek(addDays(state.weekStart, 7));
     $('#today-btn').onclick = () => { state.dayIndex = (new Date().getDay() + 6) % 7; setWeek(new Date()); };
@@ -2529,22 +2578,50 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261026145907';
+  const APP_VERSION = '20261026150356';
+  // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
+  // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
+  let pendingVersion = null;
+  const busy = () => !!drag || $$('dialog[open]').length > 0;
+  function reloadTo(v) {
+    let n = 0; try { n = parseInt(sessionStorage.getItem('recarga:' + v) || '0', 10) || 0; sessionStorage.setItem('recarga:' + v, String(n + 1)); } catch { }
+    if (n >= 3) return;   // evita bucles si el servidor aún entrega la versión anterior
+    const u = new URL(location.href);
+    u.searchParams.set('v', v);
+    location.replace(u.toString());
+  }
+  function showUpdateBar(v) {
+    const bar = $('#update-bar');
+    if (!bar || !bar.hidden) return;
+    bar.hidden = false;
+    try { bar.showPopover?.(); } catch { }   // por encima de las ventanas abiertas
+    $('#update-now').onclick = () => reloadTo(v);
+  }
   async function checkVersion() {
     if (store?.mode === 'demo') return;
     try {
       const r = await fetch('version.txt?t=' + Date.now(), { cache: 'no-store' });
       if (!r.ok) return;
       const v = (await r.text()).trim();
-      if (v && v !== APP_VERSION && !drag && !$$('dialog[open]').length) {
-        // Evita bucles si el navegador aún sirve la página antigua desde su caché
-        let tried = null; try { tried = sessionStorage.getItem('recarga-version'); } catch { }
-        if (tried === v) return;
-        try { sessionStorage.setItem('recarga-version', v); } catch { }
-        toast('Hay una versión nueva de la herramienta. Actualizando…');
-        setTimeout(() => location.reload(), 1200);
-      }
-    } catch { /* sin conexión o modo demo */ }
+      if (!v || v === APP_VERSION) return;
+      pendingVersion = v;
+      if (busy()) { showUpdateBar(v); return; }
+      toast('Hay una versión nueva. Actualizando…');
+      setTimeout(() => reloadTo(v), 600);
+    } catch { /* sin conexión */ }
+  }
+  function watchVersion() {
+    // Limpia el ?v= de la dirección (se mantiene la #semana)
+    try { const u = new URL(location.href); if (u.searchParams.has('v')) { u.searchParams.delete('v'); history.replaceState(null, '', u.pathname + u.search + u.hash); } } catch { }
+    checkVersion();
+    const again = () => { if (document.visibilityState === 'visible') checkVersion(); };
+    document.addEventListener('visibilitychange', again);
+    window.addEventListener('pageshow', e => { if (e.persisted) checkVersion(); });   // vuelta desde la caché del navegador / app reanudada
+    window.addEventListener('focus', again);
+    window.addEventListener('online', checkVersion);
+    setInterval(again, 2 * 60 * 1000);
+    // Si había una versión pendiente mientras se editaba, se aplica al cerrar la ventana
+    $$('dialog').forEach(d => d.addEventListener('close', () => { if (pendingVersion) setTimeout(checkVersion, 300); }));
   }
 
   async function init() {
@@ -2610,9 +2687,7 @@
     });
     readInviteFromUrl();
     window.addEventListener('hashchange', () => { readInviteFromUrl(); if (state.inviteToken && !state.user) showInvite(); });
-    checkVersion();
-    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkVersion(); });
-    setInterval(checkVersion, 5 * 60 * 1000);
+    watchVersion();
     await refreshSession();
     if (state.user && state.inviteToken) { clearInvite(); toast('Ya tienes sesión iniciada. Para usar la invitación, cierra sesión y abre el enlace otra vez.'); }
   }

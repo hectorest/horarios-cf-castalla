@@ -186,6 +186,11 @@ window.TUTORIAL_STEPS = [
     body: 'El panel lateral muestra primero las <b>incidencias</b>, con todo el alto disponible. El resumen de horas y la leyenda están plegados: ábrelos con <b>Ver resumen y leyenda</b> cuando los necesites.',
   },
   {
+    id: 'instalar', since: 14, target: '#user-btn',
+    title: 'Instálala para entrar más rápido',
+    body: 'Puedes añadir la herramienta a la pantalla de inicio de tu móvil, tablet u ordenador: se abre de un toque, a pantalla completa y con el escudo como icono. Te lo sugerimos al entrar, y también lo tienes en tu menú → <b>Instalar la app</b>.',
+  },
+  {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',
     title: 'Volver a ver esta guía',
     body: 'Puedes repetir el tutorial cuando quieras desde aquí. Cuando añadamos funciones nuevas, te las enseñaremos al entrar.',

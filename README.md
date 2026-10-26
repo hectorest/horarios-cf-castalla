@@ -59,7 +59,13 @@ La web se puede añadir a la pantalla de inicio y se abre a pantalla completa, c
 - **iPhone / iPad** (Safari o Chrome): botón Compartir → *Añadir a pantalla de inicio*.
 - **Android / ordenador** (Chrome o Edge): menú → *Instalar aplicación* (o *Añadir a pantalla de inicio*).
 
-Los iconos están en `assets/` (`apple-touch-icon.png` 180 px, `icon-192/512.png` y versiones `maskable` con margen para Android) y la configuración en `manifest.webmanifest`. Si ya la tenías instalada antes de este cambio, bórrala de la pantalla de inicio y vuelve a añadirla para que coja el icono nuevo.
+Los iconos están en `assets/` (`apple-touch-icon.png` 180 px, `icon-192/512.png` y versiones `maskable` con margen para Android) y la configuración en `manifest.webmanifest`. Al entrar desde el navegador, la web **sugiere instalarla** (botón *Instalar* en Android y ordenador; pasos de *Compartir → Añadir a pantalla de inicio* en iPhone/iPad). Si se pulsa *Ahora no*, no vuelve a salir en 14 días; siempre queda en el menú de usuario → *Instalar la app en este dispositivo*. No sale si ya está instalada.
+
+Si ya la tenías instalada antes de este cambio, bórrala de la pantalla de inicio y vuelve a añadirla para que coja el icono nuevo.
+
+### Actualizaciones
+
+Cada publicación cambia `version.txt` (con `./release.sh`). La web lo comprueba al abrirse, cada vez que se vuelve a ella (cambiar de app, desbloquear el móvil, reanudar la app instalada), al recuperar la conexión y cada 2 minutos. Si hay versión nueva, se recarga sola pidiendo la página con una dirección nueva (`?v=…`), para que ni el navegador ni GitHub Pages sirvan la copia antigua. Si en ese momento hay una ventana abierta o se está moviendo una reserva, aparece arriba el aviso **Hay una versión nueva · Actualizar** y se actualiza al cerrar la ventana.
 
 ## Panel lateral
 

@@ -14,7 +14,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261026145907">
+  <link rel="stylesheet" href="styles.css?v=20261026150356">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -59,6 +59,7 @@
           <button type="button" role="menuitem" id="m-confirm" hidden>Confirmar los partidos de esta semana</button>
           <button type="button" role="menuitem" id="m-clear" class="danger-item" hidden>Borrar los eventos de esta semana</button>
           <button type="button" role="menuitem" id="m-mode">Ver horario habitual</button>
+          <button type="button" role="menuitem" id="m-install" hidden>Instalar la app en este dispositivo</button>
           <button type="button" role="menuitem" id="m-help">Ver tutorial</button>
           <button type="button" role="menuitem" id="m-logout">Cerrar sesión</button>
         </div>
@@ -336,10 +337,26 @@
   </dialog>
 
   <div id="drag-tip" class="drag-tip" hidden></div>
+  <aside id="install-card" class="install-card" role="dialog" aria-labelledby="install-title" hidden>
+    <img src="assets/apple-touch-icon.png" alt="" class="install-icon">
+    <div class="install-body">
+      <b id="install-title">Accede más rápido</b>
+      <div id="install-text"></div>
+      <div class="install-actions">
+        <button type="button" id="install-go" class="primary">Instalar</button>
+        <button type="button" id="install-later" class="ghost">Ahora no</button>
+      </div>
+    </div>
+    <button type="button" id="install-close" class="icon-btn install-close" aria-label="Cerrar">×</button>
+  </aside>
+  <div id="update-bar" class="update-bar" role="status" popover="manual" hidden>
+    <span>Hay una versión nueva de la herramienta.</span>
+    <button type="button" id="update-now" class="primary">Actualizar</button>
+  </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261026145907"></script>
-  <script src="tutorial.js?v=20261026145907"></script>
-  <script src="app.js?v=20261026145907"></script>
+  <script src="config.js?v=20261026150356"></script>
+  <script src="tutorial.js?v=20261026150356"></script>
+  <script src="app.js?v=20261026150356"></script>
 </body>
 </html>
