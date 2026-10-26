@@ -115,6 +115,7 @@
               <li><span class="sw sw-err"></span>Conflicto</li>
               <li><span class="sw sw-warn"></span>Aviso</li>
               <li><span class="sw sw-chg"></span>Cambiado esta semana</li>
+              <li><span class="sw sw-event"></span>Extraordinaria</li>
               <li><span class="sw sw-ghost"></span>Hueco de lo habitual</li>
             </ul>
             <p class="hint">Cada día se divide en 4 carriles: <b>A1 A2</b> forman la mitad A y <b>B1 B2</b> la mitad B. F11 ocupa el campo entero; F8, una mitad. Si dos entrenos se solapan, comparten la zona del que llega después.</p>
@@ -133,17 +134,23 @@
         <button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button>
       </header>
       <div class="dlg-body">
-        <div class="field full">
+        <div class="field full week-only">
+          <span class="lbl">Tipo</span>
+          <div class="segmented small kind-seg" id="f-kind">
+            <button type="button" data-v="entreno">Entrenamiento</button>
+            <button type="button" data-v="partido">Partido</button>
+            <button type="button" data-v="evento">Extraordinaria</button>
+          </div>
+        </div>
+
+        <div class="field full team-only">
           <label for="f-team">Equipo</label>
           <select id="f-team" required></select>
         </div>
 
-        <div class="field week-only">
-          <span class="lbl">Tipo</span>
-          <div class="segmented small" id="f-kind">
-            <button type="button" data-v="entreno">Entrenamiento</button>
-            <button type="button" data-v="partido">Partido</button>
-          </div>
+        <div class="field full evento-only" hidden>
+          <label for="f-ev-title">Nombre de la reserva</label>
+          <input type="text" id="f-ev-title" maxlength="80" placeholder="Ej.: Torneo de Navidad, mantenimiento del césped">
         </div>
 
         <div class="field match-only">
@@ -172,7 +179,7 @@
           <input type="time" id="f-start" step="900" required>
         </div>
 
-        <div class="field training-only">
+        <div class="field duration-field">
           <label for="f-dur">Duración (min)</label>
           <input type="number" id="f-dur" min="15" max="300" step="15" list="dur-list">
           <datalist id="dur-list"><option value="45"><option value="60"><option value="75"><option value="90"><option value="105"><option value="120"></datalist>

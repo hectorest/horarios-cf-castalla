@@ -27,7 +27,7 @@
   const ZONES = { full: [0, 1, 2, 3], A: [0, 1], B: [2, 3], A1: [0], A2: [1], B1: [2], B2: [3] };
   const ZONE_LABEL = { full: 'Campo entero', A: 'Mitad A', B: 'Mitad B', A1: 'Cuarto A1', A2: 'Cuarto A2', B1: 'Cuarto B1', B2: 'Cuarto B2' };
   const QUARTERS = ['A1', 'A2', 'B1', 'B2'];
-  const KIND_LABEL = { entreno: 'Entrenamiento', partido: 'Partido' };
+  const KIND_LABEL = { entreno: 'Entrenamiento', partido: 'Partido', evento: 'Reserva extraordinaria' };
 
   // ================================================================
   //  Utilidades
@@ -43,6 +43,11 @@
   const snap = (m, s = SNAP) => Math.round(m / s) * s;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const uid = () => (crypto.randomUUID ? crypto.randomUUID() : 'id-' + Date.now().toString(36) + Math.random().toString(36).slice(2));
+  const EVENT_COLOR = '#a87b00';
+  /** Quién ocupa el campo: un equipo o, en reservas extraordinarias, su nombre */
+  const whoOf = b => b.kind === 'evento'
+    ? { id: null, name: b.title || 'Reserva extraordinaria', short: (b.title || 'Reserva').slice(0, 10), color: EVENT_COLOR, match: null }
+    : teamOf(b.team);
   const teamOf = id => TEAM[id] || { id, name: id || '¿?', short: id || '¿?', color: '#64748b', match: null };
   const dayLabel = k => { const d = parseKey(k); return `${DAYS_SHORT[dayIndexOf(k)]} ${d.getDate()} ${MONTHS[d.getMonth()]}`; };
   const lanesName = lanes => {
@@ -78,7 +83,7 @@
       return { start: s, end: s + d, coreEnd: s + d, segs: [{ t: 'half', from: s, to: s + d, label: 'Partido' }] };
     }
     const d = b.duration_min || DEFAULT_DUR;
-    return { start: s, end: s + d, coreEnd: s + d, segs: [{ t: 'training', from: s, to: s + d, label: 'Entrenamiento' }] };
+    return { start: s, end: s + d, coreEnd: s + d, segs: [{ t: 'training', from: s, to: s + d, label: b.kind === 'evento' ? 'Reserva' : 'Entrenamiento' }] };
   }
 
   /** Calcula conflictos (error) y avisos (warn) de un conjunto de reservas. */
@@ -93,11 +98,12 @@
     };
 
     for (const b of list) {
-      const t = tl.get(b.id), team = TEAM[b.team], name = teamOf(b.team).name;
+      const t = tl.get(b.id), team = TEAM[b.team], name = whoOf(b).name;
       const lanes = ZONES[b.zone];
-      if (!team) add('error', `Equipo desconocido: «${b.team}»`, [b]);
+      if (b.kind === 'evento') { if (!b.title) add('error', 'Reserva extraordinaria sin nombre', [b]); }
+      else if (!team) add('error', `Equipo desconocido: «${b.team}»`, [b]);
       if (!lanes) add('error', `${name}: zona del campo no válida`, [b]);
-      if (b.start_min % SNAP || (b.kind === 'entreno' && (b.duration_min || DEFAULT_DUR) % SNAP)) add('warn', `${name}: horario fuera de los tramos de ${SNAP} minutos`, [b]);
+      if (b.start_min % SNAP || (b.kind !== 'partido' && (b.duration_min || DEFAULT_DUR) % SNAP)) add('warn', `${name}: horario fuera de los tramos de ${SNAP} minutos`, [b]);
       if (t.start < DAY_START || t.coreEnd > DAY_END) {
         add('error', `${name}: fuera del horario del campo (${fmt(DAY_START)}–${fmt(DAY_END)})`, [b]);
       } else if (t.end > DAY_END) {
@@ -146,9 +152,9 @@
           const from = Math.max(ta.start, tb.start), to = Math.min(ta.end, tb.end);
           const overlap = from < to;
           const coreOverlap = Math.max(ta.start, tb.start) < Math.min(ta.coreEnd, tb.coreEnd);
-          const na = teamOf(a.team).name, nb = teamOf(b.team).name;
+          const na = whoOf(a).name, nb = whoOf(b).name;
 
-          if (a.team === b.team) {
+          if (a.kind !== 'evento' && b.kind !== 'evento' && a.team === b.team) {
             resolved.add(pairKey(a, b));
             if (overlap) {
               add(coreOverlap ? 'error' : 'warn', `${na}: tiene dos actividades a la vez (${fmt(from)}–${fmt(to)})`, [a, b], from);
@@ -209,7 +215,7 @@
             if (f < Math.min(t, ta.coreEnd, tb.coreEnd)) core = true;
           }
           if (!shared.size) continue;
-          const na = teamOf(a.team).name, nb = teamOf(b.team).name;
+          const na = whoOf(a).name, nb = whoOf(b).name;
           const where = lanesName([...shared].sort());
           if (core) add('error', `Conflicto: ${na} y ${nb} coinciden en ${where} (${fmt(from)}–${fmt(to)})`, [a, b], from);
           else add('warn', `${na} y ${nb} solo coinciden en el margen posterior (${fmt(from)}–${fmt(to)}, ${where})`, [a, b], from);
@@ -238,9 +244,11 @@
 
   /** Normaliza una reserva antes de guardarla. */
   function cleanRow(b) {
+    const ev = b.kind === 'evento';
     const r = {
-      day: b.day, start_min: b.start_min, team: b.team, kind: b.kind, zone: b.zone,
-      duration_min: b.kind === 'entreno' ? (b.duration_min || DEFAULT_DUR) : null,
+      day: b.day, start_min: b.start_min, team: ev ? null : b.team, kind: b.kind, zone: b.zone,
+      title: ev ? (b.title || '').trim().slice(0, 80) : null,
+      duration_min: b.kind !== 'partido' ? (b.duration_min || DEFAULT_DUR) : null,
       format: b.kind === 'partido' ? (b.format || null) : null,
       opponent: b.kind === 'partido' ? (b.opponent || null) : null,
       notes: b.notes || null,
@@ -253,9 +261,9 @@
   //  Almacenamiento: Demo (localStorage) y Supabase
   // ================================================================
   function makeLocalStore() {
-    const KEY = 'planificador-campo-demo-v4';
-    const TKEY = 'planificador-campo-demo-template-v2';
-    const GKEY = 'planificador-campo-demo-weeks-v2';
+    const KEY = 'planificador-campo-demo-v5';
+    const TKEY = 'planificador-campo-demo-template-v3';
+    const GKEY = 'planificador-campo-demo-weeks-v3';
     const UKEY = 'planificador-campo-demo-users-v2';
     const SKEY = 'planificador-campo-demo-session';
     let mem = null, umem = null;
@@ -557,6 +565,7 @@
     const bookings = [
       ...template.filter(t => !cancelled.includes(t.id)).map(E),
       { id: uid(), day: k(5), team: 'tec-1', kind: 'entreno', start_min: toMin('10:00'), duration_min: 60, zone: 'A', notes: 'Sesión extra', format: null, opponent: null, template_id: null },
+      { id: uid(), day: k(6), team: null, kind: 'evento', title: 'Mantenimiento del césped', start_min: toMin('19:30'), duration_min: 120, zone: 'full', notes: null, format: null, opponent: null, template_id: null },
       // Partidos: hora = saque inicial
       P(5, 'alevin-a', '11:30', 'F8', 'A', 'CF Montaña'), P(5, 'alevin-b', '11:30', 'F8', 'B', 'UD Riera'),
       P(5, 'cadete', '16:30', 'F11', 'full', 'CE Poble Nou'),
@@ -765,6 +774,7 @@
 
   function subLabel(b) {
     if (b.kind === 'partido') return `Partido ${b.format || ''}${b.opponent ? ' · vs ' + b.opponent : ''}`;
+    if (b.kind === 'evento') return 'Extraordinaria' + (b.notes ? ' · ' + b.notes : '');
     return 'Entreno' + (b.zone && ZONES[b.zone]?.length === 1 ? ` · ${b.zone}` : '') + (b.notes ? ' · ' + b.notes : '');
   }
 
@@ -772,7 +782,7 @@
   const timeText = (b, t) => b.kind === 'partido' && t.kick != null ? matchText(t) : `${fmt(t.start)}–${fmt(t.end)}`;
 
   function blockTitle(b, t, issues) {
-    const team = teamOf(b.team);
+    const team = whoOf(b);
     const lines = [`${team.name} — ${KIND_LABEL[b.kind]}${b.format ? ' ' + b.format : ''}${b.opponent ? ' vs ' + b.opponent : ''}`,
       `${timeText(b, t)} · ${ZONE_LABEL[b.zone] || b.zone}`];
     if (b.kind === 'partido') lines.push(t.segs.map(s => `${s.label} ${fmt(s.from)}–${fmt(s.to)}`).join('\n'));
@@ -782,7 +792,7 @@
   }
 
   function blockHTML(b) {
-    const t = timeline(b), team = teamOf(b.team);
+    const t = timeline(b), team = whoOf(b);
     const issues = state.issues.byId.get(b.id) || [];
     const lvl = worstLevel(issues);
     const title = esc(blockTitle(b, t, issues));
@@ -807,7 +817,7 @@
       <div class="b-label" style="${labelTop ? `margin-top:${labelTop + 3}px` : ''}"><span class="b-name">${isMine(b.team) ? '★ ' : ''}${esc(narrow ? team.short : team.name)}</span><span class="b-sub">${esc(sub)}</span><span class="b-time">${time}</span></div>
       ${lvl && first ? `<span class="b-flag">!</span>` : ''}
       ${chg && first ? `<span class="b-chg" title="${chg.what[0] === 'extra' ? 'Entreno extra' : 'Cambio respecto a lo habitual'}">${chg.what[0] === 'extra' ? '+' : '↻'}</span>` : ''}
-      ${b.kind === 'entreno' && isEditor() && last ? '<div class="resize" data-resize="1"></div>' : ''}
+      ${b.kind !== 'partido' && isEditor() && last ? '<div class="resize" data-resize="1"></div>' : ''}
     </div>`;
     }).join('');
   }
@@ -1039,6 +1049,10 @@
     if (!team.match && draft.kind === 'partido') draft.kind = 'entreno';
     if (draft.kind === 'partido' && !draft.format) draft.format = team.match?.format || 'F11';
     const opts = zoneOptions(draft.kind, draft.format);
+    const ev = draft.kind === 'evento';
+    $$('.team-only', dlg()).forEach(x => x.hidden = ev);
+    $$('.evento-only', dlg()).forEach(x => x.hidden = !ev);
+    $('#f-ev-title').value = draft.title || '';
     if (!opts.includes(draft.zone)) draft.zone = opts.includes('A') && draft.zone && draft.zone.startsWith('B') ? 'B' : opts[0] === 'full' && draft.kind === 'entreno' ? 'A' : opts[0];
 
     if (isTpl()) draft.kind = 'entreno';
@@ -1050,7 +1064,7 @@
     $$('#f-kind button')[1].title = team.match ? '' : `${team.name} no juega partidos`;
     $$('#f-format button').forEach(x => x.classList.toggle('on', x.dataset.v === draft.format));
     $$('.match-only', dlg()).forEach(x => x.hidden = draft.kind !== 'partido');
-    $$('.training-only', dlg()).forEach(x => x.hidden = draft.kind !== 'entreno');
+    $$('.duration-field', dlg()).forEach(x => x.hidden = draft.kind === 'partido');
     $('#f-start-label').textContent = draft.kind === 'partido' ? 'Hora del partido (saque)' : 'Hora de inicio';
     $('#f-zone').innerHTML = opts.map(z => `<button type="button" class="zone-opt ${z === draft.zone ? 'on' : ''}" data-v="${z}">${zoneSVG(z)}${ZONE_LABEL[z]}</button>`).join('');
     $('#f-date').value = draft.day;
@@ -1070,6 +1084,7 @@
     if (dur > 0) draft.duration_min = clamp(snap(dur), 15, 600);
     draft.opponent = $('#f-opp').value.trim();
     draft.notes = $('#f-notes').value.trim();
+    draft.title = $('#f-ev-title').value.trim();
   }
 
   function draftIssues() {
@@ -1079,7 +1094,7 @@
   }
 
   function renderPreview() {
-    const t = timeline(draft), team = teamOf(draft.team);
+    const t = timeline(draft), team = whoOf(draft);
     const total = t.end - t.start;
     const bar = t.segs.map(s => `<div class="tl-${s.t}" style="flex:${s.to - s.from}" title="${s.label} ${fmt(s.from)}–${fmt(s.to)}">${(s.to - s.from) / total > .12 ? s.label : ''}</div>`).join('');
     const issues = draftIssues();
@@ -1128,6 +1143,7 @@
 
   async function saveDraft() {
     readInputs();
+    if (draft.kind === 'evento' && !draft.title) { toast('Escribe el nombre de la reserva extraordinaria', true); $('#f-ev-title').focus(); return; }
     const issues = renderPreview();
     const errs = issues.filter(i => i.level === 'error');
     if (errs.length && !(await askConfirm(`Hay ${errs.length} conflicto(s):\n\n• ${errs.map(e => e.msg).join('\n• ')}\n\n¿Guardar igualmente?`, 'Guardar igualmente'))) return;
@@ -1144,8 +1160,8 @@
   async function deleteDraft() {
     if (!editingId) return;
     const msg = isTpl()
-      ? `¿Quitar el entreno de ${teamOf(draft.team).name} (${dayText(draft.day)} ${fmt(draft.start_min)}) del horario habitual? También se quitará desde hoy de las semanas ya publicadas, salvo donde lo hayas cambiado a mano.`
-      : `¿Eliminar la reserva de ${teamOf(draft.team).name} (${dayLabel(draft.day)} ${fmt(draft.start_min)})?${draft.template_id ? ' Quedará marcado como que esta semana no entrena.' : ''}`;
+      ? `¿Quitar el entreno de ${whoOf(draft).name} (${dayText(draft.day)} ${fmt(draft.start_min)}) del horario habitual? También se quitará desde hoy de las semanas ya publicadas, salvo donde lo hayas cambiado a mano.`
+      : `¿Eliminar la reserva de ${whoOf(draft).name} (${dayLabel(draft.day)} ${fmt(draft.start_min)})?${draft.template_id ? ' Quedará marcado como que esta semana no entrena.' : ''}`;
     if (!(await askConfirm(msg, isTpl() ? 'Quitar del habitual' : 'Eliminar', true))) return;
     try { await api().remove(editingId); dlg().close(); toast(isTpl() ? 'Quitado del horario habitual' : 'Reserva eliminada'); await load(); }
     catch (e) { toast('No se pudo eliminar: ' + e.message, true); }
@@ -1155,7 +1171,7 @@
   //  Detalle (solo lectura)
   // ================================================================
   function openDetail(b) {
-    const t = timeline(b), team = teamOf(b.team);
+    const t = timeline(b), team = whoOf(b);
     const issues = state.issues.byId.get(b.id) || [];
     $('#d-title').innerHTML = `<span class="dot" style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${team.color}"></span>${esc(team.name)}`;
     const rows = [
@@ -1239,7 +1255,7 @@
     // Actualiza posición y estado de avisos en vivo
     const t = timeline(cand);
     const g = blockGeom(t, ZONES[cand.zone] || ZONES.full);
-    el.style.cssText = `--c:${teamOf(b.team).color};${geomStyle(g)}`;
+    el.style.cssText = `--c:${whoOf(b).color};${geomStyle(g)}`;
     const segs = el.querySelector('.segs');
     if (segs) segs.style.top = (t.start - g.vs) * PX + 'px';
     const bt = el.querySelector('.b-time'); if (bt) bt.textContent = t.kick != null ? `${fmt(t.kick)}–${fmt(t.coreEnd)}` : `${fmt(t.start)}–${fmt(t.end)}`;
@@ -1884,6 +1900,7 @@
     $('#f-kind').addEventListener('click', e => {
       const v = e.target.closest('button')?.dataset.v; if (!v || e.target.closest('button').disabled) return;
       readInputs(); draft.kind = v;
+      if (v === 'evento') { draft.zone = 'full'; draft.duration_min = draft.duration_min || 120; setTimeout(() => $('#f-ev-title').focus(), 0); }
       if (v === 'partido') { const m = teamOf(draft.team).match; draft.format = m?.format || 'F11'; draft.zone = draft.format === 'F11' ? 'full' : (draft.zone?.startsWith('B') ? 'B' : 'A'); }
       syncForm();
     });

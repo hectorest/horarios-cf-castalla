@@ -126,6 +126,11 @@ window.TUTORIAL_STEPS = [
     body: '<b>Borrar semana</b> elimina de golpe todos los entrenos y partidos de la semana que estás viendo (en el móvil, desde tu menú). Te pide confirmación y la semana vuelve a quedar sin publicar, así que puedes aplicar de nuevo el horario habitual.',
   },
   {
+    id: 'extraordinaria', since: 5, target: '#cal-wrap',
+    title: 'Reservas extraordinarias',
+    body: 'Los bloques dorados rayados con <b>◆</b> son reservas extraordinarias: un torneo, el mantenimiento del césped, un acto… No son de ningún equipo, pero ocupan campo y cuentan para los conflictos. La coordinación las crea en <b>Nueva reserva › Extraordinaria</b> poniéndoles un nombre.',
+  },
+  {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',
     title: 'Volver a ver esta guía',
     body: 'Puedes repetir el tutorial cuando quieras desde aquí. Cuando añadamos funciones nuevas, te las enseñaremos al entrar.',

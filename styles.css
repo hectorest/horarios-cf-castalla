@@ -563,3 +563,12 @@ body.tpl-mode .cal-wrap { box-shadow: 0 0 0 2px var(--gold), var(--shadow); }
 }
 .topbar .user-pop button.danger-item { color: var(--err); }
 .topbar .user-pop button.danger-item:hover { background: var(--err-tint); }
+
+/* ---------- Reservas extraordinarias ---------- */
+.block.kind-evento {
+  background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--c) 14%, white) 0 8px, color-mix(in srgb, var(--c) 26%, white) 8px 16px);
+  border: 1px solid color-mix(in srgb, var(--c) 60%, white); border-left: 4px solid var(--c);
+}
+.block.kind-evento .b-name::before { content: "◆ "; }
+.sw-event { background: repeating-linear-gradient(135deg, #f3e6bf 0 4px, #e6cf8a 4px 8px); border-left: 4px solid #a87b00; }
+.kind-seg button { flex: 1; }

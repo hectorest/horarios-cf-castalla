@@ -53,6 +53,7 @@ Herramienta web para organizar la ocupación semanal del campo de fútbol (lunes
 - **Vista semanal** con las horas del día y, en cada día, el campo dividido en 4 carriles: `A1 A2 | B1 B2` (mitad A y mitad B). Vista **Día** para móvil.
 - **Entrenamientos** en campo entero, en una mitad o, excepcionalmente, en un cuarto.
 - **Partidos**: se introduce la hora del partido (saque inicial, en punto, y cuarto, y media o menos cuarto) y el calentamiento se reserva automáticamente antes. Formato F11 (campo entero) o F8 (media campo), con la duración calculada por equipo: calentamiento, partes, descanso y margen posterior se dibujan dentro del bloque.
+- **Reservas extraordinarias**: torneos, mantenimiento del césped, actos… Llevan un nombre en lugar de equipo, ocupan la zona del campo elegida durante el tiempo indicado y cuentan para los conflictos como cualquier otra reserva. Se ven en dorado rayado con ◆. Se crean en **Nueva reserva › Extraordinaria**.
 - **Incidencias** en tiempo real:
   - ⛔ Conflictos: dos reservas en la misma zona a la vez, un equipo en dos sitios a la vez, fuera del horario del campo, F11 sin campo entero, F8 en un cuarto, tecnificación con partido.
   - ½ Solapes entre entrenamientos: si dos entrenos coinciden un rato, comparten la zona del equipo que llega después, partida en dos (campo entero → una mitad cada uno; media → un cuarto cada uno). El calendario lo dibuja así y no cuenta como conflicto. Si el que llega después tiene un cuarto, si empiezan a la vez o si no queda sitio por un tercer equipo, sí es conflicto.

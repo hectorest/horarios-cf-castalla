@@ -161,8 +161,9 @@ create table if not exists public.bookings (
   day          date not null,
   start_min    smallint not null check (start_min between 0 and 1439),
   duration_min smallint check (duration_min between 5 and 720),
-  team         text not null,
-  kind         text not null check (kind in ('entreno', 'partido')),
+  team         text,                                  -- null solo en reservas extraordinarias
+  kind         text not null check (kind in ('entreno', 'partido', 'evento')),
+  title        text check (char_length(title) <= 80),  -- nombre de la reserva extraordinaria
   format       text check (format in ('F8', 'F11')),
   zone         text not null check (zone in ('full', 'A', 'B', 'A1', 'A2', 'B1', 'B2')),
   opponent     text check (char_length(opponent) <= 80),
@@ -171,8 +172,19 @@ create table if not exists public.bookings (
   updated_at   timestamptz not null default now(),
   updated_by   uuid default auth.uid() references auth.users(id) on delete set null,
   constraint partido_con_formato check (kind <> 'partido' or format is not null),
-  constraint entreno_con_duracion check (kind <> 'entreno' or duration_min is not null)
+  constraint entreno_con_duracion check (kind <> 'entreno' or duration_min is not null),
+  constraint equipo_obligatorio check (kind = 'evento' or team is not null),
+  constraint evento_con_nombre check (kind <> 'evento' or (nullif(trim(title), '') is not null and duration_min is not null))
 );
+-- Para proyectos creados con una versión anterior del esquema
+alter table public.bookings add column if not exists title text check (char_length(title) <= 80);
+alter table public.bookings drop constraint if exists bookings_kind_check;
+alter table public.bookings add constraint bookings_kind_check check (kind in ('entreno', 'partido', 'evento'));
+alter table public.bookings alter column team drop not null;
+alter table public.bookings drop constraint if exists equipo_obligatorio;
+alter table public.bookings add constraint equipo_obligatorio check (kind = 'evento' or team is not null);
+alter table public.bookings drop constraint if exists evento_con_nombre;
+alter table public.bookings add constraint evento_con_nombre check (kind <> 'evento' or (nullif(trim(title), '') is not null and duration_min is not null));
 comment on column public.bookings.start_min is 'Minutos desde 00:00. Entreno: inicio. Partido: hora del saque (el calentamiento va antes).';
 comment on column public.bookings.duration_min is 'Solo entrenos; la duración de los partidos se calcula por equipo (config.js).';
 create index if not exists bookings_day_idx on public.bookings (day);
