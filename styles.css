@@ -701,3 +701,10 @@ button.danger-link { color: var(--err); }
 }
 .block.kind-partido.away .b-name::after { content: " ↗"; font-weight: 600; }
 #f-where button { flex: 1; }
+
+/* Cambio de día deslizando en móvil */
+.calendar.slide-next { animation: slideNext .24s ease-out; }
+.calendar.slide-prev { animation: slidePrev .24s ease-out; }
+@keyframes slideNext { from { transform: translateX(28px); opacity: .4; } to { transform: none; opacity: 1; } }
+@keyframes slidePrev { from { transform: translateX(-28px); opacity: .4; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .calendar.slide-next, .calendar.slide-prev { animation: none; } }

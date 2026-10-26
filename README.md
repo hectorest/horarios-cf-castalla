@@ -51,6 +51,7 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
 
 ## Móvil
 
+- Desliza a izquierda o derecha sobre el calendario para cambiar de día (del domingo pasa al lunes de la semana siguiente, y al revés).
 - La página no hace scroll: solo se desplaza el calendario. Deslizar sobre una reserva desplaza el calendario; para **moverla**, mantén el dedo pulsado medio segundo hasta que se levante y arrástrala. Un toque corto abre el detalle.
 
 ## Horario habitual y cambios semanales

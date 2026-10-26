@@ -1173,6 +1173,20 @@
     load();
   }
 
+  function stepDay(dir) {
+    let i = state.dayIndex + dir, week = null;
+    if (i > 6 || i < 0) {
+      if (isTpl()) i = (i + 7) % 7;
+      else { week = addDays(state.weekStart, dir * 7); i = dir > 0 ? 0 : 6; }
+    }
+    state.dayIndex = i;
+    const cal = $('#calendar');
+    if (week) setWeek(week); else render();
+    cal.classList.remove('slide-next', 'slide-prev'); void cal.offsetWidth;
+    cal.classList.add(dir > 0 ? 'slide-next' : 'slide-prev');
+    setTimeout(() => cal.classList.remove('slide-next', 'slide-prev'), 260);
+  }
+
   function focusBooking(id) {
     const b = state.bookings.find(x => x.id === id);
     if (!b) return;
@@ -2381,7 +2395,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261026132632';
+  const APP_VERSION = '20261026132911';
   async function checkVersion() {
     if (store?.mode === 'demo') return;
     try {
@@ -2403,6 +2417,21 @@
     lockZoom();
     // Mientras se arrastra una reserva con el dedo, el calendario no debe desplazarse
     document.addEventListener('touchmove', e => { if (drag && drag.armed) e.preventDefault(); }, { passive: false });
+
+    // Móvil (vista de día): deslizar a izquierda/derecha cambia de día; al pasar del domingo o del lunes, cambia de semana
+    let sw = null;
+    const wrap = $('#cal-wrap');
+    wrap.addEventListener('touchstart', e => {
+      sw = state.view === 'day' && e.touches.length === 1 ? { x: e.touches[0].clientX, y: e.touches[0].clientY, t: Date.now() } : null;
+    }, { passive: true });
+    wrap.addEventListener('touchmove', e => { if (sw && e.touches.length > 1) sw = null; }, { passive: true });
+    wrap.addEventListener('touchend', e => {
+      const s0 = sw; sw = null;
+      if (!s0 || state.view !== 'day' || (drag && drag.armed) || $('.block.lifted')) return;
+      const t = e.changedTouches[0], dx = t.clientX - s0.x, dy = t.clientY - s0.y;
+      if (Date.now() - s0.t > 800 || Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+      stepDay(dx < 0 ? 1 : -1);
+    }, { passive: true });
     $('#club-name').textContent = CFG.CLUB_NAME || 'Campo';
     $('#auth-club').textContent = CFG.CLUB_NAME || 'Campo';
     document.title = `${CFG.CLUB_NAME || 'Campo'} · Planificador`;

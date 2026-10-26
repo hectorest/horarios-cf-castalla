@@ -171,6 +171,11 @@ window.TUTORIAL_STEPS = [
     body: 'En el móvil, deslizar sobre una reserva desplaza el calendario sin moverla. Para moverla, <b>mantén el dedo pulsado</b> medio segundo hasta que se levante y luego arrástrala. Un toque corto abre el detalle.',
   },
   {
+    id: 'deslizar-dias', since: 11, target: '#cal-wrap',
+    title: 'Cambiar de día deslizando',
+    body: 'En el móvil, <b>desliza a izquierda o derecha</b> sobre el calendario para pasar al día siguiente o al anterior. Al pasar del domingo vas al lunes de la semana siguiente, y al revés.',
+  },
+  {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',
     title: 'Volver a ver esta guía',
     body: 'Puedes repetir el tutorial cuando quieras desde aquí. Cuando añadamos funciones nuevas, te las enseñaremos al entrar.',
