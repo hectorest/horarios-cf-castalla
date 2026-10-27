@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261027090230">
+  <link rel="stylesheet" href="styles.css?v=20261027094324">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -345,19 +345,20 @@
       <ul id="sc-list" class="sc-list"></ul>
       <div class="dlg-sec">2 · Crear el atajo «Recordatorio Castalla» (capturas y textos)</div>
       <ol class="sc-steps">
-        <li>Abre la app <b>Atajos</b> → <b>+</b> y ponle de nombre <b>Recordatorio Castalla</b>.</li>
-        <li>Toca <b>ⓘ</b> → activa <b>Mostrar en hoja para compartir</b>. En «Recibir», deja solo <b>Imágenes</b> y <b>Texto</b>.</li>
-        <li>Añade la acción <b>Obtener contenido de URL</b> y pega esta dirección:
+        <li>Abre la app <b>Atajos</b> → <b>+</b>. Cuando te pida la primera acción, busca y añade <b>Obtener contenido de URL</b>.</li>
+        <li>Arriba, toca el nombre del atajo: ponle <b>Recordatorio Castalla</b>. En sus detalles (<b>ⓘ</b>), activa <b>Mostrar en hoja para compartir</b> y en «Recibir» deja solo <b>Imágenes</b> y <b>Texto</b>.</li>
+        <li>Vuelve a la acción <b>Obtener contenido de URL</b> y pega esta dirección:
           <div class="sc-copy"><code id="sc-url"></code><button type="button" class="ghost" data-copy="sc-url">Copiar</button></div></li>
         <li>Toca <b>Mostrar más</b>: <b>Método</b> → POST. En <b>Cabeceras</b>, añade una con clave <code>Authorization</code> y valor tu código (<code>Bearer cfc_…</code>). En <b>Cuerpo de la solicitud</b> elige <b>Archivo</b> y como archivo <b>Entrada del atajo</b>.</li>
-        <li>Añade la acción <b>Mostrar notificación</b> con el texto <b>Contenido de la URL</b>.</li>
+        <li>Debajo, añade la acción <b>Mostrar notificación</b> con el texto <b>Contenido de la URL</b>.</li>
       </ol>
       <p class="muted sc-tip">Para usarlo: en WhatsApp, haz una captura (o mantén pulsado un mensaje → Compartir) → <b>Recordatorio Castalla</b>.</p>
       <div class="dlg-sec">3 · Por voz con Siri (opcional)</div>
       <ol class="sc-steps">
-        <li>Duplica el atajo anterior y llámalo, por ejemplo, <b>Apunta en Castalla</b>.</li>
-        <li>Al principio, añade la acción <b>Dictar texto</b> (idioma: Español (España)).</li>
-        <li>En <b>Obtener contenido de URL</b>, cambia el cuerpo a <b>JSON</b> con un campo <code>texto</code> (Texto) = <b>Texto dictado</b>.</li>
+        <li>En <b>Atajos</b> → <b>+</b>, añade como primera acción <b>Dictar texto</b> (idioma: Español (España)).</li>
+        <li>Toca el nombre del atajo y llámalo, por ejemplo, <b>Apunta en Castalla</b> (es lo que dirás a Siri).</li>
+        <li>Añade <b>Obtener contenido de URL</b> con la misma dirección, método POST y la misma cabecera <code>Authorization</code>. En <b>Cuerpo de la solicitud</b> elige <b>JSON</b> y añade un campo <code>texto</code> (Texto) = <b>Texto dictado</b>.</li>
+        <li>Añade <b>Mostrar notificación</b> con <b>Contenido de la URL</b>.</li>
         <li>Di «Oye Siri, <b>Apunta en Castalla</b>» y cuenta lo que no quieres olvidar.</li>
       </ol>
       <p class="muted sc-tip">Cada código solo sirve para crear recordatorios a tu nombre; si pierdes el móvil, revócalo aquí. Límite: 60 al día.</p>
@@ -435,8 +436,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261027090230"></script>
-  <script src="tutorial.js?v=20261027090230"></script>
-  <script src="app.js?v=20261027090230"></script>
+  <script src="config.js?v=20261027094324"></script>
+  <script src="tutorial.js?v=20261027094324"></script>
+  <script src="app.js?v=20261027094324"></script>
 </body>
 </html>
