@@ -37,10 +37,11 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
 
 Los coordinadores entran en **Inicio** (pestaña junto a *Semana* y *Horario habitual*; en el móvil, menú de usuario → *Inicio*). Si el enlace lleva una semana (`#semana=…`), se abre el calendario.
 
-- **Recordatorios** (tabla `reminders`, solo los ven y gestionan los coordinadores): alta rápida con qué hay que hacer, equipo (o *Todo el club*), **fecha máxima** y **fecha de aviso**. El aviso se rellena solo 3 días antes de la fecha máxima (con atajos: el mismo día, 1 día, 3 días, 1 o 2 semanas antes).
+- **Recordatorios** (tabla `reminders`, solo los ven y gestionan los coordinadores): alta rápida con qué hay que hacer, equipo (o *Todo el club*), **fecha máxima** y **fecha de aviso**. La fecha máxima se elige con botones (*Hoy, Mañana, En 3 días, Viernes, 1 semana, 2 semanas*) o en el calendario, y el aviso se rellena solo **2 días antes** (con botones para *el mismo día, 1 día, 2 días o 1 semana antes*).
   - **Pendiente** → aún no ha llegado la fecha de aviso.
   - **Urgente** → ha llegado la fecha de aviso (o vence hoy).
   - **Vencido** → ya pasó la fecha máxima.
+  - **Posponer** sin escribir: botón ⏰ en cada recordatorio (o en su ventana) con *+1 día, +2, +3, +1 semana, +2 semanas*. Mueve la fecha máxima (desde hoy si ya estaba vencido) y el aviso, manteniendo la distancia entre ambos.
   - Se marcan como **hechos** con la casilla; los hechos quedan plegados al final. Tocando uno se edita (notas, fechas, borrar).
   - Desde cualquier reserva (detalle o editor) el botón **🔔 Recordatorio** crea uno ligado a ella, con el equipo y la fecha ya puestos.
 - **Próximos 14 días**: conflictos, avisos y pendientes del calendario (partidos por confirmar, falta de OK del rival, propuestas, semanas sin publicar el horario habitual, solicitudes de entrenadores). Tocando uno se abre en el calendario.

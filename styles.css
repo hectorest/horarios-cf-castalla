@@ -935,3 +935,16 @@ details.rem-group summary h4::before { content: '▸'; } details.rem-group[open]
 @media print { .app-ver, .home { display: none !important; } }
 .up-ver { margin: 6px 4px 0; padding-top: 6px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); }
 body.home-mode .top-right { margin-left: auto; }
+
+/* Botones de fecha y posponer en recordatorios */
+.rq-presets button.on { background: var(--pitch); border-color: var(--pitch); color: #fff; }
+.rq-due-pre span, .rq-presets > span { font-weight: 600; margin-right: 2px; }
+.rem { flex-wrap: wrap; }
+.rem-snz-btn { flex: none; border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 3px 7px; font-size: 15px; line-height: 1.2; }
+.rem-snz-btn.on, .rem-snz-btn:hover { background: var(--pitch-tint); border-color: var(--sky); }
+.rem-snooze { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 5px; align-items: center; padding: 6px 0 0 32px; font-size: 12px; color: var(--muted); }
+.rem-snooze span { font-weight: 600; }
+.rem-snooze button { font-size: 12.5px; padding: 4px 10px; border-radius: 99px; background: var(--panel); }
+.rem-snooze button:hover { background: var(--pitch-tint); }
+#rm-snooze { padding-top: 8px; border-top: 1px solid var(--line); }
+@media (max-width: 720px) { .rq-presets button, .rem-snooze button { padding: 5px 10px; font-size: 13px; } }

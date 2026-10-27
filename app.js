@@ -2301,6 +2301,8 @@
         <span class="rem-title">${esc(r.title)}</span>
         <span class="rem-meta">${t ? `<span class="mini-chip" style="--c:${t.color}">${esc(t.name)}</span>` : '<span class="mini-chip club">Club</span>'}${when.join(' · ')}${r.booking_id ? ' · <span class="rem-link">📅 reserva</span>' : ''}${r.notes ? ' · <span class="rem-notes">📝</span>' : ''}</span>
       </button>
+      ${st === 'done' ? '' : `<button type="button" class="rem-snz-btn ${state.snoozeOpen === r.id ? 'on' : ''}" data-snooze-open title="Posponer" aria-label="Posponer" aria-expanded="${state.snoozeOpen === r.id}">⏰</button>`}
+      ${st !== 'done' && state.snoozeOpen === r.id ? `<div class="rem-snooze"><span>Posponer</span>${SNOOZE.map(([d, l]) => `<button type="button" data-snooze="${d}">${l}</button>`).join('')}</div>` : ''}
     </li>`;
   }
 
@@ -2335,14 +2337,15 @@
           <h3>Recordatorios</h3>
           <form id="rem-quick" class="rem-quick" autocomplete="off">
             <input id="rq-title" class="rq-title" maxlength="200" placeholder="¿Qué no se te puede olvidar?" aria-label="Recordatorio" required>
+            ${duePresetsHTML('rq-due-pre')}
+            <div class="rq-presets" id="rq-presets" hidden><span>Aviso:</span>
+              <button type="button" data-pre="0">el mismo día</button><button type="button" data-pre="1">1 día antes</button><button type="button" data-pre="2">2 días antes</button><button type="button" data-pre="7">1 semana antes</button>
+            </div>
             <div class="rq-row">
               <label class="rq-f"><span>Equipo</span><select id="rq-team">${teamOpts}</select></label>
               <label class="rq-f"><span>Fecha máxima</span><input type="date" id="rq-due"></label>
               <label class="rq-f"><span>Aviso <small>(pasa a urgente)</small></span><input type="date" id="rq-alert"></label>
               <button type="submit" class="primary rq-add">Añadir</button>
-            </div>
-            <div class="rq-presets" id="rq-presets" hidden><span>Aviso:</span>
-              <button type="button" data-pre="0">el mismo día</button><button type="button" data-pre="1">1 día antes</button><button type="button" data-pre="3">3 días antes</button><button type="button" data-pre="7">1 semana antes</button><button type="button" data-pre="14">2 semanas antes</button>
             </div>
           </form>
           ${REM_GROUPS.map(([k, label, hint]) => {
@@ -2371,10 +2374,21 @@
       if (draft.touched) $('#rq-alert').dataset.touched = '1';
       $('#rq-presets').hidden = !draft.due;
     }
+    markPresets();
   }
 
-  // Alta rápida: al poner la fecha máxima, el aviso se rellena 3 días antes (sin pasar de hoy) salvo que ya lo hayas tocado
-  function autoAlert(due, days = 3) {
+  // Alta rápida: al poner la fecha máxima, el aviso se rellena 2 días antes (sin pasar de hoy) salvo que ya lo hayas tocado
+  // Botones de fecha máxima (sin escribir) y de posponer
+  const DUE_PRESETS = [['Hoy', 0], ['Mañana', 1], ['En 3 días', 3], ['Viernes', 'fri'], ['1 semana', 7], ['2 semanas', 14]];
+  const SNOOZE = [[1, '+1 día'], [2, '+2 días'], [3, '+3 días'], [7, '+1 semana'], [14, '+2 semanas']];
+  function dueFromPreset(v) {
+    const now = new Date();
+    if (v === 'fri') { const i = dayIndexOf(keyOf(now)); return keyOf(addDays(now, i <= 4 ? 4 - i : 11 - i)); }   // próximo viernes (hoy si es viernes)
+    return keyOf(addDays(now, +v));
+  }
+  const duePresetsHTML = id => `<div class="rq-presets rq-due-pre" id="${id}"><span>Fecha máxima:</span>${DUE_PRESETS.map(([l, v]) => `<button type="button" data-due="${v}">${l}</button>`).join('')}</div>`;
+  const ALERT_DAYS = 2;   // aviso por defecto: 2 días antes de la fecha máxima
+  function autoAlert(due, days = ALERT_DAYS) {
     if (!due) return '';
     const t = todayKey();
     let a = keyOf(addDays(parseKey(due), -days));
@@ -2391,7 +2405,7 @@
     try {
       await store.reminders.insert({ title: title.slice(0, 200), team: $('#rq-team').value || null, due_date: due, alert_date: alert });
       $('#rq-title').value = ''; $('#rq-due').value = ''; $('#rq-alert').value = ''; delete $('#rq-alert').dataset.touched;
-      $('#rq-presets').hidden = true;
+      $('#rq-presets').hidden = true; markPresets();
       toast('Recordatorio añadido');
       await loadReminders();
       $('#rq-title')?.focus();
@@ -2409,6 +2423,8 @@
     $('#rm-team').value = r.team || '';
     $('#rm-due').value = r.due_date || '';
     $('#rm-alert').value = r.alert_date || '';
+    if (r.id && r.alert_date) $('#rm-alert').dataset.touched = '1'; else delete $('#rm-alert').dataset.touched;
+    $('#rm-snooze').hidden = !r.id || r.done;
     $('#rm-notes').value = r.notes || '';
     $('#rm-delete').hidden = isNew;
     $('#rm-done').hidden = isNew;
@@ -2456,21 +2472,57 @@
     catch (e) { toast('No se pudo borrar: ' + e.message, true); }
   }
 
+  function markPresets() {
+    const due = $('#rq-due')?.value, alert = $('#rq-alert')?.value;
+    $$('#rq-due-pre [data-due]').forEach(b => b.classList.toggle('on', !!due && dueFromPreset(b.dataset.due) === due));
+    $$('#rq-presets [data-pre]').forEach(b => b.classList.toggle('on', !!due && keyOf(addDays(parseKey(due), -b.dataset.pre)) === alert));
+  }
+  function setQuickDue(due) {
+    $('#rq-due').value = due;
+    $('#rq-presets').hidden = !due;
+    if (!$('#rq-alert').dataset.touched) $('#rq-alert').value = autoAlert(due);
+    markPresets();
+  }
+
+  /** Pospone X días: mueve la fecha máxima (desde hoy si ya estaba vencido) y el aviso, conservando la distancia entre ambos */
+  async function snoozeReminder(id, days) {
+    const r = (state.reminders || []).find(x => x.id === id); if (!r) return;
+    const t = todayKey();
+    const gap = r.due_date && r.alert_date ? Math.max(0, Math.round((parseKey(r.due_date) - parseKey(r.alert_date)) / 864e5)) : ALERT_DAYS;
+    let due = null, alert;
+    if (r.due_date) {
+      due = keyOf(addDays(parseKey(r.due_date < t ? t : r.due_date), days));
+      alert = keyOf(addDays(parseKey(due), -gap));
+    } else {
+      alert = keyOf(addDays(parseKey(r.alert_date && r.alert_date > t ? r.alert_date : t), days));
+    }
+    if (alert < t) alert = t;
+    try {
+      await store.reminders.update(id, { due_date: due, alert_date: alert });
+      toast(`Pospuesto ${days === 1 ? '1 día' : days === 7 ? '1 semana' : days === 14 ? '2 semanas' : days + ' días'}${due ? ': hasta ' + shortDate(due) : ''}`);
+      state.snoozeOpen = null;
+      await loadReminders();
+    } catch (e) { toast('No se pudo posponer: ' + e.message, true); }
+  }
+
   function bindHome() {
     const home = $('#home');
     home.addEventListener('submit', e => { if (e.target.id === 'rem-quick') { e.preventDefault(); quickAddReminder(); } });
     home.addEventListener('change', e => {
       const t = e.target;
       if (t.matches('[data-rem-done]')) { const id = t.closest('[data-rem]').dataset.rem; setReminderDone(id, t.checked); }
-      if (t.id === 'rq-due') {
-        $('#rq-presets').hidden = !t.value;
-        if (!$('#rq-alert').dataset.touched) $('#rq-alert').value = autoAlert(t.value);
-      }
-      if (t.id === 'rq-alert') $('#rq-alert').dataset.touched = '1';
+      if (t.id === 'rq-due') setQuickDue(t.value);
+      if (t.id === 'rq-alert') { $('#rq-alert').dataset.touched = '1'; markPresets(); }
     });
     home.addEventListener('click', e => {
       const pre = e.target.closest('[data-pre]');
-      if (pre) { const due = $('#rq-due').value; if (due) { $('#rq-alert').value = autoAlert(due, +pre.dataset.pre); $('#rq-alert').dataset.touched = '1'; } return; }
+      if (pre) { const due = $('#rq-due').value; if (due) { $('#rq-alert').value = autoAlert(due, +pre.dataset.pre); $('#rq-alert').dataset.touched = '1'; markPresets(); } return; }
+      const dp = e.target.closest('#rq-due-pre [data-due]');
+      if (dp) { setQuickDue(dueFromPreset(dp.dataset.due)); return; }
+      const so = e.target.closest('[data-snooze-open]');
+      if (so) { const id = so.closest('[data-rem]').dataset.rem; state.snoozeOpen = state.snoozeOpen === id ? null : id; renderHome(); return; }
+      const sz = e.target.closest('[data-snooze]');
+      if (sz) { snoozeReminder(sz.closest('[data-rem]').dataset.rem, +sz.dataset.snooze); return; }
       const ed = e.target.closest('[data-rem-edit]');
       if (ed) { const r = (state.reminders || []).find(x => x.id === ed.closest('[data-rem]').dataset.rem); if (r) openReminder(r); return; }
       const jump = e.target.closest('[data-jump]');
@@ -2496,7 +2548,15 @@
     $('#rm-alert-pre').addEventListener('click', e => {
       const p = e.target.closest('[data-pre]'); if (!p) return;
       const due = $('#rm-due').value; if (!due) { toast('Pon primero la fecha máxima', true); return; }
-      $('#rm-alert').value = autoAlert(due, +p.dataset.pre);
+      $('#rm-alert').value = autoAlert(due, +p.dataset.pre); $('#rm-alert').dataset.touched = '1';
+    });
+    const setDlgDue = due => { $('#rm-due').value = due; if (!$('#rm-alert').dataset.touched) $('#rm-alert').value = autoAlert(due); };
+    $('#rm-due-pre').addEventListener('click', e => { const b = e.target.closest('[data-due]'); if (b) setDlgDue(dueFromPreset(b.dataset.due)); });
+    $('#rm-due').addEventListener('change', e => setDlgDue(e.target.value));
+    $('#rm-alert').addEventListener('change', () => { $('#rm-alert').dataset.touched = '1'; });
+    $('#rm-snooze').addEventListener('click', async e => {
+      const b = e.target.closest('[data-snooze]'); const r = remEditing; if (!b || !r?.id) return;
+      $('#rem-dialog').close(); await snoozeReminder(r.id, +b.dataset.snooze);
     });
     $('#m-home').onclick = () => { closeUserMenu(); setMode('home'); };
   }
@@ -3007,7 +3067,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027081912';
+  const APP_VERSION = '20261027084039';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

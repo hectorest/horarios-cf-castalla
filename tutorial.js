@@ -203,7 +203,12 @@ window.TUTORIAL_STEPS = [
   {
     id: 'inicio-coordinador', since: 18, roles: ['coordinador'], target: '#mode-toggle [data-mode=home], #user-btn',
     title: 'Tu Inicio: recordatorios y lo que se acerca',
-    body: 'Al entrar verás <b>Inicio</b> (en el móvil, en tu menú). A la izquierda, tus <b>recordatorios</b>: escribe qué hay que hacer, el equipo, la <b>fecha máxima</b> y la <b>fecha de aviso</b> (se rellena sola 3 días antes); desde ese día pasa de pendiente a <b>urgente</b>, y si se pasa la fecha máxima, a <b>vencido</b>. Márcalos con la casilla cuando estén hechos. A la derecha, los <b>conflictos, avisos y pendientes</b> de los próximos 14 días; toca uno para ir al calendario. También puedes crear un recordatorio desde cualquier reserva con <b>🔔 Recordatorio</b>.',
+    body: 'Al entrar verás <b>Inicio</b> (en el móvil, en tu menú). A la izquierda, tus <b>recordatorios</b>: escribe qué hay que hacer, el equipo, la <b>fecha máxima</b> y la <b>fecha de aviso</b> (se rellena sola 2 días antes); desde ese día pasa de pendiente a <b>urgente</b>, y si se pasa la fecha máxima, a <b>vencido</b>. Márcalos con la casilla cuando estén hechos. A la derecha, los <b>conflictos, avisos y pendientes</b> de los próximos 14 días; toca uno para ir al calendario. También puedes crear un recordatorio desde cualquier reserva con <b>🔔 Recordatorio</b>.',
+  },
+  {
+    id: 'recordatorios-rapidos', since: 19, roles: ['coordinador'], target: '#mode-toggle [data-mode=home], #user-btn',
+    title: 'Recordatorios sin escribir fechas',
+    body: 'En Inicio, elige la fecha máxima con un botón (<b>Hoy, Mañana, En 3 días, Viernes, 1 semana, 2 semanas</b>): el aviso se pone solo <b>2 días antes</b> (puedes cambiarlo también con botones). Para retrasar un recordatorio, pulsa <b>⏰</b> y elige <b>+1 día, +2, +3, +1 semana o +2 semanas</b>: se mueven la fecha máxima y el aviso a la vez.',
   },
   {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
