@@ -847,13 +847,9 @@ begin
   return new;
 end;
 $$;
-drop trigger if exists match_share_reset on public.bookings;
-create trigger match_share_reset before update on public.bookings
+create or replace trigger match_share_reset before update on public.bookings
   for each row execute function private.match_share_reset();
-
--- Jornada a partir de las notas de los calendarios cargados («… · J7 · …»)
-update public.bookings set matchday = (substring(notes from '(?:^|\s)J(\d{1,2})(?:\s|$)'))::smallint
-where kind = 'partido' and matchday is null and notes ~ '(^|\s)J\d{1,2}(\s|$)';
+-- La jornada no se rellena en la base de datos: la herramienta la lee de las notas («… · J7 · …») si matchday está vacío.
 
 -- ============================================================
 --  Primer coordinador: crea una invitación de coordinador y regístrate
