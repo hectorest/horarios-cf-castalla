@@ -1,6 +1,6 @@
 # Planificador de Campo · Castalla C.F.
 
-**En línea:** https://hectorest.github.io/horarios-cf-castalla/  
+**En línea:** https://intranet.cfcastalla.com/ (la dirección antigua, https://hectorest.github.io/horarios-cf-castalla/, redirige aquí)  
 **Base de datos:** proyecto Supabase `horarios-cf-castalla` (`wwkfaxrmmbptuithqpxn`, región París), ya creado y conectado en `config.js`.
 
 ## Usuarios y acceso
@@ -29,7 +29,7 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
 |---|---|---|
 | *Sign In / Providers > Allow new users to sign up* | **Activado** | Es lo que permite registrarse con un enlace de invitación. Sin invitación válida la base de datos rechaza el registro. |
 | *Sign In / Providers > Email > Confirm email* | **Desactivado** (recomendado) | El correo integrado de Supabase solo envía a los miembros de tu organización de Supabase, así que los entrenadores no recibirían el correo de confirmación. La invitación ya hace de filtro. |
-| *URL Configuration > Site URL* | `https://hectorest.github.io/horarios-cf-castalla/` | Para los enlaces de los correos (recuperar contraseña). |
+| *URL Configuration > Site URL* | `https://intranet.cfcastalla.com/` (y en *Redirect URLs* también la antigua de GitHub) | Para los enlaces de los correos (recuperar contraseña). |
 
 > «He olvidado mi contraseña» envía un correo. Con el correo integrado de Supabase solo llega a direcciones de tu organización de Supabase. Para que llegue a cualquier entrenador, configura un SMTP propio en *Authentication > Emails > SMTP Settings* (por ejemplo, una cuenta de Gmail del club o Resend).
 
@@ -152,6 +152,9 @@ CLUB_NAME: 'CF Mi Club',
 > Nunca pongas aquí la clave `service_role`. La clave anon es segura porque las políticas RLS solo dejan leer a usuarios aceptados y escribir a los coordinadores.
 
 ### 3. GitHub Pages
+
+**Dominio propio**: el archivo `CNAME` contiene `intranet.cfcastalla.com`. En la zona DNS del dominio (Arsys → WEB → Entradas DNS) hay un registro `CNAME` `intranet` → `hectorest.github.io`. En *Settings → Pages* debe estar marcado *Enforce HTTPS*. Si se cambia el dominio, hay que actualizar también la *Site URL* y las *Redirect URLs* de Supabase.
+
 
 1. Crea un repositorio en GitHub y sube todos los archivos (incluido `.nojekyll`).
 2. **Settings > Pages > Build and deployment**: *Deploy from a branch*, rama `main`, carpeta `/ (root)`.

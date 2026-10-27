@@ -1,6 +1,6 @@
 # Planificador de Campo · Castalla C.F.
 
-Web estática (HTML + CSS + JS sin compilación) en GitHub Pages, con datos en Supabase (proyecto `wwkfaxrmmbptuithqpxn`). Todo el texto de la interfaz va en español de España.
+Web estática (HTML + CSS + JS sin compilación) en GitHub Pages con dominio propio `intranet.cfcastalla.com` (archivo `CNAME`; CNAME en Arsys → `hectorest.github.io`), con datos en Supabase (proyecto `wwkfaxrmmbptuithqpxn`). Todo el texto de la interfaz va en español de España.
 
 ## Reglas al añadir o cambiar funcionalidades
 
