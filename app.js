@@ -2263,9 +2263,30 @@
   ];
   /** Grupo en Inicio: los que esperan a otra persona van aparte (salvo hechos) */
   const remGroup = r => r.done ? 'done' : r.waiting_on ? 'waiting' : remStatus(r);
-  const WAIT_SUGGEST = ['Federación', 'Ayuntamiento', 'Árbitros', 'Club rival'];
+  const WAIT_SUGGEST = ['Club rival', 'Directivo', 'Federación', 'Ayuntamiento', 'Árbitros'];
   const waitOptions = () => [...new Set([...(state.people || []).filter(p => p.status === 'aprobado' && p.id !== state.user?.id).map(p => p.full_name).filter(Boolean), ...WAIT_SUGGEST])]
     .map(n => `<option value="${esc(n)}"></option>`).join('');
+  /** Personas sugeridas para «en espera de»: primero los entrenadores del equipo del recordatorio */
+  function waitCandidates(r) {
+    const ppl = (state.people || []).filter(p => p.status === 'aprobado' && p.id !== state.user?.id && p.full_name);
+    const ofTeam = r.team ? ppl.filter(p => (p.teams || []).includes(r.team)) : [];
+    const names = [...ofTeam.map(p => p.full_name), ...WAIT_SUGGEST, ...ppl.filter(p => !ofTeam.includes(p)).map(p => p.full_name)];
+    return [...new Set(names)].filter(n => n !== r.waiting_on).slice(0, 10);
+  }
+  function waitPanel(r) {
+    return `<div class="rem-snooze rem-waitp"><span>${r.waiting_on ? `Ahora depende de <b>${esc(r.waiting_on)}</b>` : '¿De quién depende ahora?'}</span>
+      ${r.waiting_on ? '<button type="button" class="wp-me" data-wait-set="">✋ Vuelve a depender de mí</button>' : ''}
+      ${waitCandidates(r).map(n => `<button type="button" data-wait-set="${esc(n)}">${esc(n)}</button>`).join('')}
+      <form class="wp-other" data-wait-form><input maxlength="80" placeholder="Otra persona…" aria-label="Otra persona" list="wait-people"><button type="submit" class="primary">OK</button></form></div>`;
+  }
+  async function setWaiting(id, who) {
+    const r = (state.reminders || []).find(x => x.id === id); if (!r) return;
+    const waiting_on = (who || '').trim().slice(0, 80) || null;
+    const row = { waiting_on, waiting_since: waiting_on ? (waiting_on === r.waiting_on && r.waiting_since ? r.waiting_since : todayKey()) : null };
+    Object.assign(r, row); state.waitOpen = null; renderHome(); renderHomeBadge();
+    try { await store.reminders.update(id, row); toast(waiting_on ? `En espera de ${waiting_on}` : 'Vuelve a depender de ti'); await loadReminders(); }
+    catch (e) { toast('No se pudo guardar: ' + e.message, true); await loadReminders(); }
+  }
   function claimText(r) {
     const first = String(r.waiting_on || '').split(/\s+/)[0];
     const named = first && !WAIT_SUGGEST.includes(r.waiting_on) ? ` ${first}` : '';
@@ -2370,8 +2391,12 @@
         ${wait}
         <span class="rem-meta">${t ? `<span class="mini-chip" style="--c:${t.color}">${esc(t.name)}</span>` : '<span class="mini-chip club">Club</span>'}${when.join(' · ')}${r.source === 'atajo' ? ' · <span class="rem-src" title="Creado desde un Atajo del iPhone">📲</span>' : ''}${r.booking_id ? ' · <span class="rem-link">📅 reserva</span>' : ''}${r.notes ? ' · <span class="rem-notes">📝</span>' : ''}</span>
       </button>
+      <div class="rem-acts">
       ${r.waiting_on && st !== 'done' ? `<button type="button" class="rem-snz-btn" data-claim title="Reclamar a ${esc(r.waiting_on)}" aria-label="Reclamar">📨</button>` : ''}
+      ${st === 'done' ? '' : `<button type="button" class="rem-snz-btn rem-wait-btn ${state.waitOpen === r.id ? 'on' : ''}" data-wait-open title="${r.waiting_on ? 'Cambiar de quién depende' : 'Ya no depende de mí'}" aria-label="${r.waiting_on ? 'Cambiar de quién depende' : 'Ya no depende de mí'}" aria-expanded="${state.waitOpen === r.id}">⏳<span class="wb-lbl"> ${r.waiting_on ? 'Espera' : 'No depende de mí'}</span></button>`}
       ${st === 'done' ? '' : `<button type="button" class="rem-snz-btn ${state.snoozeOpen === r.id ? 'on' : ''}" data-snooze-open title="Posponer" aria-label="Posponer" aria-expanded="${state.snoozeOpen === r.id}">⏰</button>`}
+      </div>
+      ${st !== 'done' && state.waitOpen === r.id ? waitPanel(r) : ''}
       ${st !== 'done' && state.snoozeOpen === r.id ? `<div class="rem-snooze"><span>Posponer</span>${SNOOZE.map(([d, l]) => `<button type="button" data-snooze="${d}">${l}</button>`).join('')}</div>` : ''}
     </li>`;
   }
@@ -2604,7 +2629,10 @@
 
   function bindHome() {
     const home = $('#home');
-    home.addEventListener('submit', e => { if (e.target.id === 'rem-quick') { e.preventDefault(); quickAddReminder(); } });
+    home.addEventListener('submit', e => {
+      if (e.target.id === 'rem-quick') { e.preventDefault(); quickAddReminder(); }
+      if (e.target.matches('[data-wait-form]')) { e.preventDefault(); const v = e.target.querySelector('input').value.trim(); if (v) setWaiting(e.target.closest('[data-rem]').dataset.rem, v); }
+    });
     home.addEventListener('change', e => {
       const t = e.target;
       if (t.matches('[data-rem-done]')) { const id = t.closest('[data-rem]').dataset.rem; setReminderDone(id, t.checked); }
@@ -2626,10 +2654,14 @@
         if (state.remFormOpen) setTimeout(() => $('#rq-title')?.focus(), 30);
         return;
       }
+      const wo = e.target.closest('[data-wait-open]');
+      if (wo) { const id = wo.closest('[data-rem]').dataset.rem; state.waitOpen = state.waitOpen === id ? null : id; state.snoozeOpen = null; renderHome(); const inp = $(`[data-rem="${CSS.escape(id)}"] .wp-other input`); if (inp && !isIOS()) inp.focus({ preventScroll: true }); return; }
+      const ws = e.target.closest('[data-wait-set]');
+      if (ws) { setWaiting(ws.closest('[data-rem]').dataset.rem, ws.dataset.waitSet); return; }
       const cl = e.target.closest('[data-claim]');
       if (cl) { const r = (state.reminders || []).find(x => x.id === cl.closest('[data-rem]').dataset.rem); if (r) claimReminder(r); return; }
       const so = e.target.closest('[data-snooze-open]');
-      if (so) { const id = so.closest('[data-rem]').dataset.rem; state.snoozeOpen = state.snoozeOpen === id ? null : id; renderHome(); return; }
+      if (so) { const id = so.closest('[data-rem]').dataset.rem; state.snoozeOpen = state.snoozeOpen === id ? null : id; state.waitOpen = null; renderHome(); return; }
       const sz = e.target.closest('[data-snooze]');
       if (sz) { snoozeReminder(sz.closest('[data-rem]').dataset.rem, +sz.dataset.snooze); return; }
       const ed = e.target.closest('[data-rem-edit]');
@@ -3380,7 +3412,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027104111';
+  const APP_VERSION = '20261027104530';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

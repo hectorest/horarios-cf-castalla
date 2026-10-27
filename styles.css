@@ -1026,3 +1026,23 @@ input[type="date"]::-webkit-datetime-edit, input[type="time"]::-webkit-datetime-
 .rem-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
 .rem-head h3 { margin: 0; }
 .rem-new-btn { padding: 6px 12px; font-size: 13.5px; }
+
+/* Botón «Ya no depende de mí» y panel de a quién se espera */
+.rem-wait-btn { font-size: 13px; white-space: nowrap; color: #5b3fa0; }
+.rem-wait-btn .wb-lbl { font-size: 12px; font-weight: 600; }
+.rem-waitp { align-items: center; }
+.rem-waitp button { border-color: #ddd2f7; }
+.rem-waitp .wp-me { background: var(--pitch-tint); border-color: var(--sky); }
+.wp-other { display: flex; gap: 4px; flex: 1 1 180px; min-width: 0; }
+.wp-other input { flex: 1; min-width: 0; font: inherit; font-size: 13px; padding: 4px 8px; border: 1px solid var(--line-strong); border-radius: 99px; }
+.wp-other button { padding: 4px 10px; border-radius: 99px; font-size: 12.5px; }
+
+.rem-acts { display: flex; gap: 6px; flex: none; align-items: flex-start; }
+@media (max-width: 720px) {
+  .rem-acts { flex-basis: 100%; padding-left: 32px; flex-wrap: wrap; }
+  .rem-acts .rem-snz-btn { padding: 4px 10px; }
+  .rem-snooze { padding-left: 32px; }
+  .wp-other { flex-basis: 100%; }
+}
+.rem > *, .rem-snooze, .wp-other { min-width: 0; }
+.rem-list, .up-list { grid-template-columns: minmax(0, 1fr); } .rem-list > li { min-width: 0; }

@@ -226,6 +226,11 @@ window.TUTORIAL_STEPS = [
     body: 'Si algo depende de otra persona (un entrenador, la Federación, el Ayuntamiento…), escríbelo en <b>En espera de</b> al crear o editar el recordatorio. Pasa al grupo <b>En espera de otros</b>, con desde cuándo esperas, y con <b>📨</b> le mandas un mensaje para reclamarlo. Los Atajos también lo detectan («cuando Paco me pase las fichas»).',
   },
   {
+    id: 'no-depende', since: 23, roles: ['coordinador'], target: '#mode-toggle [data-mode=home], #user-btn',
+    title: '«No depende de mí» con un toque',
+    body: 'Cada recordatorio tiene el botón <b>⏳ No depende de mí</b>: elige de quién depende ahora (entrenadores del equipo, Club rival, Directivo, Federación, Ayuntamiento…) o escribe otro nombre. En los que ya están en espera, el mismo botón te deja cambiar la persona o volver a hacerlo tuyo.',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',
