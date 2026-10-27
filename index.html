@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261027214327">
+  <link rel="stylesheet" href="styles.css?v=20261027223838">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -57,6 +57,7 @@
           </div>
           <div id="up-teams" class="up-teams"></div>
           <button type="button" role="menuitem" id="m-home" hidden>Inicio: recordatorios y pendientes <span class="home-count pill-count" hidden></span></button>
+          <button type="button" role="menuitem" id="m-teams" hidden>Equipos y plantillas</button>
           <button type="button" role="menuitem" id="m-matches">Partidos por equipo</button>
           <button type="button" role="menuitem" id="m-weekend">Partidos del fin de semana</button>
           <button type="button" role="menuitem" id="m-people" hidden>Entrenadores y solicitudes <span id="m-people-count"></span></button>
@@ -85,6 +86,7 @@
         <button type="button" data-mode="home" class="home-only-coord" hidden>Inicio <span class="home-count pill-count" hidden></span></button>
         <button type="button" data-mode="week" class="on">Semana</button>
         <button type="button" data-mode="template">Horario habitual</button>
+        <button type="button" data-mode="teams" hidden>Equipos</button>
       </div>
       <div class="coord-only" hidden>
         <label class="switch" title="Desactívalo para consultar sin riesgo de mover nada">
@@ -106,6 +108,8 @@
   <div id="day-tabs" class="day-tabs" hidden></div>
 
   <section id="home" class="home" hidden aria-label="Inicio"></section>
+
+  <section id="teams" class="teams-page" hidden aria-label="Equipos y plantillas"></section>
 
   <main class="layout">
     <section class="cal-wrap" id="cal-wrap">
@@ -495,8 +499,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261027214327"></script>
-  <script src="tutorial.js?v=20261027214327"></script>
-  <script src="app.js?v=20261027214327"></script>
+  <script src="config.js?v=20261027223838"></script>
+  <script src="tutorial.js?v=20261027223838"></script>
+  <script src="app.js?v=20261027223838"></script>
 </body>
 </html>

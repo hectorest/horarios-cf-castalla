@@ -241,6 +241,16 @@ window.TUTORIAL_STEPS = [
     body: 'En los partidos de fuera, en <b>📣 Compartir horario</b> pulsa <b>🗺️ Buscar en Google Maps</b>: se abre con el campo y la localidad. Toca <b>Compartir → Copiar enlace</b> y pégalo en la ventana; el mensaje añade la línea 🗺️ con el enlace para que todos lleguen sin perderse.',
   },
   {
+    id: 'equipos', since: 26, roles: ['coordinador'], target: '#mode-toggle [data-mode="teams"], #user-btn',
+    title: 'Equipos y plantillas',
+    body: 'En <b>Equipos</b> (en el móvil, en tu menú) ves todos los equipos con sus jugadores y entrenadores. Entra en uno para añadir jugadores con <b>dorsal y nombre</b>, de uno en uno o <b>pegando la lista entera</b> (un jugador por línea, «7 Iker Molina»). Cada entrenador ve y mantiene la plantilla de su equipo.',
+  },
+  {
+    id: 'plantilla', since: 26, roles: ['entrenador'], target: '#mode-toggle [data-mode="teams"], #user-btn',
+    title: 'La plantilla de tu equipo',
+    body: 'En <b>Plantilla</b> (en el móvil, en tu menú) tienes los jugadores de tu equipo con su dorsal. Puedes añadir, corregir o quitar jugadores, o pegar la lista entera de una vez (un jugador por línea, «7 Iker Molina»).',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',

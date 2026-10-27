@@ -385,6 +385,19 @@
     const rems = () => { let a = ls.get(RKEY); if (!a) { a = demoReminders(); ls.set(RKEY, a); } return a; };
     const remListeners = [];
     const writeRems = a => { ls.set(RKEY, a); remListeners.forEach(cb => setTimeout(cb, 0)); };
+    const PLKEY = 'planificador-campo-demo-players-v1';
+    const demoPlayers = () => {
+      const mk = (team, list) => list.map(([number, name]) => ({ id: uid(), team, number, name, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }));
+      return [
+        ...mk('cadete', [[1, 'Hugo Sanchis'], [2, 'Marc Pastor'], [4, 'Pablo Rico'], [5, 'Álex Verdú'], [7, 'Iker Molina'], [8, 'Jorge Bernabeu'], [9, 'Adrián Payá'], [10, 'Dani Amorós'], [11, 'Leo Navarro'], [14, 'Rubén Gisbert'], [17, 'Nico Ferrándiz'], [null, 'Sergio Coloma']]),
+        ...mk('juvenil', [[1, 'Carlos Mira'], [3, 'Javi Sempere'], [6, 'Raúl Vidal'], [9, 'Mario Albero'], [10, 'Óscar Brotons']]),
+      ];
+    };
+    const players = () => { let a = ls.get(PLKEY); if (!a) { a = demoPlayers(); ls.set(PLKEY, a); } return a; };
+    const plListeners = [];
+    const writePlayers = a => { ls.set(PLKEY, a); plListeners.forEach(cb => setTimeout(cb, 0)); };
+    const canRoster = team => { const u = (users() || []).find(x => x.id === sid); return !!u && u.status === 'aprobado' && (u.role === 'coordinador' || (u.teams || []).includes(team)); };
+    const dorsalTaken = (p, skipId) => p.number != null && players().some(x => x.id !== skipId && x.team === p.team && x.number === p.number);
     const props = () => ls.get(PKEY) || [];
     const writeProps = a => ls.set(PKEY, a);
     const IKEY = 'planificador-campo-demo-invites-v1';
@@ -458,6 +471,26 @@
         },
         async remove(id) { writeRems(rems().filter(x => x.id !== id)); },
         subscribe(cb) { remListeners.push(cb); },
+      },
+      players: {
+        async list() { return players().filter(x => canRoster(x.team)).map(x => ({ ...x })); },
+        async insertMany(rows) {
+          const now = new Date().toISOString(), out = [];
+          for (const r of rows) {
+            if (!canRoster(r.team)) throw new Error('No tienes permiso para esta plantilla.');
+            if (dorsalTaken(r) || out.some(o => o.team === r.team && r.number != null && o.number === r.number)) throw new Error(`El dorsal ${r.number} ya está en la plantilla.`);
+            out.push({ number: null, ...r, id: uid(), created_by: sid, created_at: now, updated_at: now });
+          }
+          writePlayers([...players(), ...out]); return out;
+        },
+        async update(id, r) {
+          const x = players().find(p => p.id === id);
+          if (!x || !canRoster(x.team)) throw new Error('No tienes permiso para esta plantilla.');
+          if (dorsalTaken({ ...x, ...r }, id)) throw new Error(`El dorsal ${r.number} ya está en la plantilla.`);
+          writePlayers(players().map(p => p.id === id ? { ...p, ...r, updated_at: new Date().toISOString() } : p));
+        },
+        async remove(id) { writePlayers(players().filter(p => p.id !== id)); },
+        subscribe(cb) { plListeners.push(cb); },
       },
       acks: {
         async list(ids) { return (ls.get(AKEY) || []).filter(a => ids.includes(a.entreno_id)); },
@@ -646,6 +679,18 @@
         async remove(id) { chk(await sb.from('reminders').delete().eq('id', id)); },
         subscribe(cb) {
           sb.channel('reminders-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'reminders' }, debounce(cb)).subscribe();
+        },
+      },
+      players: {
+        async list() { return chk(await sb.from('players').select('id, team, number, name, created_at, updated_at').order('team').order('number', { nullsFirst: false }).order('name')); },
+        async insertMany(rows) { return chk(await sb.from('players').insert(rows).select('id, team, number, name, created_at, updated_at')); },
+        async update(id, r) {
+          const rows = chk(await sb.from('players').update(r).eq('id', id).select('id'));
+          if (!rows.length) throw new Error('No tienes permiso para esta plantilla.');
+        },
+        async remove(id) { chk(await sb.from('players').delete().eq('id', id)); },
+        subscribe(cb) {
+          sb.channel('players-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, debounce(cb)).subscribe();
         },
       },
       acks: {
@@ -968,6 +1013,7 @@
     renderIssues();
     renderSummary();
     if (isHome()) renderHome();
+    if (isTeams()) renderTeams();
   }
 
   function renderHeader() {
@@ -978,8 +1024,13 @@
       ? `${a.getDate()} – ${b.getDate()} ${MONTHS[b.getMonth()]}${yr}`
       : `${a.getDate()} ${MONTHS[a.getMonth()]} – ${b.getDate()} ${MONTHS[b.getMonth()]}${yr}`;
     document.body.classList.toggle('tpl-mode', isTpl());
-    document.body.classList.toggle('home-mode', isHome());
+    document.body.classList.toggle('home-mode', isHome() || isTeams());   // páginas sin calendario: Inicio y Equipos
     $('#home').hidden = !isHome();
+    $('#teams').hidden = !isTeams();
+    const rt = rosterTeams().length;
+    $$('#mode-toggle [data-mode="teams"]').forEach(x => { x.hidden = !rt; x.textContent = isCoord() ? 'Equipos' : rt > 1 ? 'Plantillas' : 'Plantilla'; });
+    $('#m-teams').hidden = !rt || isTeams();
+    $('#m-teams').textContent = isCoord() ? 'Equipos y plantillas' : rt > 1 ? 'Plantillas de mis equipos' : 'Plantilla de mi equipo';
     $$('.home-only-coord').forEach(x => x.hidden = !isCoord());
     $$('#mode-toggle button').forEach(x => { const on = x.dataset.mode === state.mode; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
     $('#m-mode').textContent = isTpl() ? 'Volver a la semana' : 'Ver horario habitual';
@@ -1186,10 +1237,12 @@
   function setMode(m) {
     if (state.mode === m) return;
     if (m === 'home' && !isCoord()) return;
+    if (m === 'teams' && !rosterTeams().length) return;
     state.mode = m; state.selectedId = null;
     closeUserMenu();
     render();
     if (m === 'home') { $('#home').scrollTop = 0; loadHome(); return; }
+    if (m === 'teams') { $('#teams').scrollTop = 0; state.plEdit = null; loadTeams(); return; }
     load();
   }
 
@@ -1916,7 +1969,7 @@
   function leaveApp() {
     appOpen = false;
     document.body.classList.add('gated');
-    state.bookings = []; state.people = [];
+    state.bookings = []; state.people = []; state.players = null; state.teamOpen = null; if (state.mode === 'teams') state.mode = 'week';
     closeUserMenu();
     $$('dialog[open]').forEach(d => d.close());
   }
@@ -3047,6 +3100,202 @@
     if (navigator.share && /iPhone|iPad|Android/.test(navigator.userAgent)) { try { await navigator.share({ text }); } catch { } return; }
     window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
   }
+  // ================================================================
+  //  Equipos y plantillas (jugadores con dorsal y nombre)
+  // ================================================================
+  const isTeams = () => state.mode === 'teams';
+  const coarse = () => matchMedia("(pointer: coarse)").matches;
+  /** Equipos cuya plantilla puede ver el usuario: todos (coordinación) o los suyos (entrenador) */
+  const rosterTeams = () => isCoord() ? TEAMS : TEAMS.filter(t => isMine(t.id));
+  const byDorsal = (a, b) => (a.number ?? 999) - (b.number ?? 999) || a.name.localeCompare(b.name, 'es');
+  const squadOf = team => (state.players || []).filter(p => p.team === team).sort(byDorsal);
+  const coachesOf = team => (state.people || []).filter(p => p.status === 'aprobado' && p.role !== 'coordinador' && (p.teams || []).includes(team)).map(p => p.full_name || p.email).filter(Boolean);
+  const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+  const dorsalOf = v => { const s = String(v ?? '').trim(); if (!s) return { ok: true, n: null }; const n = +s; return /^\d{1,2}$/.test(s) && n <= 99 ? { ok: true, n } : { ok: false }; };
+  const playerErr = e => /players_dorsal_unico|duplicate key/.test(e.message) ? 'Ese dorsal ya lo lleva otro jugador del equipo.' : e.message;
+  /** «7 Iker Molina», «7. Iker», «7 - Iker», «Iker Molina» → { number, name } */
+  const parsePlayerLine = l => {
+    const m = /^\s*(?:(\d{1,2})\s*[.\-–:)\s]\s*)?(.+?)\s*$/.exec(l);
+    if (!m || !m[2].trim()) return null;
+    return { number: m[1] != null ? +m[1] : null, name: m[2].replace(/\s+/g, ' ').slice(0, 80) };
+  };
+
+  async function loadTeams(quiet) {
+    if (!rosterTeams().length) { renderTeams(); return; }
+    if (!quiet) { state.teamsLoading = true; renderTeams(); }
+    try { state.players = await store.players.list(); }
+    catch (e) { toast('No se pudo cargar la plantilla: ' + e.message, true); }
+    state.teamsLoading = false;
+    // Si está escribiendo, no le borramos lo que tiene a medias: se pinta al terminar
+    const a = document.activeElement;
+    if (quiet && a && $('#teams').contains(a) && /INPUT|TEXTAREA/.test(a.tagName)) { state.teamsStale = true; return; }
+    renderTeams();
+  }
+
+  function renderTeams() {
+    const el = $('#teams');
+    if (!el || !isTeams()) return;
+    state.teamsStale = false;
+    const list = rosterTeams();
+    if (!list.length) {
+      el.innerHTML = `<div class="home-wrap"><div class="tm-head"><div class="tm-title"><h2>Plantilla</h2></div><button type="button" class="ghost home-cal-btn" data-tm-week>Ver calendario →</button></div>
+        <div class="panel tm-empty">Aún no tienes ningún equipo asignado. Pide a la coordinación que te lo asigne.</div></div>`;
+      return;
+    }
+    if (list.length === 1) state.teamOpen = list[0].id;
+    const open = list.find(t => t.id === state.teamOpen);
+    el.innerHTML = `<div class="home-wrap">${open ? rosterHTML(open, list.length > 1) : teamsGridHTML(list)}</div>`;
+  }
+
+  function teamsGridHTML(list) {
+    const loading = state.teamsLoading && !state.players;
+    const total = (state.players || []).length;
+    const cards = list.map(t => {
+      const n = squadOf(t.id).length, co = isCoord() ? coachesOf(t.id) : null;
+      return `<button type="button" class="tm-card" data-team-open="${t.id}" style="--team:${t.color}">
+        <span class="tm-card-name">${esc(t.name)}</span>
+        <span class="tm-card-n ${n ? '' : 'zero'}"><b>${loading ? '…' : n}</b> ${n === 1 ? 'jugador' : 'jugadores'}</span>
+        ${co ? `<span class="tm-card-co">${co.length ? '👤 ' + esc(co.join(', ')) : '<i>Sin entrenador</i>'}</span>` : ''}
+        <span class="tm-card-go" aria-hidden="true">›</span></button>`;
+    }).join('');
+    return `<div class="tm-head"><div class="tm-title"><h2>${isCoord() ? 'Equipos' : 'Mis equipos'}</h2><p>${loading ? 'Cargando plantillas…' : `${plural(total, 'jugador', 'jugadores')} en ${plural(list.length, 'equipo', 'equipos')} · pulsa un equipo para ver su plantilla`}</p></div>
+      <button type="button" class="ghost home-cal-btn" data-tm-week>Ver calendario →</button></div>
+      <div class="tm-grid">${cards}</div>`;
+  }
+
+  function rosterHTML(t, back) {
+    const sq = squadOf(t.id);
+    const loading = state.teamsLoading && !state.players;
+    const noNum = sq.filter(p => p.number == null).length;
+    const co = isCoord() ? coachesOf(t.id) : [];
+    const rows = sq.map(p => state.plEdit === p.id
+      ? `<li class="tm-row tm-editing" data-pl="${p.id}"><form class="tm-edit" data-pl-form="${p.id}" autocomplete="off">
+          <input class="tm-e-num" inputmode="numeric" pattern="[0-9]*" maxlength="2" value="${p.number ?? ''}" placeholder="—" aria-label="Dorsal">
+          <input class="tm-e-name" maxlength="80" value="${esc(p.name)}" aria-label="Nombre" required>
+          <div class="tm-e-acts"><button type="button" class="ghost" data-pl-cancel>Cancelar</button><button class="primary">Guardar</button></div>
+        </form></li>`
+      : `<li class="tm-row" data-pl="${p.id}"><span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span><span class="tm-pname">${esc(p.name)}</span>
+          <button type="button" class="icon-btn" data-pl-edit title="Editar" aria-label="Editar a ${esc(p.name)}">✎</button>
+          <button type="button" class="icon-btn tm-del" data-pl-del title="Quitar de la plantilla" aria-label="Quitar a ${esc(p.name)}">×</button></li>`).join('');
+    return `<div class="tm-head" style="--team:${t.color}">
+        ${back ? `<button type="button" class="ghost tm-back" data-team-open="">‹ Equipos</button>` : ''}
+        <div class="tm-title"><h2><span class="tm-dot"></span>${esc(t.name)}</h2>
+          <p>${loading ? 'Cargando…' : plural(sq.length, 'jugador', 'jugadores')}${noNum && !loading ? ` · ${noNum} sin dorsal` : ''}${co.length ? ` · 👤 ${esc(co.join(', '))}` : ''}</p></div>
+        <button type="button" class="ghost home-cal-btn" data-tm-week>Ver calendario →</button>
+      </div>
+      <section class="panel tm-roster" style="--team:${t.color}">
+        <form class="tm-add" id="tm-add" autocomplete="off">
+          <input id="tm-num" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="Dorsal" aria-label="Dorsal (opcional)">
+          <input id="tm-name" maxlength="80" placeholder="Nombre y apellidos" aria-label="Nombre del jugador" required>
+          <button class="primary">Añadir</button>
+        </form>
+        <div class="tm-tools">
+          <button type="button" class="link" data-bulk aria-expanded="${!!state.bulkOpen}">${state.bulkOpen ? 'Cerrar la lista' : '📋 Pegar una lista de jugadores'}</button>
+          ${sq.length ? `<button type="button" class="link" data-tm-copy>Copiar plantilla</button>` : ''}
+        </div>
+        <div class="tm-bulk" ${state.bulkOpen ? '' : 'hidden'}>
+          <textarea id="tm-bulk" rows="7" placeholder="Un jugador por línea, con el dorsal delante (si lo tiene):&#10;1 Hugo Sanchis&#10;7 Iker Molina&#10;Sergio Coloma">${esc(state.bulkDraft || '')}</textarea>
+          <div class="tm-bulk-foot"><span id="tm-bulk-info" class="muted"></span><button type="button" class="primary" data-bulk-add disabled>Añadir</button></div>
+        </div>
+        ${loading ? '<p class="muted tm-loading">Cargando la plantilla…</p>'
+          : sq.length ? `<ol class="tm-list">${rows}</ol>`
+          : `<p class="tm-none">Todavía no hay jugadores. Añádelos uno a uno o pega la lista entera.</p>`}
+      </section>`;
+  }
+
+  /** Revisa la lista pegada: cuántos se añadirían y qué falla */
+  function checkBulk(team) {
+    const lines = ($('#tm-bulk')?.value || '').split(/\r?\n/).map(parsePlayerLine).filter(Boolean);
+    const sq = squadOf(team), errs = [], seen = new Map();
+    for (const p of lines) {
+      if (p.number == null) continue;
+      const other = sq.find(x => x.number === p.number);
+      if (other) errs.push(`el ${p.number} ya es de ${other.name}`);
+      else if (seen.has(p.number)) errs.push(`el ${p.number} sale dos veces`);
+      seen.set(p.number, true);
+    }
+    const info = $('#tm-bulk-info'), btn = $('[data-bulk-add]');
+    if (info) {
+      info.textContent = !lines.length ? '' : errs.length ? 'Revisa los dorsales: ' + errs.join(', ') + '.' : `Se añadirán ${plural(lines.length, 'jugador', 'jugadores')}.`;
+      info.classList.toggle('err', !!errs.length);
+    }
+    if (btn) { btn.disabled = !lines.length || !!errs.length; btn.textContent = lines.length ? `Añadir ${lines.length}` : 'Añadir'; }
+    return { lines, errs };
+  }
+
+  async function addPlayers(team, rows) {
+    try {
+      const added = await store.players.insertMany(rows.map(r => ({ team, number: r.number, name: r.name })));
+      state.players = [...(state.players || []), ...added];
+      return true;
+    } catch (e) { toast('No se pudo añadir: ' + playerErr(e), true); return false; }
+  }
+
+  function bindTeams() {
+    const el = $('#teams');
+    el.addEventListener('click', async e => {
+      const t = e.target;
+      if (t.closest('[data-tm-week]')) { setMode('week'); return; }
+      const op = t.closest('[data-team-open]');
+      if (op) { state.teamOpen = op.dataset.teamOpen || null; state.plEdit = null; state.bulkOpen = false; state.bulkDraft = ''; renderTeams(); el.scrollTop = 0; if (state.teamOpen && !coarse()) $('#tm-name')?.focus({ preventScroll: true }); return; }
+      const team = state.teamOpen;
+      if (t.closest('[data-bulk]')) { state.bulkOpen = !state.bulkOpen; state.bulkDraft = $('#tm-bulk')?.value || ''; renderTeams(); if (state.bulkOpen) { $('#tm-bulk').focus(); checkBulk(team); } return; }
+      if (t.closest('[data-bulk-add]')) {
+        const { lines, errs } = checkBulk(team);
+        if (!lines.length || errs.length) return;
+        if (await addPlayers(team, lines)) { toast(`${plural(lines.length, 'jugador añadido', 'jugadores añadidos')}`); state.bulkOpen = false; state.bulkDraft = ''; renderTeams(); }
+        return;
+      }
+      if (t.closest('[data-tm-copy]')) {
+        const text = `*${TEAM[team].name.toUpperCase()}*\n` + squadOf(team).map(p => `${p.number ?? '–'}. ${p.name}`).join('\n');
+        try { await navigator.clipboard.writeText(text); toast('Plantilla copiada'); } catch { toast('No se ha podido copiar', true); }
+        return;
+      }
+      const row = t.closest('[data-pl]'); if (!row) return;
+      const p = (state.players || []).find(x => x.id === row.dataset.pl); if (!p) return;
+      if (t.closest('[data-pl-edit]')) { state.plEdit = p.id; renderTeams(); const i = $(`[data-pl-form="${p.id}"] .tm-e-name`); i?.focus(); return; }
+      if (t.closest('[data-pl-cancel]')) { state.plEdit = null; renderTeams(); return; }
+      if (t.closest('[data-pl-del]')) {
+        if (!(await askConfirm(`¿Quitar a <b>${esc(p.name)}</b> de la plantilla del ${esc(TEAM[p.team].name)}?`, 'Quitar', true))) return;
+        try { await store.players.remove(p.id); state.players = state.players.filter(x => x.id !== p.id); toast('Jugador quitado'); renderTeams(); }
+        catch (ex) { toast('No se pudo quitar: ' + ex.message, true); }
+      }
+    });
+    el.addEventListener('submit', async e => {
+      e.preventDefault();
+      const f = e.target, team = state.teamOpen;
+      if (f.id === 'tm-add') {
+        const name = $('#tm-name').value.trim().replace(/\s+/g, ' '), d = dorsalOf($('#tm-num').value);
+        if (!name) return;
+        if (!d.ok) { toast('El dorsal tiene que ser un número del 0 al 99', true); $('#tm-num').focus(); return; }
+        const other = d.n != null && squadOf(team).find(x => x.number === d.n);
+        if (other) { toast(`El ${d.n} ya lo lleva ${other.name}`, true); $('#tm-num').select(); return; }
+        if (await addPlayers(team, [{ number: d.n, name }])) {
+          state.bulkDraft = $('#tm-bulk')?.value || '';
+          renderTeams(); toast(`${name} añadido`);
+          const n = $('#tm-num'); if (n && !coarse()) n.focus(); else $('#tm-name')?.focus({ preventScroll: true });
+        }
+        return;
+      }
+      if (f.dataset.plForm) {
+        const id = f.dataset.plForm, name = f.querySelector('.tm-e-name').value.trim().replace(/\s+/g, ' '), d = dorsalOf(f.querySelector('.tm-e-num').value);
+        if (!name) return;
+        if (!d.ok) { toast('El dorsal tiene que ser un número del 0 al 99', true); return; }
+        const other = d.n != null && squadOf(team).find(x => x.number === d.n && x.id !== id);
+        if (other) { toast(`El ${d.n} ya lo lleva ${other.name}`, true); return; }
+        try {
+          await store.players.update(id, { number: d.n, name });
+          const p = state.players.find(x => x.id === id); if (p) Object.assign(p, { number: d.n, name });
+          state.plEdit = null; renderTeams(); toast('Jugador actualizado');
+        } catch (ex) { toast('No se pudo guardar: ' + playerErr(ex), true); }
+      }
+    });
+    el.addEventListener('input', e => { if (e.target.id === 'tm-bulk') { state.bulkDraft = e.target.value; checkBulk(state.teamOpen); } });
+    el.addEventListener('keydown', e => { if (e.key === 'Escape' && state.plEdit) { state.plEdit = null; renderTeams(); } });
+    el.addEventListener('focusout', () => setTimeout(() => { if (state.teamsStale && !el.contains(document.activeElement)) renderTeams(); }, 0));
+    $('#m-teams').onclick = () => { closeUserMenu(); setMode('teams'); };
+  }
+
   function bindShare() {
     $('#share-dialog').addEventListener('input', renderShare);
     $('#share-dialog').addEventListener('change', renderShare);
@@ -3344,6 +3593,7 @@
   function bind() {
     bindHome();
     bindShare();
+    bindTeams();
     bindShortcuts();
     bindNotifications();
     $('#d-body').addEventListener('click', e => { if (e.target.id === 'd-rem') { const b = state.bookings.find(x => x.id === $('#detail-dialog').dataset.id); $('#detail-dialog').close(); if (b) reminderFromBooking(b); } });
@@ -3568,7 +3818,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027214327';
+  const APP_VERSION = '20261027223838';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;
@@ -3676,6 +3926,7 @@
     });
     store.subscribe(() => { if (!drag && appOpen) { load(); if (isCoord()) loadHome(); } });
     store.reminders.subscribe(() => { if (appOpen && isCoord()) loadReminders(); });
+    store.players.subscribe(() => { if (appOpen && isTeams()) loadTeams(true); });
     store.template.subscribe(() => { if (!drag && appOpen) load(); });
     store.proposals.subscribe(() => { if (!drag && appOpen) load(); });
     store.acks.subscribe(() => { if (!drag && appOpen) load(); });

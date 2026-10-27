@@ -862,3 +862,68 @@ create or replace trigger match_share_reset before update on public.bookings
 --    returning token;
 --  El resto de invitaciones se crean desde la web («Entrenadores › Invitar»).
 -- ============================================================
+
+-- ---------- Plantillas: jugadores de cada equipo ----------
+-- Dorsal (opcional, único dentro del equipo) y nombre. Las ven y editan los coordinadores
+-- y los entrenadores aprobados de ese equipo.
+create table if not exists public.players (
+  id          uuid primary key default gen_random_uuid(),
+  team        text not null check (char_length(team) between 1 and 40),
+  number      smallint check (number between 0 and 99),
+  name        text not null check (char_length(btrim(name)) between 1 and 80),
+  created_by  uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now()
+);
+create unique index if not exists players_dorsal_unico on public.players (team, number) where number is not null;
+create index if not exists players_team_idx on public.players (team);
+create index if not exists players_created_by_idx on public.players (created_by);
+alter table public.players enable row level security;
+comment on table public.players is 'Plantilla de cada equipo: dorsal y nombre. Coordinadores y entrenadores del equipo.';
+
+create or replace function private.can_roster(p_team text)
+returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.profiles p
+    where p.id = (select auth.uid()) and p.status = 'aprobado'
+      and (p.role = 'coordinador' or p_team = any (p.teams))
+  );
+$$;
+revoke all on function private.can_roster(text) from public, anon;
+grant execute on function private.can_roster(text) to authenticated;
+
+create or replace function private.players_touch()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_at := now();
+  return new;
+end;
+$$;
+drop trigger if exists players_touch on public.players;
+create trigger players_touch before update on public.players
+  for each row execute function private.players_touch();
+drop policy if exists "Ven la plantilla de su equipo" on public.players;
+create policy "Ven la plantilla de su equipo" on public.players
+  for select to authenticated using (private.can_roster(team));
+drop policy if exists "Añaden a la plantilla de su equipo" on public.players;
+create policy "Añaden a la plantilla de su equipo" on public.players
+  for insert to authenticated with check (private.can_roster(team));
+drop policy if exists "Editan la plantilla de su equipo" on public.players;
+create policy "Editan la plantilla de su equipo" on public.players
+  for update to authenticated using (private.can_roster(team)) with check (private.can_roster(team));
+drop policy if exists "Quitan de la plantilla de su equipo" on public.players;
+create policy "Quitan de la plantilla de su equipo" on public.players
+  for delete to authenticated using (private.can_roster(team));
+revoke all on public.players from anon, authenticated;
+grant select, insert, update, delete on public.players to authenticated;
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'players') then
+    alter publication supabase_realtime add table public.players;
+  end if;
+end $$;

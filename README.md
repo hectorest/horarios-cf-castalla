@@ -74,6 +74,15 @@ Tocar un aviso abre la herramienta en Inicio.
 
 Cómo funciona: `sw.js` (service worker solo para push, sin caché) recibe los avisos; los dispositivos se guardan en `push_subscriptions` y las preferencias en `notify_settings`. La Edge Function `notificaciones` (`supabase/functions/notificaciones`, Web Push propio con VAPID y cifrado aes128gcm, sin dependencias) envía los avisos. Una tarea programada (`pg_cron`, cada 15 min) la llama con un secreto guardado en Vault, y un trigger en `profiles` avisa de las altas. Las claves VAPID se generan solas la primera vez y se guardan en Vault. Los conflictos y cambios salen de `issue_snapshot`, una foto que guarda la herramienta cada vez que un coordinador abre Inicio (mismo motor que el calendario).
 
+## Equipos y plantillas
+
+Pestaña **Equipos** (en el móvil, en el menú del usuario). La coordinación ve todos los equipos con su número de jugadores y sus entrenadores; cada entrenador ve **Plantilla** con solo sus equipos.
+
+- Cada jugador tiene **dorsal** (0–99, opcional y sin repetir dentro del equipo) y **nombre**.
+- Se añaden de uno en uno o **pegando la lista entera** (un jugador por línea: «7 Iker Molina», «7. Iker Molina» o solo el nombre). Antes de añadir avisa de dorsales repetidos.
+- Se pueden corregir (✎) o quitar (×) y **copiar la plantilla** para pegarla en WhatsApp.
+- Permisos: la coordinación y los entrenadores aprobados del equipo ven y editan su plantilla (tabla `players`, función `private.can_roster`). Nadie más la ve.
+
 ## Partidos: confirmación, observaciones y propuestas
 
 - **Por confirmar / confirmado**: un partido por confirmar se ve con borde discontinuo y «Por confirmar», y sale en Incidencias. El coordinador lo marca con **Horario confirmado** en el editor, o confirma todos los de la semana con el botón de Incidencias (o el menú de usuario).
