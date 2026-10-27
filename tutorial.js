@@ -236,6 +236,11 @@ window.TUTORIAL_STEPS = [
     body: 'Abre un partido y pulsa <b>📣 Compartir horario</b>: prepara el mensaje para el grupo de WhatsApp (rival, local o visitante, día, hora del partido y de quedada, y el campo). En los de fuera hay que poner también la <b>hora de salida 🚗</b> y <b>confirmar el campo</b> antes de enviarlo. La coordinación rellena esos datos y se guardan en el partido; si cambia el día o la hora, se vuelven a pedir.',
   },
   {
+    id: 'compartir-mapa', since: 25, target: '#cal-wrap',
+    title: 'Ubicación del campo en el mensaje',
+    body: 'En los partidos de fuera, en <b>📣 Compartir horario</b> pulsa <b>🗺️ Buscar en Google Maps</b>: se abre con el campo y la localidad. Toca <b>Compartir → Copiar enlace</b> y pégalo en la ventana; el mensaje añade la línea 🗺️ con el enlace para que todos lleguen sin perderse.',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',

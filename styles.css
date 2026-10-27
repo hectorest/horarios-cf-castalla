@@ -1057,3 +1057,7 @@ input[type="date"]::-webkit-datetime-edit, input[type="time"]::-webkit-datetime-
 .d-rem { display: flex; flex-wrap: wrap; gap: 8px; }
 #share-dialog .dlg-body { display: grid; gap: 10px; }
 #share-dialog input[type=number] { width: 100%; font: inherit; padding: 7px 10px; border: 1px solid var(--line-strong); border-radius: 8px; }
+
+.sh-map-row { display: flex; gap: 8px; } .sh-map-row input { flex: 1; min-width: 0; }
+.sh-map-help { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; margin-top: 6px; }
+.sh-map-help small { color: var(--muted); font-size: 12px; flex: 1 1 200px; }

@@ -826,6 +826,8 @@ comment on column public.bookings.matchday is 'Partidos: número de jornada (opc
 comment on column public.bookings.meet_min is 'Partidos: hora de quedada (minutos desde las 00:00).';
 comment on column public.bookings.depart_min is 'Partidos fuera: hora de salida (minutos desde las 00:00).';
 comment on column public.bookings.venue_confirmed is 'Partidos fuera: el campo se ha confirmado antes de compartir el horario.';
+alter table public.bookings add column if not exists venue_map_url text check (venue_map_url ~ '^https://' and char_length(venue_map_url) <= 400);
+comment on column public.bookings.venue_map_url is 'Partidos fuera: enlace de Google Maps del campo (para el mensaje del horario).';
 
 -- Si cambia el día o la hora del partido, la quedada y la salida dejan de valer; si cambia el campo, deja de estar
 -- confirmado. Solo cuando ese mismo cambio no trae ya los valores nuevos.
@@ -840,8 +842,9 @@ begin
       if new.meet_min is not distinct from old.meet_min then new.meet_min := null; end if;
       if new.depart_min is not distinct from old.depart_min then new.depart_min := null; end if;
     end if;
-    if new.venue is distinct from old.venue and new.venue_confirmed is not distinct from old.venue_confirmed then
-      new.venue_confirmed := false;
+    if new.venue is distinct from old.venue then
+      if new.venue_confirmed is not distinct from old.venue_confirmed then new.venue_confirmed := false; end if;
+      if new.venue_map_url is not distinct from old.venue_map_url then new.venue_map_url := null; end if;
     end if;
   end if;
   return new;

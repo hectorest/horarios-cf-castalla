@@ -281,7 +281,10 @@
       if ((n.meet_min ?? null) === (old.meet_min ?? null)) n.meet_min = null;
       if ((n.depart_min ?? null) === (old.depart_min ?? null)) n.depart_min = null;
     }
-    if ((n.venue || null) !== (old.venue || null) && !!n.venue_confirmed === !!old.venue_confirmed) n.venue_confirmed = false;
+    if ((n.venue || null) !== (old.venue || null)) {
+      if (!!n.venue_confirmed === !!old.venue_confirmed) n.venue_confirmed = false;
+      if ((n.venue_map_url || null) === (old.venue_map_url || null)) n.venue_map_url = null;
+    }
     return n;
   }
   function cleanRow(b) {
@@ -303,6 +306,7 @@
       meet_min: b.kind === 'partido' ? (b.meet_min ?? null) : null,
       depart_min: b.kind === 'partido' && b.away ? (b.depart_min ?? null) : null,
       venue_confirmed: b.kind === 'partido' && b.away ? !!b.venue_confirmed : false,
+      venue_map_url: b.kind === 'partido' && b.away ? (b.venue_map_url || null) : null,
     };
     return r;
   }
@@ -2938,6 +2942,8 @@
   const minOf = v => { if (!v) return null; const [h, m] = v.split(':').map(Number); return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null; };
   const jornadaOf = b => b.matchday || (+(/(?:^|\s)J(\d{1,2})(?:\s|$)/.exec(b.notes || '') || [])[1] || null);
   // «Biar · Polideportivo Mpal. de Biar F-11» → localidad y campo
+  const mapsSearchUrl = (field, town) => 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([field, town].filter(Boolean).join(', '));
+  const validMapUrl = u => /^https:\/\/\S+$/.test(u || '');
   const splitVenue = v => { const s = String(v || ''); const i = s.indexOf(' · '); return i > 0 ? { town: s.slice(0, i).trim(), field: s.slice(i + 3).trim() } : { town: '', field: s.trim() }; };
 
   /** Texto del mensaje con el formato del club */
@@ -2955,6 +2961,7 @@
     if (d.meet != null) L.push(`⏰📍${hm(d.meet)}`);
     if (b.away && d.depart != null) L.push(`⏰🚗 ${hm(d.depart)}`);
     L.push(`🏟️ ${b.away ? (d.field || 'Campo por confirmar') : HOME_VENUE}`);
+    if (b.away && (d.field || d.town)) L.push(`🗺️ ${validMapUrl(d.map) ? d.map : mapsSearchUrl(d.field, d.town)}`);
     return L.join('\n');
   }
 
@@ -2971,6 +2978,7 @@
     $('#sh-depart').value = b.depart_min != null ? fmt(b.depart_min) : '';
     $('#sh-town').value = v.town; $('#sh-field').value = v.field;
     $('#sh-venue-ok').checked = !!b.venue_confirmed;
+    $('#sh-map').value = b.venue_map_url || '';
     $('#sh-confirm').checked = !!b.confirmed;
     $$('.sh-away').forEach(x => x.hidden = !b.away);
     $('#sh-confirm-row').hidden = !!b.confirmed || !coord;
@@ -2988,6 +2996,7 @@
       depart: minOf($('#sh-depart').value),
       town: $('#sh-town').value.trim(), field: $('#sh-field').value.trim(),
       venueOk: $('#sh-venue-ok').checked,
+      map: $('#sh-map').value.trim(),
       confirmed: shareB?.confirmed || $('#sh-confirm').checked,
     };
   }
@@ -3000,6 +3009,7 @@
       if (d.depart == null) m.push('pon la hora de salida');
       if (!d.field) m.push('escribe el campo');
       if (!d.venueOk) m.push('confirma el campo');
+      if (d.map && !validMapUrl(d.map)) m.push('pega un enlace de Google Maps válido (o déjalo vacío)');
     }
     return m;
   }
@@ -3017,7 +3027,7 @@
     const b = shareB; if (!b || !isCoord()) return true;
     const d = shareData();
     const venue = b.away ? ([d.town, d.field].filter(Boolean).join(' · ').slice(0, 120) || null) : b.venue;
-    const row = { ...b, matchday: d.matchday, meet_min: d.meet, depart_min: b.away ? d.depart : null, venue, venue_confirmed: b.away ? d.venueOk : false, confirmed: d.confirmed };
+    const row = { ...b, matchday: d.matchday, meet_min: d.meet, depart_min: b.away ? d.depart : null, venue, venue_confirmed: b.away ? d.venueOk : false, venue_map_url: b.away && validMapUrl(d.map) ? d.map.slice(0, 400) : null, confirmed: d.confirmed };
     try {
       await store.update(b.id, row);
       Object.assign(b, row);
@@ -3041,6 +3051,8 @@
     $('#share-dialog').addEventListener('input', renderShare);
     $('#share-dialog').addEventListener('change', renderShare);
     $('#sh-wa').onclick = () => sendShare('wa');
+    $('#sh-maps').onclick = () => { const d = shareData(); if (!d.field && !d.town) { toast('Escribe primero el campo o la localidad', true); return; } window.open(mapsSearchUrl(d.field, d.town), '_blank', 'noopener'); };
+    $('#sh-map-paste').onclick = async () => { try { const t = (await navigator.clipboard.readText()).trim(); const u = (t.match(/https:\/\/\S+/) || [])[0]; if (!u) { toast('No hay ningún enlace copiado', true); return; } $('#sh-map').value = u; renderShare(); toast('Enlace pegado'); } catch { $('#sh-map').focus(); toast('Mantén pulsada la casilla y elige Pegar', true); } };
     $('#sh-copy').onclick = () => sendShare('copy');
     $('#sh-save').onclick = async () => { if (await saveShare()) $('#share-dialog').close(); };
     $('#d-body').addEventListener('click', e => { if (e.target.id === 'd-share') { const b = state.bookings.find(x => x.id === $('#detail-dialog').dataset.id); $('#detail-dialog').close(); if (b) openShare(b); } });
@@ -3556,7 +3568,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027212046';
+  const APP_VERSION = '20261027212837';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;
