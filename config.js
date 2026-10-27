@@ -37,10 +37,23 @@ window.APP_CONFIG = {
   // match: null si el equipo no juega partidos.
   //   warmup = calentamiento, half = minutos por parte, halves = nº de partes,
   //   break = descanso, margin = margen posterior, format = formato por defecto.
+  // Convocables (solo para el modo demo): el equipo «team» puede tener en cuenta a jugadores de «from».
+  // sub23: solo si el jugador está marcado como sub-23. Con Supabase, las reglas están en public.callup_rules
+  // y las ajusta la coordinación desde Equipos. El Infantil B no sube al Infantil A porque no está federado.
+  CALLUPS: [
+    { team: 'senior-a',   from: 'senior-b', sub23: true },
+    { team: 'senior-a',   from: 'juvenil' },
+    { team: 'senior-b',   from: 'juvenil' },
+    { team: 'juvenil',    from: 'cadete' },
+    { team: 'cadete',     from: 'infantil-a' },
+    { team: 'infantil-a', from: 'alevin-a' },
+    { team: 'alevin-a',   from: 'alevin-b' },
+  ],
+
   TEAMS: [
-    { id: 'senior-a',   name: 'Senior A',        short: 'SEN A', color: '#b42318', fed: 'senior',
+    { id: 'senior-a',   name: 'Senior A',        short: 'SEN A', color: '#b42318', fed: 'senior', sub23: true,
       match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
-    { id: 'senior-b',   name: 'Senior B',        short: 'SEN B', color: '#c2410c', fed: 'senior',
+    { id: 'senior-b',   name: 'Senior B',        short: 'SEN B', color: '#c2410c', fed: 'senior', sub23: true,
       match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
     { id: 'veteranos',  name: 'Veteranos',       short: 'VET',   color: '#1f2937',
       match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },

@@ -927,3 +927,134 @@ do $$ begin
     alter publication supabase_realtime add table public.players;
   end if;
 end $$;
+
+-- ---------- Convocables de equipos inferiores ----------
+-- El entrenador de un equipo puede proponer como convocables a jugadores del equipo de debajo según las reglas
+-- de callup_rules (las ajusta la coordinación; las iniciales son las de abajo). Del Senior B al Senior A solo sub-23.
+alter table public.players add column if not exists sub23 boolean not null default false;
+comment on column public.players.sub23 is 'Senior: el jugador es sub-23 (condición para subir del Senior B al Senior A).';
+
+create table if not exists public.callup_rules (
+  team        text not null,
+  from_team   text not null,
+  sub23_only  boolean not null default false,
+  primary key (team, from_team)
+);
+alter table public.callup_rules enable row level security;
+comment on table public.callup_rules is 'Qué equipo puede tener como convocables a jugadores de qué equipo inferior. Las ajusta la coordinación.';
+drop policy if exists "Aprobados ven las reglas de convocables" on public.callup_rules;
+create policy "Aprobados ven las reglas de convocables" on public.callup_rules
+  for select to authenticated using ((select private.is_approved()));
+-- Las reglas las ajusta la coordinación desde Equipos
+drop policy if exists "Coordinadores crean reglas de convocables" on public.callup_rules;
+create policy "Coordinadores crean reglas de convocables" on public.callup_rules
+  for insert to authenticated with check ((select private.is_coordinator()));
+drop policy if exists "Coordinadores cambian reglas de convocables" on public.callup_rules;
+create policy "Coordinadores cambian reglas de convocables" on public.callup_rules
+  for update to authenticated using ((select private.is_coordinator())) with check ((select private.is_coordinator()));
+drop policy if exists "Coordinadores quitan reglas de convocables" on public.callup_rules;
+create policy "Coordinadores quitan reglas de convocables" on public.callup_rules
+  for delete to authenticated using ((select private.is_coordinator()));
+revoke all on public.callup_rules from anon, authenticated;
+grant select, insert, update, delete on public.callup_rules to authenticated;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conname = 'callup_rules_distintos') then
+    alter table public.callup_rules add constraint callup_rules_distintos check (team <> from_team) not valid;
+  end if;
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'callup_rules') then
+    alter publication supabase_realtime add table public.callup_rules;
+  end if;
+end $$;
+insert into public.callup_rules (team, from_team, sub23_only) values
+  ('senior-a', 'senior-b', true),
+  ('senior-a', 'juvenil', false),
+  ('senior-b', 'juvenil', false),
+  ('juvenil', 'cadete', false),
+  ('cadete', 'infantil-a', false),
+  ('infantil-a', 'alevin-a', false),
+  ('alevin-a', 'alevin-b', false)
+on conflict (team, from_team) do nothing;
+
+create table if not exists public.player_callups (
+  id          uuid primary key default gen_random_uuid(),
+  player_id   uuid not null references public.players(id) on delete cascade,
+  team        text not null check (char_length(team) between 1 and 40),
+  created_by  uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  unique (player_id, team)
+);
+-- Lo propone el entrenador (pendiente) y lo aprueba o rechaza la coordinación; si lo añade la coordinación, va aprobado.
+alter table public.player_callups add column if not exists status text not null default 'pendiente' check (status in ('pendiente', 'aprobado', 'rechazado'));
+alter table public.player_callups add column if not exists resolved_at timestamptz;
+alter table public.player_callups add column if not exists resolved_by uuid references auth.users(id) on delete set null;
+create index if not exists player_callups_resolved_by_idx on public.player_callups (resolved_by);
+create index if not exists player_callups_pendientes_idx on public.player_callups (status) where status = 'pendiente';
+comment on column public.player_callups.status is 'Lo propone el entrenador (pendiente) y lo aprueba o rechaza la coordinación.';
+create index if not exists player_callups_team_idx on public.player_callups (team);
+create index if not exists player_callups_created_by_idx on public.player_callups (created_by);
+alter table public.player_callups enable row level security;
+comment on table public.player_callups is 'Jugadores de un equipo inferior que otro equipo tiene en cuenta como convocables.';
+
+create or replace function private.can_see_lower(p_team text, p_sub23 boolean)
+returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.callup_rules r
+    where r.from_team = p_team and (not r.sub23_only or p_sub23) and private.can_roster(r.team)
+  );
+$$;
+revoke all on function private.can_see_lower(text, boolean) from public, anon;
+grant execute on function private.can_see_lower(text, boolean) to authenticated;
+
+create or replace function private.callup_ok(p_player uuid, p_team text)
+returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select private.can_roster(p_team) and exists (
+    select 1 from public.players p
+    join public.callup_rules r on r.from_team = p.team and r.team = p_team
+    where p.id = p_player and (not r.sub23_only or p.sub23)
+  );
+$$;
+revoke all on function private.callup_ok(uuid, text) from public, anon;
+grant execute on function private.callup_ok(uuid, text) to authenticated;
+
+create or replace function private.can_see_callup(p_player uuid, p_team text)
+returns boolean
+language sql stable security definer
+set search_path = ''
+as $$
+  select private.can_roster(p_team) or exists (
+    select 1 from public.players p where p.id = p_player and private.can_roster(p.team)
+  );
+$$;
+revoke all on function private.can_see_callup(uuid, text) from public, anon;
+grant execute on function private.can_see_callup(uuid, text) to authenticated;
+
+drop policy if exists "Ven a los convocables de equipos inferiores" on public.players;
+create policy "Ven a los convocables de equipos inferiores" on public.players
+  for select to authenticated using (private.can_see_lower(team, sub23));
+
+drop policy if exists "Ven las convocatorias de sus equipos" on public.player_callups;
+create policy "Ven las convocatorias de sus equipos" on public.player_callups
+  for select to authenticated using (private.can_see_callup(player_id, team));
+drop policy if exists "Añaden convocables a su equipo" on public.player_callups;
+create policy "Añaden convocables a su equipo" on public.player_callups
+  for insert to authenticated with check (private.callup_ok(player_id, team) and (status = 'pendiente' or (select private.is_coordinator())));
+drop policy if exists "Coordinadores aprueban convocables" on public.player_callups;
+create policy "Coordinadores aprueban convocables" on public.player_callups
+  for update to authenticated using ((select private.is_coordinator())) with check ((select private.is_coordinator()));
+drop policy if exists "Quitan convocables de sus equipos" on public.player_callups;
+create policy "Quitan convocables de sus equipos" on public.player_callups
+  for delete to authenticated using (private.can_see_callup(player_id, team));
+revoke all on public.player_callups from anon, authenticated;
+grant select, insert, delete on public.player_callups to authenticated;
+grant update (status, resolved_at, resolved_by) on public.player_callups to authenticated;
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'player_callups') then
+    alter publication supabase_realtime add table public.player_callups;
+  end if;
+end $$;

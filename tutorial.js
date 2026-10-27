@@ -251,6 +251,16 @@ window.TUTORIAL_STEPS = [
     body: 'En <b>Plantilla</b> (en el móvil, en tu menú) tienes los jugadores de tu equipo con su dorsal. Puedes añadir, corregir o quitar jugadores, o pegar la lista entera de una vez (un jugador por línea, «7 Iker Molina»).',
   },
   {
+    id: 'convocables-coord', since: 27, roles: ['coordinador'], target: '#mode-toggle [data-mode="teams"], #user-btn',
+    title: 'Convocables de equipos inferiores',
+    body: 'Cada entrenador puede proponer como <b>convocables</b> a jugadores del equipo de debajo (p. ej., el Juvenil tira del Cadete). Te llegan a <b>Inicio</b> como «Convocables por aprobar» y los apruebas o rechazas con un toque. En <b>Equipos → Reglas de convocables</b> decides de qué equipo puede tirar cada uno y si solo valen los <b>sub-23</b> (Senior B → Senior A).',
+  },
+  {
+    id: 'convocables-entrenador', since: 27, roles: ['entrenador'], target: '#mode-toggle [data-mode="teams"], #user-btn',
+    title: 'Convocables de otros equipos',
+    body: 'En tu plantilla, en <b>Convocables</b>, pulsa <b>＋ Añadir convocables</b> para tener en cuenta a jugadores del equipo de debajo. La coordinación tiene que aprobarlos; mientras, salen como <b>⏳ Pendiente de aprobar</b>. En los Senior, marca con <b>S-23</b> a los jugadores sub-23.',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',

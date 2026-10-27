@@ -83,6 +83,15 @@ Pestaña **Equipos** (en el móvil, en el menú del usuario). La coordinación v
 - Se pueden corregir (✎) o quitar (×) y **copiar la plantilla** para pegarla en WhatsApp.
 - Permisos: la coordinación y los entrenadores aprobados del equipo ven y editan su plantilla (tabla `players`, función `private.can_roster`). Nadie más la ve.
 
+### Convocables de equipos inferiores
+
+- Cada entrenador puede proponer como **convocables** a jugadores del equipo de debajo. Los propuestos quedan **⏳ pendientes** hasta que la coordinación los aprueba o rechaza (desde Inicio, «Convocables por aprobar», o dentro del equipo). Si los añade la coordinación, van aprobados.
+- Reglas iniciales: Senior B → Senior A (solo **sub-23**), Juvenil → Senior A y Senior B, Cadete → Juvenil, Infantil A → Cadete, Alevín A → Infantil A, Alevín B → Alevín A. El Infantil B no sube porque no está federado.
+- La coordinación las cambia en **Equipos → Reglas de convocables** (añadir o quitar equipos y marcar «sub-23»). Si una regla cambia, los convocables que ya no la cumplen se marcan con ⚠️.
+- En los Senior, cada jugador tiene la marca **S-23**.
+- El jugador sigue en la plantilla de su equipo, donde se ve «↑ JUV» si es convocable de otro.
+- Tablas `player_callups` (estado `pendiente`/`aprobado`/`rechazado`) y `callup_rules`. El entrenador del equipo de arriba solo ve a los jugadores del de abajo que puede convocar.
+
 ## Partidos: confirmación, observaciones y propuestas
 
 - **Por confirmar / confirmado**: un partido por confirmar se ve con borde discontinuo y «Por confirmar», y sale en Incidencias. El coordinador lo marca con **Horario confirmado** en el editor, o confirma todos los de la semana con el botón de Incidencias (o el menú de usuario).

@@ -1117,3 +1117,72 @@ input[type="date"]::-webkit-datetime-edit, input[type="time"]::-webkit-datetime-
   .tm-e-acts { grid-column: 1 / -1; justify-content: flex-end; }
   .tm-row .icon-btn { width: 36px; height: 36px; }
 }
+
+/* ---------- Convocables y sub-23 ---------- */
+.tm-pname { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; row-gap: 2px; }
+.tm-pn { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tm-up { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 99px; background: var(--pitch-tint); color: var(--pitch-dark); white-space: nowrap; }
+.tm-up.pendiente { background: var(--warn-tint); color: #8a5a00; }
+.tm-s23 { flex: none; font-size: 11px; font-weight: 700; padding: 3px 7px; border-radius: 99px; border: 1px dashed var(--line); background: none; color: var(--muted); }
+.tm-s23.on { border: 1px solid var(--pitch); background: var(--pitch); color: #fff; }
+.tm-add.with-s23 { grid-template-columns: 76px minmax(0, 1fr) auto auto; }
+.tm-add-s23 { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; white-space: nowrap; }
+.tm-card-cu { font-size: 12px; color: var(--pitch); font-weight: 600; }
+.tm-card-pe { font-size: 12px; font-weight: 700; color: #8a5a00; }
+.tm-pend-note { padding: 9px 12px; border-radius: 10px; background: var(--warn-tint); border: 1px solid #f3d9a8; font-size: 13.5px; }
+.tm-cu { padding: 14px 16px; display: grid; gap: 10px; }
+.tm-cu-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tm-cu-head h3 { flex: 1; min-width: 0; margin: 0; font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--pitch-dark); }
+.tm-cu-head h3 small { text-transform: none; letter-spacing: 0; color: var(--muted); font-weight: 500; }
+.cu-help { margin: -4px 0 0; font-size: 12.5px; color: var(--muted); }
+.cu-from { font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 99px; color: #fff; background: var(--team); white-space: nowrap; }
+.cu-st { font-size: 11.5px; font-weight: 600; color: #8a5a00; white-space: nowrap; }
+.cu-row.st-rechazado { opacity: .6; } .cu-row.st-rechazado .cu-st { color: var(--err); }
+.cu-row.st-pendiente { background: var(--warn-tint); border-color: #f3d9a8; }
+.cu-bad { font-size: 11.5px; font-weight: 600; color: var(--err); white-space: nowrap; }
+.cu-ok, .cu-no { flex: none; font-size: 13px; font-weight: 700; padding: 5px 9px; border-radius: 8px; }
+.cu-ok { background: var(--pitch); border: 1px solid var(--pitch); color: #fff; }
+.cu-no { background: var(--panel); border: 1px solid var(--line); color: var(--err); }
+.cu-list { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
+.pk { display: grid; gap: 10px; padding: 10px; border-radius: 10px; background: var(--bg, #f3f4f6); border: 1px solid var(--line); }
+.pk-group h4 { margin: 0 0 6px; font-size: 13px; display: flex; align-items: center; gap: 6px; }
+.pk-group h4::before { content: ''; width: 10px; height: 10px; border-radius: 3px; background: var(--team); }
+.pk-group h4 small { font-weight: 500; color: var(--muted); }
+.pk-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 5px; }
+.pk-item { display: flex; align-items: center; gap: 8px; padding: 4px 8px 4px 6px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); font-size: 13.5px; font-weight: 600; cursor: pointer; min-width: 0; }
+.pk-item:has(input:checked) { border-color: var(--pitch); background: var(--pitch-tint); }
+.pk-item .tm-num { width: 26px; height: 26px; font-size: 12.5px; border-radius: 6px; }
+.pk-item span:last-child { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pk-none { margin: 0; font-size: 12.5px; }
+.pk-foot { display: flex; justify-content: flex-end; }
+.cr-panel { padding: 12px 16px; }
+.cr-panel summary { cursor: pointer; list-style: none; }
+.cr-panel summary::-webkit-details-marker { display: none; }
+.cr-panel summary h3 { margin: 0; display: inline; }
+.cr-panel summary::after { content: ' ▸'; color: var(--muted); }
+.cr-panel[open] summary::after { content: ' ▾'; }
+.cr-help { font-size: 13px; color: var(--muted); margin: 10px 0; }
+.cr-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cr-row { display: grid; grid-template-columns: 130px minmax(0, 1fr); gap: 10px; align-items: center; padding: 6px 0; border-top: 1px solid var(--line); }
+.cr-team { font-weight: 700; font-size: 14px; display: flex; align-items: center; gap: 7px; }
+.cr-team::before { content: ''; width: 10px; height: 10px; border-radius: 3px; background: var(--team); flex: none; }
+.cr-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-width: 0; }
+.cr-chip { display: inline-flex; align-items: center; gap: 4px; padding: 2px 3px 2px 9px; border-radius: 99px; border: 1px solid color-mix(in srgb, var(--team) 45%, var(--panel)); background: color-mix(in srgb, var(--team) 10%, var(--panel)); font-size: 13px; }
+.cr-s23 { font-size: 10.5px; font-weight: 700; padding: 1px 6px; border-radius: 99px; border: 1px dashed var(--muted); background: none; color: var(--muted); }
+.cr-s23.on { border: 1px solid var(--pitch); background: var(--pitch); color: #fff; }
+.cr-del { border: 0; background: none; font-size: 17px; line-height: 1; padding: 0 5px; color: var(--muted); }
+.cr-del:hover { color: var(--err); }
+.cr-add { width: auto; min-width: 0; max-width: 150px; height: 28px; padding: 0 8px; font-size: 12.5px; border-radius: 99px; }
+.cr-none { font-size: 13px; }
+.home-cu { padding: 12px 16px; }
+.home-cu .up-group { margin: 0; }
+.hc-item { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 9px; border: 1px solid #f3d9a8; background: var(--warn-tint); font-size: 13px; }
+.hc-acts { display: flex; gap: 6px; flex: none; }
+@media (max-width: 720px) {
+  .tm-add.with-s23 { grid-template-columns: 64px minmax(0, 1fr) auto; }
+  .tm-add.with-s23 .primary { grid-column: 1 / -1; }
+  .cu-list { grid-template-columns: minmax(0, 1fr); }
+  .pk-list { grid-template-columns: minmax(0, 1fr); }
+  .cr-row { grid-template-columns: minmax(0, 1fr); gap: 5px; }
+  .hc-item { flex-wrap: wrap; } .hc-acts { margin-left: auto; }
+}

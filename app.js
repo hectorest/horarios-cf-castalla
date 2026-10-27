@@ -385,18 +385,31 @@
     const rems = () => { let a = ls.get(RKEY); if (!a) { a = demoReminders(); ls.set(RKEY, a); } return a; };
     const remListeners = [];
     const writeRems = a => { ls.set(RKEY, a); remListeners.forEach(cb => setTimeout(cb, 0)); };
-    const PLKEY = 'planificador-campo-demo-players-v1';
+    const PLKEY = 'planificador-campo-demo-players-v2';
     const demoPlayers = () => {
-      const mk = (team, list) => list.map(([number, name]) => ({ id: uid(), team, number, name, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }));
+      const mk = (team, list) => list.map(([number, name, sub23]) => ({ id: uid(), team, number, name, sub23: !!sub23, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }));
       return [
         ...mk('cadete', [[1, 'Hugo Sanchis'], [2, 'Marc Pastor'], [4, 'Pablo Rico'], [5, 'Álex Verdú'], [7, 'Iker Molina'], [8, 'Jorge Bernabeu'], [9, 'Adrián Payá'], [10, 'Dani Amorós'], [11, 'Leo Navarro'], [14, 'Rubén Gisbert'], [17, 'Nico Ferrándiz'], [null, 'Sergio Coloma']]),
         ...mk('juvenil', [[1, 'Carlos Mira'], [3, 'Javi Sempere'], [6, 'Raúl Vidal'], [9, 'Mario Albero'], [10, 'Óscar Brotons']]),
+        ...mk('senior-b', [[1, 'Toni Payá', true], [4, 'Fran Guill'], [8, 'Edu Ribera', true], [11, 'Quique Sanz'], [19, 'Lucas Barceló', true]]),
+        ...mk('infantil-a', [[3, 'Aitor Pla'], [6, 'Biel Moltó'], [9, 'Gael Castelló'], [10, 'Unai Reig']]),
       ];
     };
     const players = () => { let a = ls.get(PLKEY); if (!a) { a = demoPlayers(); ls.set(PLKEY, a); } return a; };
     const plListeners = [];
     const writePlayers = a => { ls.set(PLKEY, a); plListeners.forEach(cb => setTimeout(cb, 0)); };
-    const canRoster = team => { const u = (users() || []).find(x => x.id === sid); return !!u && u.status === 'aprobado' && (u.role === 'coordinador' || (u.teams || []).includes(team)); };
+    const me = () => (users() || []).find(x => x.id === sid);
+    const canRoster = team => { const u = me(); return !!u && u.status === 'aprobado' && (u.role === 'coordinador' || (u.teams || []).includes(team)); };
+    const isCoordDemo = () => me()?.role === 'coordinador' && me()?.status === 'aprobado';
+    const CRKEY = 'planificador-campo-demo-callup-rules-v1', CUKEY = 'planificador-campo-demo-callups-v1';
+    const cRules = () => ls.get(CRKEY) || (CFG.CALLUPS || []).map(r => ({ team: r.team, from: r.from, sub23: !!r.sub23 }));
+    const cups = () => ls.get(CUKEY) || [];
+    const cuListeners = [], crListeners = [];
+    const writeCups = a => { ls.set(CUKEY, a); cuListeners.forEach(cb => setTimeout(cb, 0)); };
+    const writeRules = a => { ls.set(CRKEY, a); crListeners.forEach(cb => setTimeout(cb, 0)); };
+    const canSeeLower = p => cRules().some(r => r.from === p.team && (!r.sub23 || p.sub23) && canRoster(r.team));
+    const callupOk = (pid, team) => { const p = players().find(x => x.id === pid); return !!p && canRoster(team) && cRules().some(r => r.team === team && r.from === p.team && (!r.sub23 || p.sub23)); };
+    const canSeeCallup = c => canRoster(c.team) || canRoster(players().find(x => x.id === c.player_id)?.team);
     const dorsalTaken = (p, skipId) => p.number != null && players().some(x => x.id !== skipId && x.team === p.team && x.number === p.number);
     const props = () => ls.get(PKEY) || [];
     const writeProps = a => ls.set(PKEY, a);
@@ -473,13 +486,13 @@
         subscribe(cb) { remListeners.push(cb); },
       },
       players: {
-        async list() { return players().filter(x => canRoster(x.team)).map(x => ({ ...x })); },
+        async list() { return players().filter(x => canRoster(x.team) || canSeeLower(x)).map(x => ({ sub23: false, ...x })); },
         async insertMany(rows) {
           const now = new Date().toISOString(), out = [];
           for (const r of rows) {
             if (!canRoster(r.team)) throw new Error('No tienes permiso para esta plantilla.');
             if (dorsalTaken(r) || out.some(o => o.team === r.team && r.number != null && o.number === r.number)) throw new Error(`El dorsal ${r.number} ya está en la plantilla.`);
-            out.push({ number: null, ...r, id: uid(), created_by: sid, created_at: now, updated_at: now });
+            out.push({ number: null, sub23: false, ...r, id: uid(), created_by: sid, created_at: now, updated_at: now });
           }
           writePlayers([...players(), ...out]); return out;
         },
@@ -489,8 +502,33 @@
           if (dorsalTaken({ ...x, ...r }, id)) throw new Error(`El dorsal ${r.number} ya está en la plantilla.`);
           writePlayers(players().map(p => p.id === id ? { ...p, ...r, updated_at: new Date().toISOString() } : p));
         },
-        async remove(id) { writePlayers(players().filter(p => p.id !== id)); },
+        async remove(id) { writePlayers(players().filter(p => p.id !== id)); writeCups(cups().filter(c => c.player_id !== id)); },
         subscribe(cb) { plListeners.push(cb); },
+      },
+      callups: {
+        async list() { return cups().filter(canSeeCallup).map(c => ({ ...c })); },
+        async add(rows) {
+          const now = new Date().toISOString(), out = [];
+          for (const r of rows) {
+            if (!callupOk(r.player_id, r.team)) throw new Error('Ese jugador no puede ser convocable de este equipo.');
+            if (r.status !== 'pendiente' && !isCoordDemo()) throw new Error('Solo la coordinación puede aprobar convocables.');
+            if (cups().some(c => c.player_id === r.player_id && c.team === r.team)) throw new Error('Ese jugador ya está como convocable.');
+            out.push({ status: 'pendiente', ...r, id: uid(), created_by: sid, created_at: now, resolved_at: r.status === 'aprobado' ? now : null });
+          }
+          writeCups([...cups(), ...out]); return out;
+        },
+        async setStatus(id, status) {
+          if (!isCoordDemo()) throw new Error('Solo la coordinación puede aprobar convocables.');
+          writeCups(cups().map(c => c.id === id ? { ...c, status, resolved_at: new Date().toISOString() } : c));
+        },
+        async remove(id) { writeCups(cups().filter(c => c.id !== id)); },
+        subscribe(cb) { cuListeners.push(cb); },
+      },
+      callupRules: {
+        async list() { return cRules().map(r => ({ ...r })); },
+        async set(r) { if (!isCoordDemo()) throw new Error('Solo la coordinación cambia las reglas.'); writeRules([...cRules().filter(x => !(x.team === r.team && x.from === r.from)), { team: r.team, from: r.from, sub23: !!r.sub23 }]); },
+        async remove(team, from) { if (!isCoordDemo()) throw new Error('Solo la coordinación cambia las reglas.'); writeRules(cRules().filter(x => !(x.team === team && x.from === from))); },
+        subscribe(cb) { crListeners.push(cb); },
       },
       acks: {
         async list(ids) { return (ls.get(AKEY) || []).filter(a => ids.includes(a.entreno_id)); },
@@ -682,8 +720,8 @@
         },
       },
       players: {
-        async list() { return chk(await sb.from('players').select('id, team, number, name, created_at, updated_at').order('team').order('number', { nullsFirst: false }).order('name')); },
-        async insertMany(rows) { return chk(await sb.from('players').insert(rows).select('id, team, number, name, created_at, updated_at')); },
+        async list() { return chk(await sb.from('players').select('id, team, number, name, sub23, created_at, updated_at').order('team').order('number', { nullsFirst: false }).order('name')); },
+        async insertMany(rows) { return chk(await sb.from('players').insert(rows).select('id, team, number, name, sub23, created_at, updated_at')); },
         async update(id, r) {
           const rows = chk(await sb.from('players').update(r).eq('id', id).select('id'));
           if (!rows.length) throw new Error('No tienes permiso para esta plantilla.');
@@ -691,6 +729,26 @@
         async remove(id) { chk(await sb.from('players').delete().eq('id', id)); },
         subscribe(cb) {
           sb.channel('players-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, debounce(cb)).subscribe();
+        },
+      },
+      callups: {
+        async list() { return chk(await sb.from('player_callups').select('id, player_id, team, status, created_by, created_at, resolved_at').order('created_at')); },
+        async add(rows) { return chk(await sb.from('player_callups').insert(rows).select('id, player_id, team, status, created_by, created_at, resolved_at')); },
+        async setStatus(id, status) {
+          const rows = chk(await sb.from('player_callups').update({ status, resolved_at: new Date().toISOString(), resolved_by: (await sb.auth.getUser()).data.user?.id }).eq('id', id).select('id'));
+          if (!rows.length) throw new Error('Solo la coordinación puede aprobar convocables.');
+        },
+        async remove(id) { chk(await sb.from('player_callups').delete().eq('id', id)); },
+        subscribe(cb) {
+          sb.channel('callups-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'player_callups' }, debounce(cb)).subscribe();
+        },
+      },
+      callupRules: {
+        async list() { return chk(await sb.from('callup_rules').select('team, from_team, sub23_only')).map(r => ({ team: r.team, from: r.from_team, sub23: r.sub23_only })); },
+        async set(r) { chk(await sb.from('callup_rules').upsert({ team: r.team, from_team: r.from, sub23_only: !!r.sub23 }).select('team')); },
+        async remove(team, from) { chk(await sb.from('callup_rules').delete().eq('team', team).eq('from_team', from)); },
+        subscribe(cb) {
+          sb.channel('callup-rules-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'callup_rules' }, debounce(cb)).subscribe();
         },
       },
       acks: {
@@ -1969,7 +2027,7 @@
   function leaveApp() {
     appOpen = false;
     document.body.classList.add('gated');
-    state.bookings = []; state.people = []; state.players = null; state.teamOpen = null; if (state.mode === 'teams') state.mode = 'week';
+    state.bookings = []; state.people = []; state.players = null; state.callups = null; state.callupRules = null; state.teamOpen = null; if (state.mode === 'teams') state.mode = 'week';
     closeUserMenu();
     $$('dialog[open]').forEach(d => d.close());
   }
@@ -2391,7 +2449,7 @@
   function homeAlertCount() {
     const r = (state.reminders || []).filter(x => remStatus(x) === 'overdue' || (remStatus(x) === 'urgent' && !x.waiting_on)).length;
     const c = (state.upcoming || []).filter(x => x.level === 'error').length;
-    return r + c;
+    return r + c + pendingCallups().length;
   }
   function renderHomeBadge() {
     const n = homeAlertCount();
@@ -2446,7 +2504,7 @@
     state.homeLoading = true;
     if (isHome()) renderHome();
     try {
-      const [all] = await Promise.all([computeUpcoming(), loadReminders()]);
+      const [all] = await Promise.all([computeUpcoming(), loadReminders(), fetchSquads().catch(() => { })]);
       if (req !== homeReq) return;
       const lim = keyOf(addDays(new Date(), HOME_DAYS));
       state.upcoming = all.filter(x => x.level !== 'change' && x.day <= lim);
@@ -2511,6 +2569,7 @@
         </div>
         <button type="button" class="ghost home-cal-btn" data-home-go="week">Ver calendario →</button>
       </div>
+      ${(() => { const h = homeCallupsHTML(); return h ? `<section class="panel home-cu">${h}</section>` : ''; })()}
       <div class="home-grid">
         <section class="panel home-rem">
           <div class="rem-head"><h3>Recordatorios</h3>
@@ -3101,14 +3160,15 @@
     window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
   }
   // ================================================================
-  //  Equipos y plantillas (jugadores con dorsal y nombre)
+  //  Equipos y plantillas (jugadores con dorsal y nombre) y convocables
   // ================================================================
   const isTeams = () => state.mode === 'teams';
-  const coarse = () => matchMedia("(pointer: coarse)").matches;
+  const coarse = () => matchMedia('(pointer: coarse)').matches;
   /** Equipos cuya plantilla puede ver el usuario: todos (coordinación) o los suyos (entrenador) */
   const rosterTeams = () => isCoord() ? TEAMS : TEAMS.filter(t => isMine(t.id));
   const byDorsal = (a, b) => (a.number ?? 999) - (b.number ?? 999) || a.name.localeCompare(b.name, 'es');
   const squadOf = team => (state.players || []).filter(p => p.team === team).sort(byDorsal);
+  const playerById = id => (state.players || []).find(p => p.id === id);
   const coachesOf = team => (state.people || []).filter(p => p.status === 'aprobado' && p.role !== 'coordinador' && (p.teams || []).includes(team)).map(p => p.full_name || p.email).filter(Boolean);
   const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
   const dorsalOf = v => { const s = String(v ?? '').trim(); if (!s) return { ok: true, n: null }; const n = +s; return /^\d{1,2}$/.test(s) && n <= 99 ? { ok: true, n } : { ok: false }; };
@@ -3119,16 +3179,31 @@
     if (!m || !m[2].trim()) return null;
     return { number: m[1] != null ? +m[1] : null, name: m[2].replace(/\s+/g, ' ').slice(0, 80) };
   };
+  // Convocables: reglas (qué equipo puede tirar de cuál) y propuestas pendientes/aprobadas/rechazadas
+  const rulesFor = team => (state.callupRules || []).filter(r => r.team === team).sort((a, b) => TEAMS.findIndex(t => t.id === a.from) - TEAMS.findIndex(t => t.id === b.from));
+  const ruleOk = (p, team) => !!p && (state.callupRules || []).some(r => r.team === team && r.from === p.team && (!r.sub23 || p.sub23));
+  const callupsOf = team => (state.callups || []).filter(c => c.team === team);
+  const pendingCallups = () => (state.callups || []).filter(c => c.status === 'pendiente');
+  const CU_ST = { pendiente: '⏳ Pendiente de aprobar', aprobado: '', rechazado: '✗ Rechazado' };
+  const personName = id => { const p = (state.people || []).find(x => x.id === id); return p ? (p.full_name || p.email) : id === state.user?.id ? 'ti' : ''; };
+
+  /** Jugadores, convocables y reglas de una vez (Equipos e Inicio) */
+  async function fetchSquads() {
+    const [pl, cu, ru] = await Promise.all([store.players.list(), store.callups.list(), store.callupRules.list()]);
+    state.players = pl; state.callups = cu; state.callupRules = ru;
+  }
 
   async function loadTeams(quiet) {
     if (!rosterTeams().length) { renderTeams(); return; }
     if (!quiet) { state.teamsLoading = true; renderTeams(); }
-    try { state.players = await store.players.list(); }
+    try { await fetchSquads(); }
     catch (e) { toast('No se pudo cargar la plantilla: ' + e.message, true); }
     state.teamsLoading = false;
+    renderHomeBadge();
+    if (isHome()) renderHome();
     // Si está escribiendo, no le borramos lo que tiene a medias: se pinta al terminar
     const a = document.activeElement;
-    if (quiet && a && $('#teams').contains(a) && /INPUT|TEXTAREA/.test(a.tagName)) { state.teamsStale = true; return; }
+    if (quiet && a && $('#teams').contains(a) && /INPUT|TEXTAREA|SELECT/.test(a.tagName)) { state.teamsStale = true; return; }
     renderTeams();
   }
 
@@ -3144,23 +3219,46 @@
     }
     if (list.length === 1) state.teamOpen = list[0].id;
     const open = list.find(t => t.id === state.teamOpen);
+    const sc = el.scrollTop;
     el.innerHTML = `<div class="home-wrap">${open ? rosterHTML(open, list.length > 1) : teamsGridHTML(list)}</div>`;
+    el.scrollTop = sc;
   }
 
   function teamsGridHTML(list) {
     const loading = state.teamsLoading && !state.players;
-    const total = (state.players || []).length;
+    const total = list.reduce((n, t) => n + squadOf(t.id).length, 0);
+    const pend = isCoord() ? pendingCallups().length : 0;
     const cards = list.map(t => {
       const n = squadOf(t.id).length, co = isCoord() ? coachesOf(t.id) : null;
+      const cu = callupsOf(t.id), ok = cu.filter(c => c.status === 'aprobado').length, pe = cu.filter(c => c.status === 'pendiente').length;
       return `<button type="button" class="tm-card" data-team-open="${t.id}" style="--team:${t.color}">
         <span class="tm-card-name">${esc(t.name)}</span>
-        <span class="tm-card-n ${n ? '' : 'zero'}"><b>${loading ? '…' : n}</b> ${n === 1 ? 'jugador' : 'jugadores'}</span>
+        <span class="tm-card-n ${n ? '' : 'zero'}"><b>${loading ? '…' : n}</b> ${n === 1 ? 'jugador' : 'jugadores'}${ok ? ` <span class="tm-card-cu">+${ok} conv.</span>` : ''}</span>
+        ${pe ? `<span class="tm-card-pe">⏳ ${plural(pe, 'convocable por aprobar', 'convocables por aprobar')}</span>` : ''}
         ${co ? `<span class="tm-card-co">${co.length ? '👤 ' + esc(co.join(', ')) : '<i>Sin entrenador</i>'}</span>` : ''}
         <span class="tm-card-go" aria-hidden="true">›</span></button>`;
     }).join('');
     return `<div class="tm-head"><div class="tm-title"><h2>${isCoord() ? 'Equipos' : 'Mis equipos'}</h2><p>${loading ? 'Cargando plantillas…' : `${plural(total, 'jugador', 'jugadores')} en ${plural(list.length, 'equipo', 'equipos')} · pulsa un equipo para ver su plantilla`}</p></div>
       <button type="button" class="ghost home-cal-btn" data-tm-week>Ver calendario →</button></div>
-      <div class="tm-grid">${cards}</div>`;
+      ${pend ? `<div class="tm-pend-note">⏳ Tienes ${plural(pend, 'convocable', 'convocables')} por aprobar. Entra en el equipo o apruébalos desde <button type="button" class="link" data-tm-home>Inicio</button>.</div>` : ''}
+      <div class="tm-grid">${cards}</div>
+      ${isCoord() ? rulesHTML() : ''}`;
+  }
+
+  /** Editor de reglas de convocables (solo coordinación) */
+  function rulesHTML() {
+    const rows = TEAMS.map(t => {
+      const rs = rulesFor(t.id);
+      const avail = TEAMS.filter(o => o.id !== t.id && !rs.some(r => r.from === o.id));
+      return `<li class="cr-row" style="--team:${t.color}"><span class="cr-team">${esc(t.name)}</span>
+        <span class="cr-chips">${rs.length ? rs.map(r => { const f = teamOf(r.from); return `<span class="cr-chip" style="--team:${f.color}" data-cr="${t.id}|${r.from}"><b>${esc(f.name)}</b>
+            <button type="button" class="cr-s23 ${r.sub23 ? 'on' : ''}" data-cr-s23 aria-pressed="${!!r.sub23}" title="Solo jugadores marcados como sub-23">sub-23</button>
+            <button type="button" class="cr-del" data-cr-del aria-label="Quitar ${esc(f.name)}" title="Quitar">×</button></span>`; }).join('') : '<span class="muted cr-none">Nadie</span>'}
+          <select class="cr-add" data-cr-add="${t.id}" aria-label="Añadir un equipo del que ${esc(t.name)} puede convocar"><option value="">＋ Equipo</option>${avail.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select></span></li>`;
+    }).join('');
+    return `<details class="panel cr-panel" ${state.rulesOpen ? 'open' : ''}><summary><h3>Reglas de convocables <small>qué jugadores puede tener en cuenta cada equipo</small></h3></summary>
+      <p class="cr-help">Cada fila dice de qué equipos puede proponer convocables el entrenador. Marca <b>sub-23</b> para que solo valgan los jugadores marcados como sub-23 en su plantilla. Tú apruebas cada propuesta.</p>
+      <ul class="cr-list">${rows}</ul></details>`;
   }
 
   function rosterHTML(t, back) {
@@ -3168,25 +3266,30 @@
     const loading = state.teamsLoading && !state.players;
     const noNum = sq.filter(p => p.number == null).length;
     const co = isCoord() ? coachesOf(t.id) : [];
+    const s23 = !!t.sub23;
+    const ups = id => (state.callups || []).filter(c => c.player_id === id && c.status !== 'rechazado' && c.team !== t.id);
     const rows = sq.map(p => state.plEdit === p.id
       ? `<li class="tm-row tm-editing" data-pl="${p.id}"><form class="tm-edit" data-pl-form="${p.id}" autocomplete="off">
           <input class="tm-e-num" inputmode="numeric" pattern="[0-9]*" maxlength="2" value="${p.number ?? ''}" placeholder="—" aria-label="Dorsal">
           <input class="tm-e-name" maxlength="80" value="${esc(p.name)}" aria-label="Nombre" required>
           <div class="tm-e-acts"><button type="button" class="ghost" data-pl-cancel>Cancelar</button><button class="primary">Guardar</button></div>
         </form></li>`
-      : `<li class="tm-row" data-pl="${p.id}"><span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span><span class="tm-pname">${esc(p.name)}</span>
+      : `<li class="tm-row" data-pl="${p.id}"><span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span>
+          <span class="tm-pname"><span class="tm-pn">${esc(p.name)}</span>${ups(p.id).map(c => `<span class="tm-up ${c.status}" title="${c.status === 'pendiente' ? 'Propuesto como convocable, pendiente de aprobar' : 'Convocable'} en ${esc(teamOf(c.team).name)}">↑ ${esc(teamOf(c.team).short)}${c.status === 'pendiente' ? ' ⏳' : ''}</span>`).join('')}</span>
+          ${s23 ? `<button type="button" class="tm-s23 ${p.sub23 ? 'on' : ''}" data-pl-s23 aria-pressed="${!!p.sub23}" title="${p.sub23 ? 'Es sub-23' : 'Marcar como sub-23'}">S-23</button>` : ''}
           <button type="button" class="icon-btn" data-pl-edit title="Editar" aria-label="Editar a ${esc(p.name)}">✎</button>
           <button type="button" class="icon-btn tm-del" data-pl-del title="Quitar de la plantilla" aria-label="Quitar a ${esc(p.name)}">×</button></li>`).join('');
     return `<div class="tm-head" style="--team:${t.color}">
         ${back ? `<button type="button" class="ghost tm-back" data-team-open="">‹ Equipos</button>` : ''}
         <div class="tm-title"><h2><span class="tm-dot"></span>${esc(t.name)}</h2>
-          <p>${loading ? 'Cargando…' : plural(sq.length, 'jugador', 'jugadores')}${noNum && !loading ? ` · ${noNum} sin dorsal` : ''}${co.length ? ` · 👤 ${esc(co.join(', '))}` : ''}</p></div>
+          <p>${loading ? 'Cargando…' : plural(sq.length, 'jugador', 'jugadores')}${noNum && !loading ? ` · ${noNum} sin dorsal` : ''}${s23 && !loading ? ` · ${sq.filter(p => p.sub23).length} sub-23` : ''}${co.length ? ` · 👤 ${esc(co.join(', '))}` : ''}</p></div>
         <button type="button" class="ghost home-cal-btn" data-tm-week>Ver calendario →</button>
       </div>
       <section class="panel tm-roster" style="--team:${t.color}">
-        <form class="tm-add" id="tm-add" autocomplete="off">
+        <form class="tm-add ${s23 ? 'with-s23' : ''}" id="tm-add" autocomplete="off">
           <input id="tm-num" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="Dorsal" aria-label="Dorsal (opcional)">
           <input id="tm-name" maxlength="80" placeholder="Nombre y apellidos" aria-label="Nombre del jugador" required>
+          ${s23 ? `<label class="tm-add-s23"><input type="checkbox" id="tm-s23"> Sub-23</label>` : ''}
           <button class="primary">Añadir</button>
         </form>
         <div class="tm-tools">
@@ -3200,7 +3303,72 @@
         ${loading ? '<p class="muted tm-loading">Cargando la plantilla…</p>'
           : sq.length ? `<ol class="tm-list">${rows}</ol>`
           : `<p class="tm-none">Todavía no hay jugadores. Añádelos uno a uno o pega la lista entera.</p>`}
-      </section>`;
+      </section>
+      ${callupsHTML(t)}`;
+  }
+
+  /** Convocables de equipos inferiores del equipo abierto */
+  function callupsHTML(t) {
+    const rs = rulesFor(t.id), cu = callupsOf(t.id);
+    if (!rs.length && !cu.length) return '';
+    const coord = isCoord();
+    const order = { pendiente: 0, aprobado: 1, rechazado: 2 };
+    const list = cu.map(c => ({ c, p: playerById(c.player_id) })).filter(x => x.p)
+      .sort((a, b) => order[a.c.status] - order[b.c.status] || TEAMS.findIndex(x => x.id === a.p.team) - TEAMS.findIndex(x => x.id === b.p.team) || byDorsal(a.p, b.p));
+    const from = rs.map(r => teamOf(r.from).name + (r.sub23 ? ' (sub-23)' : '')).join(', ');
+    const rows = list.map(({ c, p }) => {
+      const f = teamOf(p.team), bad = !ruleOk(p, t.id);
+      return `<li class="tm-row cu-row st-${c.status}" data-cu="${c.id}" style="--team:${f.color}">
+        <span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span>
+        <span class="tm-pname"><span class="tm-pn">${esc(p.name)}</span><span class="cu-from">${esc(f.name)}</span>
+          ${CU_ST[c.status] ? `<span class="cu-st">${CU_ST[c.status]}</span>` : ''}${bad ? '<span class="cu-st cu-bad" title="Las reglas o el sub-23 han cambiado desde que se añadió">⚠️ Ya no cumple las reglas</span>' : ''}</span>
+        ${coord && c.status === 'pendiente' ? `<button type="button" class="cu-ok" data-cu-set="aprobado" title="Aprobar">✓<span class="hide-sm"> Aprobar</span></button><button type="button" class="cu-no" data-cu-set="rechazado" title="Rechazar">✗</button>` : ''}
+        <button type="button" class="icon-btn tm-del" data-cu-del title="Quitar de convocables" aria-label="Quitar a ${esc(p.name)} de convocables">×</button></li>`;
+    }).join('');
+    return `<section class="panel tm-cu" style="--team:${t.color}">
+      <div class="tm-cu-head"><h3>Convocables <small>${rs.length ? 'de ' + esc(from) : 'sin reglas ahora mismo'}</small></h3>
+        ${rs.length ? `<button type="button" class="${state.pickOpen ? 'ghost' : 'primary'}" data-cu-pick aria-expanded="${!!state.pickOpen}">${state.pickOpen ? 'Cerrar' : '＋ Añadir convocables'}</button>` : ''}</div>
+      ${!coord && rs.length ? '<p class="cu-help">Los que propongas los tiene que aprobar la coordinación.</p>' : ''}
+      ${state.pickOpen && rs.length ? pickerHTML(t, rs) : ''}
+      ${rows ? `<ol class="tm-list cu-list">${rows}</ol>` : `<p class="tm-none">Aún no hay convocables de otros equipos.</p>`}
+    </section>`;
+  }
+
+  function pickerHTML(t, rs) {
+    const taken = new Set(callupsOf(t.id).map(c => c.player_id));
+    const sel = state.pickSel || new Set();
+    const groups = rs.map(r => {
+      const f = teamOf(r.from);
+      const all = squadOf(r.from), ok = all.filter(p => !r.sub23 || p.sub23), free = ok.filter(p => !taken.has(p.id));
+      const hidden = isCoord() ? all.length - ok.length : 0;
+      return `<div class="pk-group" style="--team:${f.color}"><h4>${esc(f.name)}${r.sub23 ? ' <small>solo sub-23</small>' : ''}</h4>
+        ${free.length ? `<div class="pk-list">${free.map(p => `<label class="pk-item"><input type="checkbox" value="${p.id}" ${sel.has(p.id) ? 'checked' : ''}><span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span><span>${esc(p.name)}</span></label>`).join('')}</div>`
+          : `<p class="muted pk-none">${all.length ? 'No queda nadie más por añadir.' : 'Su plantilla está vacía.'}${r.sub23 && !ok.length && all.length ? ' Ninguno está marcado como sub-23.' : ''}</p>`}
+        ${hidden ? `<p class="muted pk-none">${plural(hidden, 'jugador no aparece', 'jugadores no aparecen')} por no estar marcado${hidden === 1 ? '' : 's'} como sub-23.</p>` : ''}</div>`;
+    }).join('');
+    const n = sel.size;
+    return `<div class="pk">${groups}
+      <div class="pk-foot"><button type="button" class="primary" data-cu-add ${n ? '' : 'disabled'}>${isCoord() ? (n ? `Añadir ${n}` : 'Añadir') : (n ? `Proponer ${n} a la coordinación` : 'Proponer')}</button></div></div>`;
+  }
+
+  /** Inicio: convocables que esperan aprobación (solo coordinación) */
+  function homeCallupsHTML() {
+    const pend = pendingCallups().map(c => ({ c, p: playerById(c.player_id) })).filter(x => x.p);
+    if (!pend.length) return '';
+    return `<div class="up-group up-callups" id="up-callups"><h4>Convocables por aprobar <span class="count">${pend.length}</span></h4><ul class="up-list">${pend.map(({ c, p }) => {
+      const to = teamOf(c.team), f = teamOf(p.team), who = personName(c.created_by);
+      return `<li class="hc-item" data-cu="${c.id}"><span class="up-ic">⬆️</span><span class="up-txt"><span class="up-when">${esc(f.name)} → ${esc(to.name)}${who ? ` · propuesto por ${esc(who)}` : ''}</span>${p.number != null ? `<b>${p.number}</b> · ` : ''}${esc(p.name)}${!ruleOk(p, c.team) ? ' <span class="cu-bad">⚠️ ya no cumple las reglas</span>' : ''}</span>
+        <span class="hc-acts"><button type="button" class="cu-ok" data-cu-set="aprobado">✓ Aprobar</button><button type="button" class="cu-no" data-cu-set="rechazado" title="Rechazar">✗</button></span></li>`;
+    }).join('')}</ul></div>`;
+  }
+
+  async function setCallup(id, status) {
+    try {
+      await store.callups.setStatus(id, status);
+      const c = (state.callups || []).find(x => x.id === id); if (c) c.status = status;
+      toast(status === 'aprobado' ? 'Convocable aprobado' : 'Convocable rechazado');
+      renderTeams(); renderHomeBadge(); if (isHome()) renderHome();
+    } catch (e) { toast('No se pudo cambiar: ' + e.message, true); }
   }
 
   /** Revisa la lista pegada: cuántos se añadirían y qué falla */
@@ -3225,7 +3393,7 @@
 
   async function addPlayers(team, rows) {
     try {
-      const added = await store.players.insertMany(rows.map(r => ({ team, number: r.number, name: r.name })));
+      const added = await store.players.insertMany(rows.map(r => ({ team, number: r.number, name: r.name, sub23: !!r.sub23 })));
       state.players = [...(state.players || []), ...added];
       return true;
     } catch (e) { toast('No se pudo añadir: ' + playerErr(e), true); return false; }
@@ -3236,8 +3404,28 @@
     el.addEventListener('click', async e => {
       const t = e.target;
       if (t.closest('[data-tm-week]')) { setMode('week'); return; }
+      if (t.closest('[data-tm-home]')) { setMode('home'); return; }
       const op = t.closest('[data-team-open]');
-      if (op) { state.teamOpen = op.dataset.teamOpen || null; state.plEdit = null; state.bulkOpen = false; state.bulkDraft = ''; renderTeams(); el.scrollTop = 0; if (state.teamOpen && !coarse()) $('#tm-name')?.focus({ preventScroll: true }); return; }
+      if (op) {
+        state.teamOpen = op.dataset.teamOpen || null; state.plEdit = null; state.bulkOpen = false; state.bulkDraft = ''; state.pickOpen = false; state.pickSel = new Set();
+        renderTeams(); el.scrollTop = 0; if (state.teamOpen && !coarse()) $('#tm-name')?.focus({ preventScroll: true }); return;
+      }
+      // Reglas de convocables (coordinación)
+      const chip = t.closest('[data-cr]');
+      if (chip) {
+        const [team, from] = chip.dataset.cr.split('|'), r = rulesFor(team).find(x => x.from === from);
+        try {
+          if (t.closest('[data-cr-s23]')) { await store.callupRules.set({ team, from, sub23: !r?.sub23 }); if (r) r.sub23 = !r.sub23; }
+          else if (t.closest('[data-cr-del]')) {
+            const n = callupsOf(team).filter(c => playerById(c.player_id)?.team === from && c.status !== 'rechazado').length;
+            if (!(await askConfirm(`¿${esc(teamOf(team).name)} deja de poder convocar del <b>${esc(teamOf(from).name)}</b>?${n ? ` Los ${n} convocables que ya tiene se quedan, marcados como «ya no cumple las reglas».` : ''}`, 'Quitar', true))) return;
+            await store.callupRules.remove(team, from);
+            state.callupRules = state.callupRules.filter(x => !(x.team === team && x.from === from));
+          } else return;
+          renderTeams();
+        } catch (ex) { toast('No se pudo cambiar la regla: ' + ex.message, true); }
+        return;
+      }
       const team = state.teamOpen;
       if (t.closest('[data-bulk]')) { state.bulkOpen = !state.bulkOpen; state.bulkDraft = $('#tm-bulk')?.value || ''; renderTeams(); if (state.bulkOpen) { $('#tm-bulk').focus(); checkBulk(team); } return; }
       if (t.closest('[data-bulk-add]')) {
@@ -3247,20 +3435,64 @@
         return;
       }
       if (t.closest('[data-tm-copy]')) {
-        const text = `*${TEAM[team].name.toUpperCase()}*\n` + squadOf(team).map(p => `${p.number ?? '–'}. ${p.name}`).join('\n');
+        const ok = callupsOf(team).filter(c => c.status === 'aprobado').map(c => playerById(c.player_id)).filter(Boolean).sort(byDorsal);
+        const text = `*${TEAM[team].name.toUpperCase()}*\n` + squadOf(team).map(p => `${p.number ?? '–'}. ${p.name}`).join('\n')
+          + (ok.length ? `\n\n_Convocables_\n` + ok.map(p => `${p.number ?? '–'}. ${p.name} (${teamOf(p.team).name})`).join('\n') : '');
         try { await navigator.clipboard.writeText(text); toast('Plantilla copiada'); } catch { toast('No se ha podido copiar', true); }
         return;
       }
+      // Convocables
+      if (t.closest('[data-cu-pick]')) { state.pickOpen = !state.pickOpen; state.pickSel = new Set(); renderTeams(); return; }
+      if (t.closest('[data-cu-add]')) {
+        const ids = [...(state.pickSel || [])]; if (!ids.length) return;
+        const status = isCoord() ? 'aprobado' : 'pendiente';
+        try {
+          const added = await store.callups.add(ids.map(player_id => ({ player_id, team, status })));
+          state.callups = [...(state.callups || []), ...added];
+          state.pickOpen = false; state.pickSel = new Set();
+          toast(isCoord() ? `${plural(ids.length, 'convocable añadido', 'convocables añadidos')}` : `${plural(ids.length, 'convocable propuesto', 'convocables propuestos')} · falta que lo apruebe la coordinación`);
+          renderTeams();
+        } catch (ex) { toast('No se pudo añadir: ' + (/duplicate key/.test(ex.message) ? 'alguno ya estaba como convocable.' : /row-level security/.test(ex.message) ? 'ese jugador no cumple las reglas de convocables.' : ex.message), true); }
+        return;
+      }
+      const cuRow = t.closest('[data-cu]');
+      if (cuRow) {
+        const c = (state.callups || []).find(x => x.id === cuRow.dataset.cu); if (!c) return;
+        const set = t.closest('[data-cu-set]');
+        if (set) { await setCallup(c.id, set.dataset.cuSet); return; }
+        if (t.closest('[data-cu-del]')) {
+          const p = playerById(c.player_id);
+          if (!(await askConfirm(`¿Quitar a <b>${esc(p?.name || 'este jugador')}</b> de los convocables del ${esc(teamOf(c.team).name)}? Sigue en la plantilla de su equipo.`, 'Quitar', true))) return;
+          try { await store.callups.remove(c.id); state.callups = state.callups.filter(x => x.id !== c.id); toast('Quitado de convocables'); renderTeams(); renderHomeBadge(); }
+          catch (ex) { toast('No se pudo quitar: ' + ex.message, true); }
+        }
+        return;
+      }
       const row = t.closest('[data-pl]'); if (!row) return;
-      const p = (state.players || []).find(x => x.id === row.dataset.pl); if (!p) return;
+      const p = playerById(row.dataset.pl); if (!p) return;
+      if (t.closest('[data-pl-s23]')) {
+        try { await store.players.update(p.id, { sub23: !p.sub23 }); p.sub23 = !p.sub23; renderTeams(); }
+        catch (ex) { toast('No se pudo cambiar: ' + ex.message, true); }
+        return;
+      }
       if (t.closest('[data-pl-edit]')) { state.plEdit = p.id; renderTeams(); const i = $(`[data-pl-form="${p.id}"] .tm-e-name`); i?.focus(); return; }
       if (t.closest('[data-pl-cancel]')) { state.plEdit = null; renderTeams(); return; }
       if (t.closest('[data-pl-del]')) {
-        if (!(await askConfirm(`¿Quitar a <b>${esc(p.name)}</b> de la plantilla del ${esc(TEAM[p.team].name)}?`, 'Quitar', true))) return;
-        try { await store.players.remove(p.id); state.players = state.players.filter(x => x.id !== p.id); toast('Jugador quitado'); renderTeams(); }
+        const n = (state.callups || []).filter(c => c.player_id === p.id).length;
+        if (!(await askConfirm(`¿Quitar a <b>${esc(p.name)}</b> de la plantilla del ${esc(TEAM[p.team].name)}?${n ? ' También deja de ser convocable de otros equipos.' : ''}`, 'Quitar', true))) return;
+        try { await store.players.remove(p.id); state.players = state.players.filter(x => x.id !== p.id); state.callups = (state.callups || []).filter(c => c.player_id !== p.id); toast('Jugador quitado'); renderTeams(); }
         catch (ex) { toast('No se pudo quitar: ' + ex.message, true); }
       }
     });
+    el.addEventListener('change', async e => {
+      const t = e.target;
+      if (t.closest('.pk-item')) { const s = state.pickSel || (state.pickSel = new Set()); t.checked ? s.add(t.value) : s.delete(t.value); const b = $('[data-cu-add]'); if (b) { const n = s.size; b.disabled = !n; b.textContent = isCoord() ? (n ? `Añadir ${n}` : 'Añadir') : (n ? `Proponer ${n} a la coordinación` : 'Proponer'); } return; }
+      if (t.dataset.crAdd && t.value) {
+        try { await store.callupRules.set({ team: t.dataset.crAdd, from: t.value, sub23: false }); state.callupRules = [...(state.callupRules || []), { team: t.dataset.crAdd, from: t.value, sub23: false }]; t.blur(); renderTeams(); }
+        catch (ex) { toast('No se pudo añadir la regla: ' + ex.message, true); }
+      }
+    });
+    el.addEventListener('toggle', e => { if (e.target.classList?.contains('cr-panel')) state.rulesOpen = e.target.open; }, true);
     el.addEventListener('submit', async e => {
       e.preventDefault();
       const f = e.target, team = state.teamOpen;
@@ -3270,7 +3502,7 @@
         if (!d.ok) { toast('El dorsal tiene que ser un número del 0 al 99', true); $('#tm-num').focus(); return; }
         const other = d.n != null && squadOf(team).find(x => x.number === d.n);
         if (other) { toast(`El ${d.n} ya lo lleva ${other.name}`, true); $('#tm-num').select(); return; }
-        if (await addPlayers(team, [{ number: d.n, name }])) {
+        if (await addPlayers(team, [{ number: d.n, name, sub23: !!$('#tm-s23')?.checked }])) {
           state.bulkDraft = $('#tm-bulk')?.value || '';
           renderTeams(); toast(`${name} añadido`);
           const n = $('#tm-num'); if (n && !coarse()) n.focus(); else $('#tm-name')?.focus({ preventScroll: true });
@@ -3285,7 +3517,7 @@
         if (other) { toast(`El ${d.n} ya lo lleva ${other.name}`, true); return; }
         try {
           await store.players.update(id, { number: d.n, name });
-          const p = state.players.find(x => x.id === id); if (p) Object.assign(p, { number: d.n, name });
+          const p = playerById(id); if (p) Object.assign(p, { number: d.n, name });
           state.plEdit = null; renderTeams(); toast('Jugador actualizado');
         } catch (ex) { toast('No se pudo guardar: ' + playerErr(ex), true); }
       }
@@ -3293,6 +3525,11 @@
     el.addEventListener('input', e => { if (e.target.id === 'tm-bulk') { state.bulkDraft = e.target.value; checkBulk(state.teamOpen); } });
     el.addEventListener('keydown', e => { if (e.key === 'Escape' && state.plEdit) { state.plEdit = null; renderTeams(); } });
     el.addEventListener('focusout', () => setTimeout(() => { if (state.teamsStale && !el.contains(document.activeElement)) renderTeams(); }, 0));
+    // Aprobar o rechazar desde Inicio
+    $('#home').addEventListener('click', e => {
+      const b = e.target.closest('.hc-item [data-cu-set]'); if (!b) return;
+      setCallup(b.closest('[data-cu]').dataset.cu, b.dataset.cuSet);
+    });
     $('#m-teams').onclick = () => { closeUserMenu(); setMode('teams'); };
   }
 
@@ -3818,7 +4055,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027223838';
+  const APP_VERSION = '20261027225204';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;
@@ -3926,7 +4163,10 @@
     });
     store.subscribe(() => { if (!drag && appOpen) { load(); if (isCoord()) loadHome(); } });
     store.reminders.subscribe(() => { if (appOpen && isCoord()) loadReminders(); });
-    store.players.subscribe(() => { if (appOpen && isTeams()) loadTeams(true); });
+    const squadsChanged = () => { if (appOpen && (isTeams() || isCoord())) loadTeams(true); };
+    store.players.subscribe(squadsChanged);
+    store.callups.subscribe(squadsChanged);
+    store.callupRules.subscribe(squadsChanged);
     store.template.subscribe(() => { if (!drag && appOpen) load(); });
     store.proposals.subscribe(() => { if (!drag && appOpen) load(); });
     store.acks.subscribe(() => { if (!drag && appOpen) load(); });
