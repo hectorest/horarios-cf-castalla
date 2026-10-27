@@ -228,7 +228,7 @@ window.TUTORIAL_STEPS = [
   {
     id: 'no-depende', since: 23, roles: ['coordinador'], target: '#mode-toggle [data-mode=home], #user-btn',
     title: '«No depende de mí» con un toque',
-    body: 'Cada recordatorio tiene, junto al reloj, el botón de la <b>persona con flecha</b> («No depende de mí»): elige de quién depende ahora (entrenadores del equipo, Club rival, Directivo, Federación, Ayuntamiento…) o escribe otro nombre. En los que ya están en espera, el mismo botón te deja cambiar la persona o volver a hacerlo tuyo.',
+    body: 'Cada recordatorio tiene, junto al reloj, el botón de la <b>persona con flecha</b> («No depende de mí»): elige de quién depende ahora (el entrenador del equipo, aunque no esté dado de alta, Club rival, Directivo, Federación, Ayuntamiento…) o escribe otro nombre. En los que ya están en espera, el mismo botón te deja cambiar la persona o volver a hacerlo tuyo.',
   },
   {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
