@@ -2097,15 +2097,8 @@
   }
 
   // ---------- Mensaje de los partidos de un finde (para WhatsApp) ----------
-  // Nombre corto del rival: quita siglas (C.D., U.D., C.F.…) y deja la letra del equipo salvo la "A"
-  function shortRival(n) {
-    if (!n) return '??';
-    let letter = '';
-    let t = String(n).replace(/["“”']\s*([A-Z])\s*["“”']/g, (_, l) => { letter = l; return ''; });
-    t = t.replace(/(^|\s)(?:[A-ZÁÉÍÓÚÑ][a-z]?\.){1,4}(?=\s|$)/g, ' ').replace(/(^|\s)(?:CF|CD|UD|UDF|CE|PD|FC|SD|AE|EF|CH|UE|CUD|SCD|AD)(?=\s|$)/g, ' ').replace(/\s+-\s+/g, ' - ').replace(/\s{2,}/g, ' ').trim();
-    if (!t) t = String(n).trim();
-    return t + (letter && letter !== 'A' ? ' ' + letter : '');
-  }
+  // Nombre del rival tal como está en el calendario (sin acortar)
+  const rivalName = n => (n && String(n).trim()) || '??';
   function weekMessage(monKey) {
     const mon = parseKey(monKey), sun = keyOf(addDays(mon, 6));
     const all = state.mxAll || [];
@@ -2119,7 +2112,7 @@
       for (const b of own) {
         const di = dayIndexOf(b.day), d = parseKey(b.day);
         const when = di >= 4 ? `${DAYS[di]} ${fmt(b.start_min)}` : `${DAYS[di]} ${d.getDate()} - ${fmt(b.start_min)}`;
-        blocks.push(`${t.name} vs ${shortRival(b.opponent)} ${b.away ? '✈️' : '🏠'}\n${when}${b.confirmed ? '' : ' (por confirmar)'}`);
+        blocks.push(`${t.name} vs ${rivalName(b.opponent)} ${b.away ? '✈️' : '🏠'}\n${when}${b.confirmed ? '' : ' (por confirmar)'}`);
       }
     }
     return blocks.join('\n\n');
@@ -2641,7 +2634,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027061824';
+  const APP_VERSION = '20261027061855';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;
