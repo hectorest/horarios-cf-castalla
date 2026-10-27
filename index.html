@@ -14,7 +14,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261026162518">
+  <link rel="stylesheet" href="styles.css?v=20261027061824">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -284,6 +284,20 @@
 
 
   <!-- Confirmación -->
+  <dialog id="msg-dialog" class="dialog narrow-dlg">
+    <header class="dlg-head"><h3 id="msg-title">Mensaje</h3><button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button></header>
+    <div class="dlg-body">
+      <p class="msg-hint">Partidos de la semana (de lunes a domingo). Puedes retocar el texto antes de copiarlo.</p>
+      <textarea id="msg-text" class="msg-text" rows="16" spellcheck="false"></textarea>
+    </div>
+    <footer class="dlg-foot">
+      <button type="button" id="msg-wa" class="ghost">WhatsApp</button>
+      <button type="button" id="msg-share" class="ghost" hidden>Compartir</button>
+      <span class="spacer"></span>
+      <button type="button" id="msg-copy" class="primary">Copiar</button>
+    </footer>
+  </dialog>
+
   <dialog id="confirm-dialog" class="dialog narrow-dlg">
     <header class="dlg-head"><h3>Confirmar</h3><button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button></header>
     <div class="dlg-body"><p id="c-msg" class="confirm-msg"></p></div>
@@ -355,8 +369,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261026162518"></script>
-  <script src="tutorial.js?v=20261026162518"></script>
-  <script src="app.js?v=20261026162518"></script>
+  <script src="config.js?v=20261027061824"></script>
+  <script src="tutorial.js?v=20261027061824"></script>
+  <script src="app.js?v=20261027061824"></script>
 </body>
 </html>

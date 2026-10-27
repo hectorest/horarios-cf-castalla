@@ -2050,7 +2050,7 @@
     const body = $('#mx-body'), req = (state.mxReq = (state.mxReq || 0) + 1);
     body.innerHTML = '<p class="muted mx-empty">Cargando…</p>';
     let list;
-    try { list = await store.listAllMatches(); }
+    try { list = await store.listAllMatches(); state.mxAll = list; }
     catch (e) { body.innerHTML = `<p class="muted mx-empty">No se han podido cargar: ${esc(e.message)}</p>`; return; }
     if (state.mxReq !== req) return;
     const teams = MATCH_TEAMS();
@@ -2085,7 +2085,7 @@
       const yr = fri.getFullYear() !== new Date().getFullYear() ? ` <small>${fri.getFullYear()}</small>` : '';
       const heat = h ? 0.12 + 0.55 * h / maxHome : 0;
       return `<tr class="${k < nowWk ? 'past' : ''} ${k === nowWk ? 'now' : ''} ${ms.length ? '' : 'empty'}" data-wk="${k}">
-        <th class="mx-g-wk">${lbl}${yr}${k === nowWk ? '<small class="mx-now">este finde</small>' : ''}</th>
+        <th class="mx-g-wk"><div class="mx-wk-cell"><span>${lbl}${yr}${k === nowWk ? '<small class="mx-now">este finde</small>' : ''}</span><button type="button" class="mx-msg" data-msg="${k}" title="Mensaje con los partidos de este finde" aria-label="Mensaje de los partidos del ${lbl}">💬</button></div></th>
         <td class="mx-g-tot home" style="--heat:${heat.toFixed(2)}">${h || ''}</td><td class="mx-g-tot away">${f || ''}</td>
         ${teams.map(t => `<td class="mx-g-c" style="--team:${t.color}">${ms.filter(b => b.team === t.id).map(cell).join('')}</td>`).join('')}</tr>`;
     }).join('');
@@ -2094,6 +2094,48 @@
     const gw = body.querySelector('.mx-grid-wrap');
     const target = body.querySelector('tbody tr.now') || [...body.querySelectorAll('tbody tr')].find(r => r.dataset.wk >= nowWk);
     if (target) gw.scrollTop = Math.max(0, target.offsetTop - gw.querySelector('thead').offsetHeight - 4);
+  }
+
+  // ---------- Mensaje de los partidos de un finde (para WhatsApp) ----------
+  // Nombre corto del rival: quita siglas (C.D., U.D., C.F.…) y deja la letra del equipo salvo la "A"
+  function shortRival(n) {
+    if (!n) return '??';
+    let letter = '';
+    let t = String(n).replace(/["“”']\s*([A-Z])\s*["“”']/g, (_, l) => { letter = l; return ''; });
+    t = t.replace(/(^|\s)(?:[A-ZÁÉÍÓÚÑ][a-z]?\.){1,4}(?=\s|$)/g, ' ').replace(/(^|\s)(?:CF|CD|UD|UDF|CE|PD|FC|SD|AE|EF|CH|UE|CUD|SCD|AD)(?=\s|$)/g, ' ').replace(/\s+-\s+/g, ' - ').replace(/\s{2,}/g, ' ').trim();
+    if (!t) t = String(n).trim();
+    return t + (letter && letter !== 'A' ? ' ' + letter : '');
+  }
+  function weekMessage(monKey) {
+    const mon = parseKey(monKey), sun = keyOf(addDays(mon, 6));
+    const all = state.mxAll || [];
+    const ms = all.filter(b => b.day >= monKey && b.day <= sun && TEAM[b.team]);
+    const playing = new Set(all.map(b => b.team));   // equipos con partidos en la temporada
+    const blocks = [];
+    for (const t of MATCH_TEAMS()) {
+      if (!playing.has(t.id)) continue;
+      const own = ms.filter(b => b.team === t.id).sort((a, b) => a.day.localeCompare(b.day) || a.start_min - b.start_min);
+      if (!own.length) { blocks.push(`${t.name} vs ??`); continue; }
+      for (const b of own) {
+        const di = dayIndexOf(b.day), d = parseKey(b.day);
+        const when = di >= 4 ? `${DAYS[di]} ${fmt(b.start_min)}` : `${DAYS[di]} ${d.getDate()} - ${fmt(b.start_min)}`;
+        blocks.push(`${t.name} vs ${shortRival(b.opponent)} ${b.away ? '✈️' : '🏠'}\n${when}${b.confirmed ? '' : ' (por confirmar)'}`);
+      }
+    }
+    return blocks.join('\n\n');
+  }
+  function openWeekMessage(monKey) {
+    const fri = addDays(parseKey(monKey), 4), sun = addDays(parseKey(monKey), 6);
+    $('#msg-title').textContent = `Mensaje · ${fri.getDate()}–${sun.getDate()} ${MONTHS[sun.getMonth()]}`;
+    $('#msg-text').value = weekMessage(monKey);
+    $('#msg-share').hidden = !navigator.share;
+    $('#msg-dialog').showModal();
+    $('#msg-text').scrollTop = 0;
+  }
+  async function copyWeekMessage() {
+    const txt = $('#msg-text').value;
+    try { await navigator.clipboard.writeText(txt); toast('Mensaje copiado'); }
+    catch { const ta = $('#msg-text'); ta.focus(); ta.select(); try { document.execCommand('copy'); toast('Mensaje copiado'); } catch { toast('No se ha podido copiar: selecciónalo y cópialo a mano', true); } }
   }
 
   async function goToBooking(id, day) {
@@ -2411,7 +2453,10 @@
     $('#mx-team').onchange = e => loadMatches(e.target.value);
     $('#mx-tabs').onclick = e => { const t = e.target.closest('button')?.dataset.mx; if (t) setMatchesTab(t); };
     $('#m-weekend').onclick = () => openMatches('weekend');
-    $('#mx-body').onclick = e => { const r = e.target.closest('.mx-row, .mx-grid .mx-cell'); if (r) goToBooking(r.dataset.id, r.dataset.day); };
+    $('#msg-copy').onclick = copyWeekMessage;
+    $('#msg-share').onclick = async () => { try { await navigator.share({ text: $('#msg-text').value }); } catch { } };
+    $('#msg-wa').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent($('#msg-text').value), '_blank', 'noopener');
+    $('#mx-body').onclick = e => { const m = e.target.closest('[data-msg]'); if (m) { openWeekMessage(m.dataset.msg); return; } const r = e.target.closest('.mx-row, .mx-grid .mx-cell'); if (r) goToBooking(r.dataset.id, r.dataset.day); };
     $('#people-btn').onclick = () => openPeople();
     $('#m-copy').onclick = () => { closeUserMenu(); copyPrevWeek(); };
     $('#m-clear').onclick = clearWeekEvents;
@@ -2596,7 +2641,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261026162518';
+  const APP_VERSION = '20261027061824';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;
