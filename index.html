@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261027094324">
+  <link rel="stylesheet" href="styles.css?v=20261027100643">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -64,6 +64,7 @@
           <button type="button" role="menuitem" id="m-confirm" hidden>Confirmar los partidos de esta semana</button>
           <button type="button" role="menuitem" id="m-clear" class="danger-item" hidden>Borrar los eventos de esta semana</button>
           <button type="button" role="menuitem" id="m-mode">Ver horario habitual</button>
+          <button type="button" role="menuitem" id="m-notif" hidden>🔔 Notificaciones</button>
           <button type="button" role="menuitem" id="m-shortcuts" hidden>📲 Conectar con Atajos del iPhone</button>
           <button type="button" role="menuitem" id="m-install" hidden>Instalar la app en este dispositivo</button>
           <button type="button" role="menuitem" id="m-help">Ver tutorial</button>
@@ -335,6 +336,28 @@
     </form>
   </dialog>
 
+  <dialog id="notif-dialog" class="dialog narrow-dlg">
+    <header class="dlg-head"><h3>🔔 Notificaciones</h3><button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button></header>
+    <div class="dlg-body" id="nf-body">
+      <p class="sc-intro">Te avisamos en el móvil (o el ordenador) de lo que no puedes olvidar, aunque no tengas la herramienta abierta.</p>
+      <div class="dlg-sec">Este dispositivo</div>
+      <p id="nf-status" class="nf-status"></p>
+      <div class="nf-actions">
+        <button type="button" id="nf-enable" class="primary" hidden>Activar en este dispositivo</button>
+        <button type="button" id="nf-disable" class="ghost" hidden>Desactivar en este dispositivo</button>
+      </div>
+      <p id="nf-devices" class="muted nf-devices"></p>
+      <div class="dlg-sec">Aviso diario</div>
+      <label class="nf-row"><input type="checkbox" id="nf-enabled"><span>Enviarme un aviso cada día a las</span><select id="nf-time" aria-label="Hora del aviso diario"></select></label>
+      <div id="nf-kinds" class="nf-kinds"></div>
+      <p class="muted nf-hint">Solo llega si hay algo que contar. Las altas de entrenadores se avisan al momento.</p>
+      <div class="nf-actions">
+        <button type="button" id="nf-test" class="ghost">Enviar una prueba</button>
+        <button type="button" id="nf-preview" class="ghost">Recibir el resumen de hoy ahora</button>
+      </div>
+    </div>
+  </dialog>
+
   <dialog id="shortcuts-dialog" class="dialog wide-dlg">
     <header class="dlg-head"><h3>📲 Conectar con Atajos del iPhone</h3><button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button></header>
     <div class="dlg-body" id="sc-body">
@@ -436,8 +459,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261027094324"></script>
-  <script src="tutorial.js?v=20261027094324"></script>
-  <script src="app.js?v=20261027094324"></script>
+  <script src="config.js?v=20261027100643"></script>
+  <script src="tutorial.js?v=20261027100643"></script>
+  <script src="app.js?v=20261027100643"></script>
 </body>
 </html>

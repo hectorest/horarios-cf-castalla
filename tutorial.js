@@ -216,6 +216,11 @@ window.TUTORIAL_STEPS = [
     body: 'En tu menú → <b>Conectar con Atajos del iPhone</b> generas un código y sigues los pasos para crear el atajo. Luego, compartes una <b>captura de WhatsApp</b> o un texto con el atajo (o se lo dictas a <b>Siri</b>) y se crean los recordatorios solos, con equipo y fecha. Los que vienen del atajo llevan la marca 📲.',
   },
   {
+    id: 'notificaciones', since: 21, roles: ['coordinador'], target: '#user-btn',
+    title: 'Notificaciones en el móvil',
+    body: 'En tu menú → <b>🔔 Notificaciones</b> actívalas en cada dispositivo (en iPhone, con la herramienta instalada en la pantalla de inicio). Elige la <b>hora del aviso diario</b> y qué quieres recibir: recordatorios urgentes y vencidos, conflictos del calendario, resumen del día y altas de entrenadores (estas, al momento). Tocando el aviso se abre Inicio.',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',

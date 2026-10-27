@@ -655,6 +655,161 @@ alter table public.reminders add column if not exists source_text text check (ch
 comment on column public.reminders.source is 'app = creado en la herramienta; atajo = creado desde un Atajo del iPhone (interpretado por Claude).';
 comment on column public.reminders.source_text is 'Atajos: texto que se envió o que se leyó en la captura (para revisar qué se interpretó).';
 
+-- ---------- Notificaciones push (coordinación) ----------
+-- Dispositivos suscritos (Web Push), preferencias de cada coordinador, registro de envíos para no repetir,
+-- y una «foto» de las incidencias calculadas por la herramienta (conflictos y cambios) para el resumen diario.
+create extension if not exists pg_net with schema extensions;   -- sus funciones viven en el esquema net
+create extension if not exists pg_cron;
+
+create table if not exists public.push_subscriptions (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  endpoint    text not null unique check (char_length(endpoint) <= 1000),
+  p256dh      text not null check (char_length(p256dh) <= 200),
+  auth        text not null check (char_length(auth) <= 100),
+  device      text check (char_length(device) <= 80),
+  created_at  timestamptz not null default now(),
+  last_ok_at  timestamptz,
+  fail_count  integer not null default 0
+);
+create index if not exists push_subscriptions_user_idx on public.push_subscriptions (user_id);
+alter table public.push_subscriptions enable row level security;
+drop policy if exists "Ver mis dispositivos" on public.push_subscriptions;
+create policy "Ver mis dispositivos" on public.push_subscriptions for select to authenticated using (user_id = (select auth.uid()));
+drop policy if exists "Añadir mi dispositivo" on public.push_subscriptions;
+create policy "Añadir mi dispositivo" on public.push_subscriptions for insert to authenticated with check (user_id = (select auth.uid()) and (select private.is_coordinator()));
+drop policy if exists "Actualizar mi dispositivo" on public.push_subscriptions;
+create policy "Actualizar mi dispositivo" on public.push_subscriptions for update to authenticated using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()));
+drop policy if exists "Quitar mi dispositivo" on public.push_subscriptions;
+create policy "Quitar mi dispositivo" on public.push_subscriptions for delete to authenticated using (user_id = (select auth.uid()));
+revoke all on public.push_subscriptions from anon, authenticated;
+grant select, insert, update, delete on public.push_subscriptions to authenticated;
+
+create table if not exists public.notify_settings (
+  user_id         uuid primary key default auth.uid() references auth.users(id) on delete cascade,
+  notify_time     time not null default '08:30' check (extract(minute from notify_time)::int % 15 = 0),
+  kinds           jsonb not null default '{"recordatorios": true, "conflictos": true, "resumen": true, "altas": true}'::jsonb,
+  enabled         boolean not null default true,
+  last_digest_on  date,
+  updated_at      timestamptz not null default now()
+);
+alter table public.notify_settings enable row level security;
+drop policy if exists "Mis preferencias de avisos" on public.notify_settings;
+create policy "Mis preferencias de avisos" on public.notify_settings for all to authenticated
+  using (user_id = (select auth.uid())) with check (user_id = (select auth.uid()) and (select private.is_coordinator()));
+revoke all on public.notify_settings from anon, authenticated;
+grant select, insert, update, delete on public.notify_settings to authenticated;
+comment on table public.notify_settings is 'Hora del aviso diario (tramos de 15 min, hora de Madrid) y qué se notifica a cada coordinador.';
+
+-- Solo la usa la función de envío (clave de servicio): evita repetir el mismo aviso
+create table if not exists public.push_log (
+  id        bigint generated always as identity primary key,
+  user_id   uuid not null references auth.users(id) on delete cascade,
+  kind      text not null,
+  ref       text not null,
+  sent_on   date not null default current_date,
+  created_at timestamptz not null default now(),
+  constraint push_log_unico unique (user_id, kind, ref, sent_on)
+);
+alter table public.push_log enable row level security;
+drop policy if exists "Solo el servidor" on public.push_log;
+create policy "Solo el servidor" on public.push_log for select to authenticated using (false);
+revoke all on public.push_log from anon, authenticated;
+
+-- Foto de incidencias (conflictos, avisos, cambios) que calcula la herramienta con su motor
+create table if not exists public.issue_snapshot (
+  id           smallint primary key default 1 check (id = 1),
+  computed_at  timestamptz not null default now(),
+  items        jsonb not null default '[]'::jsonb
+);
+alter table public.issue_snapshot enable row level security;
+drop policy if exists "Coordinadores leen la foto" on public.issue_snapshot;
+create policy "Coordinadores leen la foto" on public.issue_snapshot for select to authenticated using ((select private.is_coordinator()));
+drop policy if exists "Coordinadores guardan la foto" on public.issue_snapshot;
+create policy "Coordinadores guardan la foto" on public.issue_snapshot for insert to authenticated with check ((select private.is_coordinator()));
+drop policy if exists "Coordinadores actualizan la foto" on public.issue_snapshot;
+create policy "Coordinadores actualizan la foto" on public.issue_snapshot for update to authenticated using ((select private.is_coordinator())) with check ((select private.is_coordinator()));
+revoke all on public.issue_snapshot from anon, authenticated;
+grant select, insert, update on public.issue_snapshot to authenticated;
+
+-- Secreto para que la tarea programada llame a la función (se genera aquí, nunca sale de la base de datos)
+do $$ begin
+  if not exists (select 1 from vault.secrets where name = 'notif_cron_secret') then
+    perform vault.create_secret(encode(extensions.gen_random_bytes(32), 'hex'), 'notif_cron_secret', 'Clave de la tarea programada de notificaciones');
+  end if;
+end $$;
+
+-- Configuración para la función de envío (solo clave de servicio): secreto de la tarea y claves VAPID
+create or replace function public.notif_config()
+returns jsonb
+language sql stable security definer
+set search_path = ''
+as $$
+  select jsonb_build_object(
+    'cron_secret', (select decrypted_secret from vault.decrypted_secrets where name = 'notif_cron_secret'),
+    'vapid_private', (select decrypted_secret from vault.decrypted_secrets where name = 'notif_vapid_private'),
+    'vapid_public', (select decrypted_secret from vault.decrypted_secrets where name = 'notif_vapid_public'));
+$$;
+revoke all on function public.notif_config() from public, anon, authenticated;
+grant execute on function public.notif_config() to service_role;
+
+-- La función genera las claves VAPID la primera vez y las guarda aquí
+create or replace function public.notif_set_vapid(p_private text, p_public text)
+returns void
+language plpgsql security definer
+set search_path = ''
+as $$
+begin
+  if not exists (select 1 from vault.secrets where name = 'notif_vapid_private') then
+    perform vault.create_secret(p_private, 'notif_vapid_private', 'Clave privada VAPID (Web Push)');
+    perform vault.create_secret(p_public, 'notif_vapid_public', 'Clave pública VAPID (Web Push)');
+  end if;
+end;
+$$;
+revoke all on function public.notif_set_vapid(text, text) from public, anon, authenticated;
+grant execute on function public.notif_set_vapid(text, text) to service_role;
+
+-- Llama a la función de envío (desde la tarea programada y al darse de alta alguien)
+create or replace function private.notif_call(p_body jsonb)
+returns void
+language plpgsql security definer
+set search_path = ''
+as $$
+begin
+  perform net.http_post(
+    url := 'https://wwkfaxrmmbptuithqpxn.supabase.co/functions/v1/notificaciones',
+    headers := jsonb_build_object('Content-Type', 'application/json',
+      'x-cron-secret', (select decrypted_secret from vault.decrypted_secrets where name = 'notif_cron_secret')),
+    body := p_body,
+    timeout_milliseconds := 25000);
+end;
+$$;
+revoke all on function private.notif_call(jsonb) from public, anon, authenticated;
+
+-- Aviso inmediato de altas de entrenadores
+create or replace function private.notif_new_profile()
+returns trigger
+language plpgsql security definer
+set search_path = ''
+as $$
+begin
+  perform private.notif_call(jsonb_build_object('mode', 'altas', 'profile_id', new.id));
+  return new;
+exception when others then
+  return new;   -- nunca bloquear un registro por un aviso
+end;
+$$;
+revoke all on function private.notif_new_profile() from public, anon, authenticated;
+drop trigger if exists notif_new_profile on public.profiles;
+create trigger notif_new_profile after insert on public.profiles
+  for each row execute function private.notif_new_profile();
+
+-- Cada 15 minutos: envía el resumen a quien le toque a esa hora
+do $$ begin
+  perform cron.unschedule(jobid) from cron.job where jobname = 'notificaciones';
+  perform cron.schedule('notificaciones', '*/15 * * * *', $c$ select private.notif_call('{"mode": "tick"}'::jsonb); $c$);
+end $$;
+
 -- ============================================================
 --  Primer coordinador: crea una invitación de coordinador y regístrate
 --  con el enlace  https://TU-WEB/#invitacion=TOKEN

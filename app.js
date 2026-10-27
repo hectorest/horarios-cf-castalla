@@ -408,6 +408,15 @@
         write(read().map(b => b.kind === 'partido' && !b.confirmed && b.day >= from && b.day <= to ? (n++, { ...b, confirmed: true }) : b));
         return n;
       },
+      notify: {
+        async getSettings() { return ls.get('planificador-campo-demo-avisos-v1') || null; },
+        async saveSettings(x) { ls.set('planificador-campo-demo-avisos-v1', x); return x; },
+        async listDevices() { return []; },
+        async addDevice() { },
+        async removeDevice() { },
+        async call() { return { ok: true, sent: 0, demo: true }; },
+        async saveSnapshot() { },
+      },
       shortcuts: {
         async list() { return (ls.get('planificador-campo-demo-atajos-v1') || []).filter(t => t.user_id === sid); },
         async create(label) {
@@ -586,6 +595,21 @@
       },
       async confirmMatches(from, to) {
         return chk(await sb.from(T).update({ confirmed: true }).eq('kind', 'partido').eq('confirmed', false).gte('day', from).lte('day', to).select('id')).length;
+      },
+      notify: {
+        async getSettings() { return chk(await sb.from('notify_settings').select('notify_time, kinds, enabled').maybeSingle()); },
+        async saveSettings(x) {
+          return chk(await sb.from('notify_settings').upsert({ notify_time: x.notify_time, kinds: x.kinds, enabled: x.enabled, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }).select('notify_time, kinds, enabled').single());
+        },
+        async listDevices() { return chk(await sb.from('push_subscriptions').select('endpoint, device, created_at, last_ok_at').order('created_at')); },
+        async addDevice(d) { chk(await sb.from('push_subscriptions').upsert(d, { onConflict: 'endpoint' }).select('id')); },
+        async removeDevice(endpoint) { chk(await sb.from('push_subscriptions').delete().eq('endpoint', endpoint)); },
+        async call(mode) {
+          const { data, error } = await sb.functions.invoke('notificaciones', { body: { mode } });
+          if (error) { let m = error.message; try { const j = await error.context.json(); m = j.error || m; } catch { } throw new Error(m); }
+          return data;
+        },
+        async saveSnapshot(items) { chk(await sb.from('issue_snapshot').upsert({ id: 1, computed_at: new Date().toISOString(), items }).select('id')); },
       },
       shortcuts: {
         async list() { return chk(await sb.from('shortcut_tokens').select('id, label, hint, created_at, last_used_at, uses_day, uses_count').order('created_at')); },
@@ -942,6 +966,7 @@
     $('#m-mode').textContent = isTpl() ? 'Volver a la semana' : 'Ver horario habitual';
     $('#m-home').hidden = !isCoord() || isHome();
     $('#m-shortcuts').hidden = !isCoord();
+    $('#m-notif').hidden = !isCoord();
     $('#new-btn').innerHTML = `+<span class="hide-sm"> ${isTpl() ? 'Nuevo entreno habitual' : 'Nueva reserva'}</span>`;
     renderStrip();
     $$('#view-toggle button').forEach(x => x.classList.toggle('on', x.dataset.view === state.view));
@@ -1850,6 +1875,7 @@
     const first = !appOpen;
     appOpen = true;
     if (first && isCoord() && !/semana=/.test(location.hash) && state.mode === 'week') state.mode = 'home';
+    if (isCoord() && /#inicio/.test(location.hash)) { state.mode = 'home'; try { history.replaceState(null, '', location.pathname + location.search); } catch { } }
     if (!isCoord() && isHome()) state.mode = 'week';
     render();
     await load();
@@ -1857,7 +1883,7 @@
       const wrap = $('#cal-wrap');
       if (wrap.scrollHeight > wrap.clientHeight) wrap.scrollTop = Math.max(0, (toMin('16:30') - DAY_START) * PX);
     }
-    if (isCoord()) { await loadPeople(); loadHome(); }
+    if (isCoord()) { await loadPeople(); loadHome(); swRegistration(); }
     maybeTutorial();
   }
 
@@ -2254,8 +2280,9 @@
   }
 
   /** Incidencias de las semanas que tocan los próximos días (sin tocar la semana que se está viendo) */
+  const SNAP_DAYS = 21;   // la foto para las notificaciones cubre algo más que Inicio
   async function computeUpcoming() {
-    const today = todayKey(), limit = keyOf(addDays(new Date(), HOME_DAYS));
+    const today = todayKey(), limit = keyOf(addDays(new Date(), SNAP_DAYS));
     const weeks = [];
     for (let w = mondayOf(new Date()); keyOf(w) <= limit; w = addDays(w, 7)) weeks.push(w);
     const template = await store.template.list().catch(() => state.template || []);
@@ -2276,7 +2303,7 @@
       } finally { Object.assign(state, keep); }
       const byId = new Map(bk.map(b => [b.id, b]));
       for (const it of full.all) {
-        if (!['error', 'warn', 'pending'].includes(it.level) || it.minor) continue;
+        if (!['error', 'warn', 'pending', 'change'].includes(it.level) || it.minor) continue;
         if (!it.day || it.day < today || it.day > limit) continue;
         out.push({ ...it, bookingId: it.ids.find(id => byId.has(id)) || null });
       }
@@ -2287,7 +2314,7 @@
     }
     const pend = (state.people || []).filter(p => p.status === 'pendiente');
     if (pend.length) out.push({ level: 'pending', kind: 'people', day: today, at: 0, ids: [], msg: `${pend.length} solicitud${pend.length > 1 ? 'es' : ''} de entrenador${pend.length > 1 ? 'es' : ''} por revisar` });
-    const rank = { error: 0, warn: 1, pending: 2 };
+    const rank = { error: 0, warn: 1, pending: 2, change: 3 };
     out.sort((a, b) => rank[a.level] - rank[b.level] || a.day.localeCompare(b.day) || (a.at || 0) - (b.at || 0));
     return out;
   }
@@ -2299,9 +2326,11 @@
     state.homeLoading = true;
     if (isHome()) renderHome();
     try {
-      const [up] = await Promise.all([computeUpcoming(), loadReminders()]);
+      const [all] = await Promise.all([computeUpcoming(), loadReminders()]);
       if (req !== homeReq) return;
-      state.upcoming = up;
+      const lim = keyOf(addDays(new Date(), HOME_DAYS));
+      state.upcoming = all.filter(x => x.level !== 'change' && x.day <= lim);
+      saveSnapshot(all);
     } catch (e) { toast('No se pudo cargar el inicio: ' + e.message, true); }
     state.homeLoading = false;
     renderHomeBadge();
@@ -2661,6 +2690,142 @@
     $('#shortcuts-dialog').addEventListener('close', () => { state.newToken = null; });
   }
 
+  // Foto de incidencias para el resumen diario de las notificaciones (la calcula la herramienta con su motor)
+  let lastSnap = '';
+  async function saveSnapshot(all) {
+    const items = all.filter(x => x.kind !== 'people').map(x => ({ level: x.level, msg: x.msg, day: x.day, at: x.at || 0, team: x.team || null }));
+    const sig = JSON.stringify(items);
+    if (sig === lastSnap) return;
+    try { await store.notify.saveSnapshot(items); lastSnap = sig; } catch (e) { console.warn('foto de incidencias', e); }
+  }
+
+  // ================================================================
+  //  Notificaciones push (coordinación)
+  // ================================================================
+  const NOTIF_KINDS = [
+    ['recordatorios', 'Recordatorios urgentes y vencidos', 'Los que pasan a urgente, vencen hoy o ya están vencidos'],
+    ['conflictos', 'Conflictos del calendario', 'De los próximos 14 días'],
+    ['resumen', 'Resumen del día', 'Partidos, reservas extraordinarias, entrenos y cambios de hoy'],
+    ['altas', 'Altas de entrenadores', 'Al momento, cuando alguien se registra con una invitación'],
+  ];
+  const pushSupported = () => 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  const b64uBytes = s => { const t = s.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((s.length + 3) % 4); return Uint8Array.from(atob(t), c => c.charCodeAt(0)); };
+  const deviceName = () => {
+    const ua = navigator.userAgent;
+    const d = /iPhone/.test(ua) ? 'iPhone' : /iPad/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ? 'iPad' : /Android/.test(ua) ? 'Android' : /Mac/.test(ua) ? 'Mac' : /Windows/.test(ua) ? 'Windows' : 'Ordenador';
+    const b = /CriOS|Chrome/.test(ua) ? 'Chrome' : /FxiOS|Firefox/.test(ua) ? 'Firefox' : /Edg/.test(ua) ? 'Edge' : 'Safari';
+    return `${d} · ${isStandalone() ? 'app' : b}`;
+  };
+  async function swRegistration() {
+    if (!pushSupported() || store.mode === 'demo') return null;
+    try { return await navigator.serviceWorker.register('sw.js'); } catch (e) { console.warn('sw', e); return null; }
+  }
+  async function currentSubscription() {
+    const reg = await swRegistration();
+    return reg ? reg.pushManager.getSubscription() : null;
+  }
+
+  async function openNotifications() {
+    closeUserMenu();
+    $('#notif-dialog').showModal();
+    $('#nf-body').scrollTop = 0;
+    $('#nf-status').innerHTML = '<span class="muted">Comprobando…</span>';
+    try { state.notif = await store.notify.getSettings(); } catch (e) { state.notif = null; toast('No se pudieron cargar tus avisos: ' + e.message, true); }
+    try { state.notifDevices = await store.notify.listDevices(); } catch { state.notifDevices = []; }
+    state.notifSub = await currentSubscription().catch(() => null);
+    renderNotifications();
+  }
+
+  function renderNotifications() {
+    const s = state.notif || { notify_time: '08:30', kinds: {}, enabled: true };
+    const sub = state.notifSub;
+    const mine = sub && (state.notifDevices || []).some(d => d.endpoint === sub.endpoint);
+    let status, canEnable = true;
+    if (store.mode === 'demo') { status = '🧪 En la demo no se envían notificaciones. Funcionan en <b>intranet.cfcastalla.com</b>.'; canEnable = false; }
+    else if (isIOS() && !isStandalone()) { status = '📲 En iPhone/iPad, las notificaciones solo funcionan con la herramienta <b>instalada en la pantalla de inicio</b> (Compartir → Añadir a pantalla de inicio). Ábrela desde ahí y vuelve aquí.'; canEnable = false; }
+    else if (!pushSupported()) { status = '⚠️ Este navegador no admite notificaciones push.'; canEnable = false; }
+    else if (Notification.permission === 'denied') { status = '🚫 Has bloqueado las notificaciones. Actívalas en los ajustes del dispositivo (Ajustes → Notificaciones → Castalla C.F.) y vuelve a intentarlo.'; canEnable = false; }
+    else if (mine) status = '✅ <b>Activadas en este dispositivo.</b>';
+    else status = '🔕 Aún no están activadas en este dispositivo.';
+    $('#nf-status').innerHTML = status;
+    $('#nf-enable').hidden = !canEnable || !!mine;
+    $('#nf-disable').hidden = !mine;
+    const n = (state.notifDevices || []).length;
+    $('#nf-devices').innerHTML = n
+      ? `<b>${n}</b> dispositivo${n > 1 ? 's' : ''} con avisos: ${(state.notifDevices || []).map(d => `<span class="mini-chip club">${esc(d.device || 'Dispositivo')}${sub && d.endpoint === sub.endpoint ? ' (este)' : ''}</span>`).join(' ')}`
+      : 'Ningún dispositivo recibe avisos todavía.';
+    const opts = [];
+    for (let m = 6 * 60; m <= 22 * 60; m += 15) opts.push(`<option value="${fmt(m)}">${fmt(m)}</option>`);
+    $('#nf-time').innerHTML = opts.join('');
+    $('#nf-time').value = String(s.notify_time || '08:30').slice(0, 5);
+    $('#nf-enabled').checked = s.enabled !== false;
+    $('#nf-kinds').innerHTML = NOTIF_KINDS.map(([k, label, hint]) => `<label class="nf-kind"><input type="checkbox" data-kind="${k}" ${(s.kinds || {})[k] === false ? '' : 'checked'}><span><b>${label}</b><small>${hint}</small></span></label>`).join('');
+    $('#nf-test').disabled = !n; $('#nf-preview').disabled = !n;
+  }
+
+  function readNotifForm() {
+    const kinds = {};
+    $$('#nf-kinds [data-kind]').forEach(c => { kinds[c.dataset.kind] = c.checked; });
+    return { notify_time: $('#nf-time').value, enabled: $('#nf-enabled').checked, kinds };
+  }
+  async function saveNotifSettings(quiet) {
+    try { state.notif = await store.notify.saveSettings(readNotifForm()); if (!quiet) toast('Avisos guardados'); }
+    catch (e) { toast('No se pudo guardar: ' + e.message, true); }
+  }
+
+  async function enablePush() {
+    // El permiso se pide lo primero, dentro del toque (iOS lo exige)
+    let perm;
+    try { perm = await Notification.requestPermission(); } catch { perm = 'denied'; }
+    if (perm !== 'granted') { toast('Sin permiso no se pueden mostrar avisos', true); renderNotifications(); return; }
+    try {
+      const reg = await swRegistration();
+      if (!reg) throw new Error('el navegador no admite avisos');
+      await navigator.serviceWorker.ready;
+      const { publicKey } = await store.notify.call('config');
+      let sub = await reg.pushManager.getSubscription();
+      const key = b64uBytes(publicKey);
+      if (sub) {
+        const cur = sub.options?.applicationServerKey && new Uint8Array(sub.options.applicationServerKey);
+        if (!cur || cur.length !== key.length || cur.some((v, i) => v !== key[i])) { await sub.unsubscribe(); sub = null; }
+      }
+      sub = sub || await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: key });
+      const j = sub.toJSON();
+      await store.notify.addDevice({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, device: deviceName() });
+      await saveNotifSettings(true);
+      state.notifSub = sub;
+      state.notifDevices = await store.notify.listDevices();
+      renderNotifications();
+      const r = await store.notify.call('test');
+      toast(r?.sent ? 'Activadas: te hemos enviado una de prueba' : 'Activadas en este dispositivo');
+    } catch (e) { toast('No se pudieron activar: ' + e.message, true); }
+  }
+  async function disablePush() {
+    try {
+      const sub = state.notifSub || await currentSubscription();
+      if (sub) { await store.notify.removeDevice(sub.endpoint); await sub.unsubscribe().catch(() => { }); }
+      state.notifSub = null;
+      state.notifDevices = await store.notify.listDevices();
+      renderNotifications();
+      toast('Avisos desactivados en este dispositivo');
+    } catch (e) { toast('No se pudo desactivar: ' + e.message, true); }
+  }
+
+  function bindNotifications() {
+    $('#m-notif').onclick = openNotifications;
+    $('#nf-enable').onclick = enablePush;
+    $('#nf-disable').onclick = disablePush;
+    $('#nf-time').onchange = () => saveNotifSettings();
+    $('#nf-enabled').onchange = () => saveNotifSettings();
+    $('#nf-kinds').addEventListener('change', () => saveNotifSettings());
+    $('#nf-test').onclick = async () => { try { const r = await store.notify.call('test'); toast(r?.sent ? `Enviada a ${r.sent} dispositivo${r.sent > 1 ? 's' : ''}` : 'No hay dispositivos que la reciban'); } catch (e) { toast('No se pudo enviar: ' + e.message, true); } };
+    $('#nf-preview').onclick = async () => { try { await saveNotifSettings(true); const r = await store.notify.call('preview'); toast(r?.sent ? 'Resumen de hoy enviado' : 'No hay dispositivos que lo reciban'); } catch (e) { toast('No se pudo enviar: ' + e.message, true); } };
+    // Al tocar una notificación con la herramienta ya abierta
+    if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', e => {
+      if (e.data?.type === 'abrir' && /#inicio/.test(e.data.url || '') && isCoord()) setMode('home');
+    });
+  }
+
   async function goToBooking(id, day) {
     $('#matches-dialog').close();
     state.filter = null;
@@ -2946,6 +3111,7 @@
   function bind() {
     bindHome();
     bindShortcuts();
+    bindNotifications();
     $('#d-body').addEventListener('click', e => { if (e.target.id === 'd-rem') { const b = state.bookings.find(x => x.id === $('#detail-dialog').dataset.id); $('#detail-dialog').close(); if (b) reminderFromBooking(b); } });
     $('#f-rem').onclick = () => { const b = state.bookings.find(x => x.id === editingId); if (!b) return; $('#booking-dialog').close(); reminderFromBooking(b); };
     $('#install-go').onclick = doInstall;
@@ -3168,7 +3334,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027094324';
+  const APP_VERSION = '20261027100643';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;
