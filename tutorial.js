@@ -196,9 +196,9 @@ window.TUTORIAL_STEPS = [
     body: 'Al entrar, la casilla <b>Mantener la sesión iniciada</b> (marcada por defecto) hace que no tengas que volver a escribir la contraseña en este dispositivo. Desmárcala en un ordenador o tablet compartidos: la sesión se cerrará al cerrar el navegador. Puedes salir cuando quieras desde aquí, con <b>Cerrar sesión</b>.',
   },
   {
-    id: 'mensaje-finde', since: 16, target: '#matches-btn, #user-btn',
+    id: 'mensaje-finde', since: 17, target: '#matches-btn, #user-btn',
     title: 'Mensaje con los partidos del finde',
-    body: 'En <b>Partidos → Por fin de semana</b>, el botón 💬 de cada finde prepara un mensaje con los partidos de esa semana, uno por equipo: rival, 🏠 en casa o ✈️ fuera, y día y hora (los de entre semana, con la fecha). Puedes retocarlo y luego <b>Copiar</b> o enviarlo por <b>WhatsApp</b>.',
+    body: 'En <b>Partidos → Por fin de semana</b>, el botón 💬 de cada finde prepara un mensaje con los partidos de ese finde, uno por equipo: rival, 🏠 en casa o ✈️ fuera, y día y hora. Incluye también los del lunes, martes y miércoles siguientes (y el jueves anterior), con su fecha. Puedes retocarlo y luego <b>Copiar</b> o enviarlo por <b>WhatsApp</b>.',
   },
   {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',

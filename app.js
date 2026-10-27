@@ -2045,6 +2045,13 @@
     body.scrollTop = nx ? Math.max(0, nx.parentElement.offsetTop - body.offsetTop - 40) : body.scrollHeight;
   }
 
+  // Cada finde abarca de jueves a miércoles: el jueves previo y lunes, martes y miércoles siguientes.
+  // Clave = lunes de la semana del finde.
+  const findeKey = day => { const d = parseKey(day); return keyOf(addDays(mondayOf(d), dayIndexOf(day) < 3 ? -7 : 0)); };
+  const findeRange = monKey => [keyOf(addDays(parseKey(monKey), 3)), keyOf(addDays(parseKey(monKey), 9))];
+  const DAY_ABBR = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  const cellDay = day => { const i = dayIndexOf(day); return i >= 4 ? 'VSD'[i - 4] : `${DAY_ABBR[i]} ${parseKey(day).getDate()}`; };
+
   // Carga por fin de semana: equipos en columnas, findes (viernes a domingo) en filas
   async function loadWeekend() {
     const body = $('#mx-body'), req = (state.mxReq = (state.mxReq || 0) + 1);
@@ -2057,14 +2064,14 @@
     // Partidos de viernes a domingo, agrupados por el lunes de su semana
     const wk = new Map();
     for (const b of list) {
-      if (dayIndexOf(b.day) < 4 || !TEAM[b.team]) continue;
-      const mk = keyOf(mondayOf(parseKey(b.day)));
+      if (!TEAM[b.team]) continue;
+      const mk = findeKey(b.day);
       if (!wk.has(mk)) wk.set(mk, []);
       wk.get(mk).push(b);
     }
-    const shown = [...wk.values()].flat(), midweek = list.length - shown.length;
+    const shown = [...wk.values()].flat();
     const home = shown.filter(b => !b.away).length;
-    $('#mx-sum').innerHTML = shown.length ? `<span><b>${shown.length}</b> partidos en fin de semana</span><span>${home} en casa</span><span>${shown.length - home} fuera</span>` : '';
+    $('#mx-sum').innerHTML = shown.length ? `<span><b>${shown.length}</b> partidos</span><span>${home} en casa</span><span>${shown.length - home} fuera</span>` : '';
     if (!wk.size) { body.innerHTML = '<p class="muted mx-empty">No hay partidos guardados.</p>'; return; }
     const keys = [...wk.keys()].sort();
     const weeks = [];
@@ -2076,7 +2083,7 @@
       const tag = (b.confirmed ? '' : '?') + (needsRival(b) ? '⚑' : '');
       const tip = `${whoOf(b).name} · ${DAYS[dayIndexOf(b.day)]} ${fmt(b.start_min)} · ${b.away ? 'fuera' : 'en casa'} · vs ${b.opponent || 'rival por definir'}${b.away && b.venue ? ' · ' + b.venue : ''}${b.confirmed ? '' : ' · por confirmar'}`;
       return `<button type="button" class="mx-cell ${b.away ? 'away' : 'home'}" data-id="${esc(b.id)}" data-day="${b.day}" title="${esc(tip)}">
-        <b>${DAYS_SHORT[dayIndexOf(b.day)].slice(0, 1)} ${fmt(b.start_min)}${tag ? `<i>${tag}</i>` : ''}</b><span>${esc(b.opponent || '—')}</span></button>`;
+        <b>${cellDay(b.day)} ${fmt(b.start_min)}${tag ? `<i>${tag}</i>` : ''}</b><span>${esc(b.opponent || '—')}</span></button>`;
     };
     const rows = weeks.map(k => {
       const ms = wk.get(k) || [], fri = addDays(parseKey(k), 4), sun = addDays(parseKey(k), 6);
@@ -2090,7 +2097,7 @@
         ${teams.map(t => `<td class="mx-g-c" style="--team:${t.color}">${ms.filter(b => b.team === t.id).map(cell).join('')}</td>`).join('')}</tr>`;
     }).join('');
     body.innerHTML = `<div class="mx-grid-wrap"><table class="mx-grid"><thead>${head}</thead><tbody>${rows}</tbody></table></div>
-      <p class="mx-legend"><span class="mx-cell home"><b>S 10:00</b></span> en casa · <span class="mx-cell away"><b>D 12:00</b></span> fuera · <b>?</b> por confirmar · <b>⚑</b> falta OK del rival · La columna <b>Casa</b> es más intensa cuantos más partidos hay en nuestro campo.${midweek ? ` · ${midweek === 1 ? 'Hay 1 partido entre semana que no sale aquí' : `Hay ${midweek} partidos entre semana que no salen aquí`} (míralos en «Por equipo»).` : ''}</p>`;
+      <p class="mx-legend"><span class="mx-cell home"><b>S 10:00</b></span> en casa · <span class="mx-cell away"><b>D 12:00</b></span> fuera · <b>?</b> por confirmar · <b>⚑</b> falta OK del rival · Cada finde incluye también el jueves anterior y el lunes, martes y miércoles siguientes (con su fecha). La columna <b>Casa</b> es más intensa cuantos más partidos hay en nuestro campo.</p>`;
     const gw = body.querySelector('.mx-grid-wrap');
     const target = body.querySelector('tbody tr.now') || [...body.querySelectorAll('tbody tr')].find(r => r.dataset.wk >= nowWk);
     if (target) gw.scrollTop = Math.max(0, target.offsetTop - gw.querySelector('thead').offsetHeight - 4);
@@ -2100,9 +2107,9 @@
   // Nombre del rival tal como está en el calendario (sin acortar)
   const rivalName = n => (n && String(n).trim()) || '??';
   function weekMessage(monKey) {
-    const mon = parseKey(monKey), sun = keyOf(addDays(mon, 6));
+    const [from, to] = findeRange(monKey);
     const all = state.mxAll || [];
-    const ms = all.filter(b => b.day >= monKey && b.day <= sun && TEAM[b.team]);
+    const ms = all.filter(b => b.day >= from && b.day <= to && TEAM[b.team]);
     const playing = new Set(all.map(b => b.team));   // equipos con partidos en la temporada
     const blocks = [];
     for (const t of MATCH_TEAMS()) {
@@ -2634,7 +2641,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027061855';
+  const APP_VERSION = '20261027062311';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;
