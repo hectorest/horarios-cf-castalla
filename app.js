@@ -2263,6 +2263,8 @@
   ];
   /** Grupo en Inicio: los que esperan a otra persona van aparte (salvo hechos) */
   const remGroup = r => r.done ? 'done' : r.waiting_on ? 'waiting' : remStatus(r);
+  // Icono «pasar a otra persona»: persona con flecha (mismo tamaño que el ⏰)
+  const ICON_HANDOFF = '<svg class="ico-handoff" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="15" cy="7" r="3.2"/><path d="M9.5 20v-1.5a5.5 5.5 0 0 1 11 0V20"/><path d="M2.5 13h6.5"/><path d="M6.5 10l3 3-3 3"/></svg>';
   const WAIT_SUGGEST = ['Club rival', 'Directivo', 'Federación', 'Ayuntamiento', 'Árbitros'];
   const waitOptions = () => [...new Set([...(state.people || []).filter(p => p.status === 'aprobado' && p.id !== state.user?.id).map(p => p.full_name).filter(Boolean), ...WAIT_SUGGEST])]
     .map(n => `<option value="${esc(n)}"></option>`).join('');
@@ -2393,7 +2395,7 @@
       </button>
       <div class="rem-acts">
       ${r.waiting_on && st !== 'done' ? `<button type="button" class="rem-snz-btn" data-claim title="Reclamar a ${esc(r.waiting_on)}" aria-label="Reclamar">📨</button>` : ''}
-      ${st === 'done' ? '' : `<button type="button" class="rem-snz-btn rem-wait-btn ${state.waitOpen === r.id ? 'on' : ''}" data-wait-open title="${r.waiting_on ? 'Cambiar de quién depende' : 'Ya no depende de mí'}" aria-label="${r.waiting_on ? 'Cambiar de quién depende' : 'Ya no depende de mí'}" aria-expanded="${state.waitOpen === r.id}">⏳<span class="wb-lbl"> ${r.waiting_on ? 'Espera' : 'No depende de mí'}</span></button>`}
+      ${st === 'done' ? '' : `<button type="button" class="rem-snz-btn rem-wait-btn ${state.waitOpen === r.id ? 'on' : ''} ${r.waiting_on ? 'is-waiting' : ''}" data-wait-open title="${r.waiting_on ? 'Cambiar de quién depende' : 'Ya no depende de mí'}" aria-label="${r.waiting_on ? 'Cambiar de quién depende' : 'Ya no depende de mí'}" aria-expanded="${state.waitOpen === r.id}">${ICON_HANDOFF}</button>`}
       ${st === 'done' ? '' : `<button type="button" class="rem-snz-btn ${state.snoozeOpen === r.id ? 'on' : ''}" data-snooze-open title="Posponer" aria-label="Posponer" aria-expanded="${state.snoozeOpen === r.id}">⏰</button>`}
       </div>
       ${st !== 'done' && state.waitOpen === r.id ? waitPanel(r) : ''}
@@ -3412,7 +3414,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027104530';
+  const APP_VERSION = '20261027104729';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

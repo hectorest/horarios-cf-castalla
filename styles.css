@@ -1028,7 +1028,9 @@ input[type="date"]::-webkit-datetime-edit, input[type="time"]::-webkit-datetime-
 .rem-new-btn { padding: 6px 12px; font-size: 13.5px; }
 
 /* Botón «Ya no depende de mí» y panel de a quién se espera */
-.rem-wait-btn { font-size: 13px; white-space: nowrap; color: #5b3fa0; }
+.rem-wait-btn { color: #6b4fc0; display: inline-grid; place-items: center; }
+.rem-wait-btn .ico-handoff { display: block; width: 19px; height: 19px; }
+.rem-wait-btn.is-waiting { background: #efe9fd; border-color: #cdbdf3; }
 .rem-wait-btn .wb-lbl { font-size: 12px; font-weight: 600; }
 .rem-waitp { align-items: center; }
 .rem-waitp button { border-color: #ddd2f7; }
