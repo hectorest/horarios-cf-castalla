@@ -742,7 +742,7 @@ button.danger-link { color: var(--err); }
 .mx-main { min-width: 0; display: grid; gap: 2px; }
 .mx-opp { font-weight: 600; display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mx-ha { flex: none; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 1px 6px; border-radius: 99px; }
-.mx-ha.home { background: var(--pitch); color: #fff; }
+.mx-ha.home { background: var(--pitch); color: #fff; border: 1px solid var(--pitch); }
 .mx-ha.away { background: transparent; color: var(--muted); border: 1px dashed currentColor; }
 .mx-where { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mx-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
@@ -841,7 +841,7 @@ button.danger-link { color: var(--err); }
 @media (max-width: 720px) { .msg-text { min-height: 0; height: 100%; } #msg-dialog .dlg-body { grid-template-rows: auto 1fr; } .mx-grid .mx-wk-cell { flex-direction: column; align-items: flex-start; } }
 
 /* ---------- Inicio del coordinador ---------- */
-.home { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 20px 24px; }
+#home { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 14px 20px 24px; }
 body.home-mode .layout, body.home-mode #week-strip, body.home-mode #day-tabs, body.home-mode .week-nav, body.home-mode #view-toggle,
 body.home-mode .legend, body.home-mode .legend-btn, body.home-mode .coord-only, body.home-mode #side-toggle, body.home-mode #print-btn { display: none !important; }
 .pill-count { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 4px; border-radius: 99px; background: var(--err); color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; text-align: center; }
@@ -859,9 +859,9 @@ body.home-mode .legend, body.home-mode .legend-btn, body.home-mode .coord-only, 
 .hs.zero { background: var(--panel); border-color: var(--line); } .hs.zero b { color: var(--muted); }
 .home-cal-btn { margin-left: auto; }
 .home-grid { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 14px; align-items: start; }
-.home .panel { padding: 14px 16px; }
-.home h3 { margin: 0 0 10px; font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--pitch-dark); }
-.home h3 small { text-transform: none; letter-spacing: 0; color: var(--muted); font-weight: 500; }
+#home .panel { padding: 14px 16px; }
+#home h3 { margin: 0 0 10px; font-size: 15px; text-transform: uppercase; letter-spacing: .04em; color: var(--pitch-dark); }
+#home h3 small { text-transform: none; letter-spacing: 0; color: var(--muted); font-weight: 500; }
 .rem-quick { display: grid; gap: 8px; padding: 10px; margin-bottom: 12px; background: var(--pitch-tint); border-radius: 10px; border: 1px solid #cfe0f5; }
 .rq-title { font: inherit; font-size: 15px; padding: 9px 11px; border: 1px solid var(--line-strong); border-radius: 8px; background: var(--panel); width: 100%; }
 .rq-row { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) auto; gap: 8px; align-items: end; }
@@ -911,7 +911,7 @@ details.rem-group summary h4::before { content: '▸'; } details.rem-group[open]
 .d-rem { margin-top: 10px; }
 @media (max-width: 1000px) { .home-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 720px) {
-  .home { padding: 10px 10px 20px; }
+  #home { padding: 10px 10px 20px; }
   body.home-mode .toolbar { display: none; }
   .home-head { gap: 10px; }
   .home-hello h2 { font-size: 19px; }
@@ -932,7 +932,7 @@ details.rem-group summary h4::before { content: '▸'; } details.rem-group[open]
 @media (max-width: 960px) { .app-ver-top { display: inline; } }
 @media (max-width: 960px) { .app-ver-top { line-height: 1.15; text-align: right; } }
 @media (max-width: 720px) { .app-ver-top { font-size: 9px; } }
-@media print { .app-ver, .home { display: none !important; } }
+@media print { .app-ver, #home { display: none !important; } }
 .up-ver { margin: 6px 4px 0; padding-top: 6px; border-top: 1px solid var(--line); font-size: 11px; color: var(--muted); }
 body.home-mode .top-right { margin-left: auto; }
 
@@ -973,7 +973,7 @@ input[type="date"]::-webkit-datetime-edit, input[type="time"]::-webkit-datetime-
 }
 .prop-form input[type="date"], .prop-form input[type="time"] { width: auto; min-width: 0; padding: 6px 8px; height: 34px; }
 @media (max-width: 720px) { .prop-form input[type="date"], .prop-form input[type="time"] { width: 100%; } }
-.dlg-body, .home { overflow-x: hidden; }
+.dlg-body, #home { overflow-x: hidden; }
 
 /* ---------- Conectar con Atajos ---------- */
 .sc-intro { margin: 0; font-size: 13.5px; line-height: 1.5; }
