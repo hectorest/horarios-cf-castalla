@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261027074958">
+  <link rel="stylesheet" href="styles.css?v=20261027081912">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -24,6 +24,7 @@
       <img class="brand-crest" src="assets/escudo.png" alt="Escudo del Castalla C.F." width="38" height="54">
       <div>
         <h1 id="club-name">Campo</h1>
+        <span class="app-ver app-ver-brand" id="app-ver"></span>
         <p>Distribución semanal del campo</p>
       </div>
     </div>
@@ -42,6 +43,7 @@
       </div>
       <button id="matches-btn" class="ghost people-btn">Partidos</button>
       <button id="people-btn" class="ghost people-btn" hidden>Entrenadores <span id="people-count"></span></button>
+      <span class="app-ver app-ver-top" id="app-ver-top"></span>
       <button id="help-btn" class="icon-btn help-btn" title="Ver tutorial" aria-label="Ver tutorial">?</button>
       <div class="user-menu">
         <button id="user-btn" class="user-btn" aria-haspopup="menu" aria-expanded="false" aria-controls="user-pop">
@@ -54,6 +56,7 @@
             <span id="up-role" class="role-badge"></span>
           </div>
           <div id="up-teams" class="up-teams"></div>
+          <button type="button" role="menuitem" id="m-home" hidden>Inicio: recordatorios y pendientes <span class="home-count pill-count" hidden></span></button>
           <button type="button" role="menuitem" id="m-matches">Partidos por equipo</button>
           <button type="button" role="menuitem" id="m-weekend">Partidos del fin de semana</button>
           <button type="button" role="menuitem" id="m-people" hidden>Entrenadores y solicitudes <span id="m-people-count"></span></button>
@@ -64,6 +67,7 @@
           <button type="button" role="menuitem" id="m-install" hidden>Instalar la app en este dispositivo</button>
           <button type="button" role="menuitem" id="m-help">Ver tutorial</button>
           <button type="button" role="menuitem" id="m-logout">Cerrar sesión</button>
+          <p class="up-ver" id="up-ver"></p>
         </div>
       </div>
     </div>
@@ -76,6 +80,7 @@
     <div id="legend" class="legend" aria-label="Filtrar por equipo"></div>
     <div class="toolbar-actions">
       <div class="segmented mode-toggle hide-mobile" id="mode-toggle" role="group" aria-label="Qué ver">
+        <button type="button" data-mode="home" class="home-only-coord" hidden>Inicio <span class="home-count pill-count" hidden></span></button>
         <button type="button" data-mode="week" class="on">Semana</button>
         <button type="button" data-mode="template">Horario habitual</button>
       </div>
@@ -97,6 +102,8 @@
   <div id="week-strip" class="week-strip" hidden></div>
 
   <div id="day-tabs" class="day-tabs" hidden></div>
+
+  <section id="home" class="home" hidden aria-label="Inicio"></section>
 
   <main class="layout">
     <section class="cal-wrap" id="cal-wrap">
@@ -268,6 +275,7 @@
       <footer class="dlg-foot">
         <button type="button" id="f-delete" class="danger">Eliminar</button>
         <button type="button" id="f-dup" class="ghost">Duplicar</button>
+        <button type="button" id="f-rem" class="ghost" title="Crear un recordatorio ligado a esta reserva">🔔<span class="hide-sm"> Recordatorio</span></button>
         <span class="spacer"></span>
         <button type="button" class="ghost" data-close>Cancelar</button>
         <button type="submit" id="f-save" class="primary">Guardar</button>
@@ -298,6 +306,29 @@
       <span class="spacer"></span>
       <button type="button" id="msg-copy" class="primary">Copiar</button>
     </footer>
+  </dialog>
+
+  <dialog id="rem-dialog" class="dialog narrow-dlg">
+    <form id="rem-form" novalidate>
+      <header class="dlg-head"><h3 id="rem-title-h">Recordatorio</h3><button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button></header>
+      <div class="dlg-body">
+        <div class="field"><label for="rm-title">Qué hay que hacer</label><input id="rm-title" maxlength="200" required></div>
+        <div class="field"><label for="rm-team">Equipo</label><select id="rm-team"></select></div>
+        <div class="field-row">
+          <div class="field"><label for="rm-due">Fecha máxima</label><input type="date" id="rm-due"></div>
+          <div class="field"><label for="rm-alert">Aviso <small>(pasa a urgente)</small></label><input type="date" id="rm-alert"></div>
+        </div>
+        <div class="rq-presets" id="rm-alert-pre"><span>Aviso:</span><button type="button" data-pre="0">el mismo día</button><button type="button" data-pre="1">1 día antes</button><button type="button" data-pre="3">3 días antes</button><button type="button" data-pre="7">1 semana antes</button></div>
+        <div class="field"><label for="rm-notes">Notas</label><textarea id="rm-notes" rows="3" maxlength="1000"></textarea></div>
+        <p id="rm-booking" class="rm-booking" hidden></p>
+      </div>
+      <footer class="dlg-foot">
+        <button type="button" id="rm-delete" class="danger">Borrar</button>
+        <button type="button" id="rm-done" class="ghost">Marcar como hecho</button>
+        <span class="spacer"></span>
+        <button type="submit" class="primary">Guardar</button>
+      </footer>
+    </form>
   </dialog>
 
   <dialog id="confirm-dialog" class="dialog narrow-dlg">
@@ -371,8 +402,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261027074958"></script>
-  <script src="tutorial.js?v=20261027074958"></script>
-  <script src="app.js?v=20261027074958"></script>
+  <script src="config.js?v=20261027081912"></script>
+  <script src="tutorial.js?v=20261027081912"></script>
+  <script src="app.js?v=20261027081912"></script>
 </body>
 </html>

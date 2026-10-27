@@ -33,6 +33,19 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
 
 > «He olvidado mi contraseña» envía un correo. Con el correo integrado de Supabase solo llega a direcciones de tu organización de Supabase. Para que llegue a cualquier entrenador, configura un SMTP propio en *Authentication > Emails > SMTP Settings* (por ejemplo, una cuenta de Gmail del club o Resend).
 
+## Inicio de la coordinación: recordatorios y próximos días
+
+Los coordinadores entran en **Inicio** (pestaña junto a *Semana* y *Horario habitual*; en el móvil, menú de usuario → *Inicio*). Si el enlace lleva una semana (`#semana=…`), se abre el calendario.
+
+- **Recordatorios** (tabla `reminders`, solo los ven y gestionan los coordinadores): alta rápida con qué hay que hacer, equipo (o *Todo el club*), **fecha máxima** y **fecha de aviso**. El aviso se rellena solo 3 días antes de la fecha máxima (con atajos: el mismo día, 1 día, 3 días, 1 o 2 semanas antes).
+  - **Pendiente** → aún no ha llegado la fecha de aviso.
+  - **Urgente** → ha llegado la fecha de aviso (o vence hoy).
+  - **Vencido** → ya pasó la fecha máxima.
+  - Se marcan como **hechos** con la casilla; los hechos quedan plegados al final. Tocando uno se edita (notas, fechas, borrar).
+  - Desde cualquier reserva (detalle o editor) el botón **🔔 Recordatorio** crea uno ligado a ella, con el equipo y la fecha ya puestos.
+- **Próximos 14 días**: conflictos, avisos y pendientes del calendario (partidos por confirmar, falta de OK del rival, propuestas, semanas sin publicar el horario habitual, solicitudes de entrenadores). Tocando uno se abre en el calendario.
+- El contador rojo de **Inicio** suma recordatorios vencidos y urgentes y conflictos próximos.
+
 ## Partidos: confirmación, observaciones y propuestas
 
 - **Por confirmar / confirmado**: un partido por confirmar se ve con borde discontinuo y «Por confirmar», y sale en Incidencias. El coordinador lo marca con **Horario confirmado** en el editor, o confirma todos los de la semana con el botón de Incidencias (o el menú de usuario).
@@ -52,6 +65,10 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
 - **Mensaje del finde**: en esa tabla, el botón 💬 de cada fila genera un mensaje para WhatsApp con los partidos del finde, incluidos los del jueves anterior y los del lunes, martes y miércoles siguientes, por equipo y en el orden de `config.js`: «Equipo vs Rival 🏠/✈️» y debajo el día y la hora (fuera del viernes-domingo, con el número del día: «Martes 3 - 20:00»). Los equipos con partidos en la temporada pero sin partido esa semana salen como «vs ??»; las horas sin confirmar llevan «(por confirmar)». El rival sale con su nombre completo, tal como está en el calendario. El texto se puede retocar antes de **Copiar**, **WhatsApp** o **Compartir** (en el móvil).
 - **Observaciones**: texto libre del partido (por ejemplo, «el entrenador pide jugar el viernes porque el sábado tiene 5 bajas»). Lo escribe el coordinador; todos lo ven en el detalle.
 - **Propuestas de horario**: el coordinador y los entrenadores del equipo pueden proponer alternativas para un partido: día y hora exacta, «por la mañana», «por la tarde» o «a cualquier hora», con su motivo. Junto a cada propuesta se comprueba si el hueco está libre (sin hora exacta, se busca la primera hora libre de la franja; entre semana, a partir de las 16:00). El coordinador la **aplica** (mueve el partido) o la **descarta**. Los partidos con propuestas pendientes llevan la marca **⇄**.
+
+## Versión
+
+La cabecera muestra la versión en uso (`v27.10 · 08:49` = publicada el 27/10 a las 08:49, hora local); el detalle completo está en el menú de usuario. Es el valor de `version.txt` que pone `./release.sh`.
 
 ## Buscadores
 

@@ -528,6 +528,67 @@ begin
   end if;
 end $$;
 
+-- ---------- Recordatorios de la coordinación (pestaña Inicio) ----------
+-- Tareas propias del coordinador: qué hay que hacer, equipo (opcional), fecha máxima y fecha de aviso
+-- (desde la que pasa de «pendiente» a «urgente»). Solo los ven y gestionan los coordinadores aprobados.
+create table if not exists public.reminders (
+  id          uuid primary key default gen_random_uuid(),
+  title       text not null check (char_length(btrim(title)) between 1 and 200),
+  team        text check (char_length(team) <= 40),
+  due_date    date,                 -- fecha máxima
+  alert_date  date,                 -- fecha de aviso: desde ese día sale como urgente
+  notes       text check (char_length(notes) <= 1000),
+  booking_id  uuid references public.bookings(id) on delete set null,
+  done        boolean not null default false,
+  done_at     timestamptz,
+  created_by  uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  updated_at  timestamptz not null default now(),
+  constraint reminders_aviso_antes check (alert_date is null or due_date is null or alert_date <= due_date)
+);
+create index if not exists reminders_pendientes_idx on public.reminders (done, due_date);
+create index if not exists reminders_booking_idx on public.reminders (booking_id);
+create index if not exists reminders_created_by_idx on public.reminders (created_by);
+alter table public.reminders enable row level security;
+comment on table public.reminders is 'Recordatorios de la coordinación: equipo opcional, fecha máxima y fecha de aviso (pasa de pendiente a urgente).';
+
+drop policy if exists "Coordinadores ven recordatorios" on public.reminders;
+create policy "Coordinadores ven recordatorios" on public.reminders
+  for select to authenticated using ((select private.is_coordinator()));
+drop policy if exists "Coordinadores crean recordatorios" on public.reminders;
+create policy "Coordinadores crean recordatorios" on public.reminders
+  for insert to authenticated with check ((select private.is_coordinator()) and created_by = (select auth.uid()));
+drop policy if exists "Coordinadores editan recordatorios" on public.reminders;
+create policy "Coordinadores editan recordatorios" on public.reminders
+  for update to authenticated using ((select private.is_coordinator())) with check ((select private.is_coordinator()));
+drop policy if exists "Coordinadores borran recordatorios" on public.reminders;
+create policy "Coordinadores borran recordatorios" on public.reminders
+  for delete to authenticated using ((select private.is_coordinator()));
+revoke all on public.reminders from anon, authenticated;
+grant select, insert, update, delete on public.reminders to authenticated;
+
+create or replace function private.reminders_touch()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  new.updated_at := now();
+  if new.done and not coalesce(old.done, false) then new.done_at := now(); end if;
+  if not new.done then new.done_at := null; end if;
+  return new;
+end;
+$$;
+drop trigger if exists reminders_touch on public.reminders;
+create trigger reminders_touch before update on public.reminders
+  for each row execute function private.reminders_touch();
+
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'reminders') then
+    alter publication supabase_realtime add table public.reminders;
+  end if;
+end $$;
+
 -- ============================================================
 --  Primer coordinador: crea una invitación de coordinador y regístrate
 --  con el enlace  https://TU-WEB/#invitacion=TOKEN

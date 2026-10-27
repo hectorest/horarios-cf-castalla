@@ -201,6 +201,16 @@ window.TUTORIAL_STEPS = [
     body: 'En <b>Partidos → Por fin de semana</b>, el botón 💬 de cada finde prepara un mensaje con los partidos de ese finde, uno por equipo: rival, 🏠 en casa o ✈️ fuera, y día y hora. Incluye también los del lunes, martes y miércoles siguientes (y el jueves anterior), con su fecha. Puedes retocarlo y luego <b>Copiar</b> o enviarlo por <b>WhatsApp</b>.',
   },
   {
+    id: 'inicio-coordinador', since: 18, roles: ['coordinador'], target: '#mode-toggle [data-mode=home], #user-btn',
+    title: 'Tu Inicio: recordatorios y lo que se acerca',
+    body: 'Al entrar verás <b>Inicio</b> (en el móvil, en tu menú). A la izquierda, tus <b>recordatorios</b>: escribe qué hay que hacer, el equipo, la <b>fecha máxima</b> y la <b>fecha de aviso</b> (se rellena sola 3 días antes); desde ese día pasa de pendiente a <b>urgente</b>, y si se pasa la fecha máxima, a <b>vencido</b>. Márcalos con la casilla cuando estén hechos. A la derecha, los <b>conflictos, avisos y pendientes</b> de los próximos 14 días; toca uno para ir al calendario. También puedes crear un recordatorio desde cualquier reserva con <b>🔔 Recordatorio</b>.',
+  },
+  {
+    id: 'version', since: 18, target: '#app-ver, #app-ver-top',
+    title: 'Versión de la herramienta',
+    body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',
+  },
+  {
     id: 'ayuda', since: 1, target: '#help-btn, #user-btn',
     title: 'Volver a ver esta guía',
     body: 'Puedes repetir el tutorial cuando quieras desde aquí. Cuando añadamos funciones nuevas, te las enseñaremos al entrar.',

@@ -351,6 +351,21 @@
     const sessionOf = u => u ? { user: { id: u.id, email: u.email }, profile: { full_name: u.full_name, role: u.role, status: u.status, teams: u.teams || [], requested_teams: u.requested_teams || [] } } : null;
     const PKEY = 'planificador-campo-demo-proposals-v1';
     const AKEY = 'planificador-campo-demo-acks-v1';
+    const RKEY = 'planificador-campo-demo-reminders-v1';
+    const demoReminders = () => {
+      const d = n => keyOf(addDays(new Date(), n)), now = new Date().toISOString();
+      const r = (title, team, due, alert, extra = {}) => ({ id: uid(), title, team, due_date: due, alert_date: alert, notes: null, booking_id: null, done: false, done_at: null, created_by: 'demo-coord', created_at: now, updated_at: now, ...extra });
+      return [
+        r('Entregar las fichas médicas a la federación', 'cadete', d(-1), d(-4)),
+        r('Pedir el campo al Ayuntamiento para el torneo de Navidad', null, d(3), d(0)),
+        r('Confirmar árbitro del amistoso', 'juvenil', d(10), d(7)),
+        r('Encargar balones nuevos', 'alevin-a', d(20), d(15), { notes: 'Talla 4, 10 unidades' }),
+        r('Revisar redes de las porterías', null, d(-3), d(-5), { done: true, done_at: now }),
+      ];
+    };
+    const rems = () => { let a = ls.get(RKEY); if (!a) { a = demoReminders(); ls.set(RKEY, a); } return a; };
+    const remListeners = [];
+    const writeRems = a => { ls.set(RKEY, a); remListeners.forEach(cb => setTimeout(cb, 0)); };
     const props = () => ls.get(PKEY) || [];
     const writeProps = a => ls.set(PKEY, a);
     const IKEY = 'planificador-campo-demo-invites-v1';
@@ -392,6 +407,16 @@
         let n = 0;
         write(read().map(b => b.kind === 'partido' && !b.confirmed && b.day >= from && b.day <= to ? (n++, { ...b, confirmed: true }) : b));
         return n;
+      },
+      reminders: {
+        async list() { return rems().map(r => ({ ...r })); },
+        async insert(r) { const now = new Date().toISOString(); const x = { done: false, done_at: null, notes: null, booking_id: null, team: null, due_date: null, alert_date: null, ...r, id: uid(), created_by: sid, created_at: now, updated_at: now }; writeRems([...rems(), x]); return x; },
+        async update(id, r) {
+          const now = new Date().toISOString();
+          writeRems(rems().map(x => x.id !== id ? x : { ...x, ...r, updated_at: now, done_at: ('done' in r) ? (r.done ? (x.done ? x.done_at : now) : null) : x.done_at }));
+        },
+        async remove(id) { writeRems(rems().filter(x => x.id !== id)); },
+        subscribe(cb) { remListeners.push(cb); },
       },
       acks: {
         async list(ids) { return (ls.get(AKEY) || []).filter(a => ids.includes(a.entreno_id)); },
@@ -548,6 +573,18 @@
       },
       async confirmMatches(from, to) {
         return chk(await sb.from(T).update({ confirmed: true }).eq('kind', 'partido').eq('confirmed', false).gte('day', from).lte('day', to).select('id')).length;
+      },
+      reminders: {
+        async list() { return chk(await sb.from('reminders').select('id, title, team, due_date, alert_date, notes, booking_id, done, done_at, created_by, created_at, updated_at').order('due_date', { nullsFirst: false }).order('created_at')); },
+        async insert(r) { return chk(await sb.from('reminders').insert(r).select().single()); },
+        async update(id, r) {
+          const rows = chk(await sb.from('reminders').update(r).eq('id', id).select('id'));
+          if (!rows.length) throw new Error('No tienes permiso para cambiar este recordatorio.');
+        },
+        async remove(id) { chk(await sb.from('reminders').delete().eq('id', id)); },
+        subscribe(cb) {
+          sb.channel('reminders-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'reminders' }, debounce(cb)).subscribe();
+        },
       },
       acks: {
         async list(ids) {
@@ -717,6 +754,9 @@
     proposals: new Map(),   // id de partido → propuestas de horario
     acks: [],               // solapes partido–entreno asumidos
     summaryOpen: false,     // resumen y leyenda desplegados (plegados por defecto)
+    reminders: [],          // recordatorios de la coordinación (Inicio)
+    upcoming: [],           // incidencias de los próximos días (Inicio)
+    homeLoading: false,
     issueScope: 'mine',
     minorOpen: false,     // grupo «reparto del campo en entrenamientos» desplegado  // entrenadores: 'mine' | 'all'
     edit: true,
@@ -865,17 +905,23 @@
     renderCalendar();
     renderIssues();
     renderSummary();
+    if (isHome()) renderHome();
   }
 
   function renderHeader() {
     const a = state.weekStart, b = addDays(a, 6);
     const sameMonth = a.getMonth() === b.getMonth();
+    const yr = window.innerWidth <= 720 && b.getFullYear() === new Date().getFullYear() ? '' : ` ${b.getFullYear()}`;   // en móvil, sin el año en curso
     $('#week-label').textContent = isTpl() ? 'Horario habitual' : sameMonth
-      ? `${a.getDate()} – ${b.getDate()} ${MONTHS[b.getMonth()]} ${b.getFullYear()}`
-      : `${a.getDate()} ${MONTHS[a.getMonth()]} – ${b.getDate()} ${MONTHS[b.getMonth()]} ${b.getFullYear()}`;
+      ? `${a.getDate()} – ${b.getDate()} ${MONTHS[b.getMonth()]}${yr}`
+      : `${a.getDate()} ${MONTHS[a.getMonth()]} – ${b.getDate()} ${MONTHS[b.getMonth()]}${yr}`;
     document.body.classList.toggle('tpl-mode', isTpl());
+    document.body.classList.toggle('home-mode', isHome());
+    $('#home').hidden = !isHome();
+    $$('.home-only-coord').forEach(x => x.hidden = !isCoord());
     $$('#mode-toggle button').forEach(x => { const on = x.dataset.mode === state.mode; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
     $('#m-mode').textContent = isTpl() ? 'Volver a la semana' : 'Ver horario habitual';
+    $('#m-home').hidden = !isCoord() || isHome();
     $('#new-btn').innerHTML = `+<span class="hide-sm"> ${isTpl() ? 'Nuevo entreno habitual' : 'Nueva reserva'}</span>`;
     renderStrip();
     $$('#view-toggle button').forEach(x => x.classList.toggle('on', x.dataset.view === state.view));
@@ -1075,9 +1121,11 @@
 
   function setMode(m) {
     if (state.mode === m) return;
+    if (m === 'home' && !isCoord()) return;
     state.mode = m; state.selectedId = null;
     closeUserMenu();
     render();
+    if (m === 'home') { $('#home').scrollTop = 0; loadHome(); return; }
     load();
   }
 
@@ -1393,6 +1441,7 @@
     $('#f-title').textContent = isTpl() ? (isNew ? 'Nuevo entreno habitual' : 'Editar entreno habitual') : (isNew ? (b.template_id ? 'Recuperar entreno habitual' : 'Nueva reserva') : 'Editar reserva');
     $('#f-delete').hidden = isNew;
     $('#f-dup').hidden = isNew;
+    $('#f-rem').hidden = isNew || isTpl();
     syncForm();
     if (!dlg().open) dlg().showModal();
     dlg().querySelector('.dlg-body').scrollTop = 0;
@@ -1588,6 +1637,7 @@
       ${issues.length ? `<ul class="pv-issues">${issues.map(i => `<li class="${i.level}">${ICON[i.level]} ${esc(i.msg)}${ackButton(i)}</li>`).join('')}</ul>` : ''}
       ${b.kind === 'partido' ? '<div class="field"><span class="lbl">Propuestas de horario</span><div id="d-props" class="props-box"></div></div>' : ''}`;
     if (b.kind === 'partido') renderProposals($('#d-props'), b, false);
+    if (isCoord() && !isTpl()) $('#d-body').insertAdjacentHTML('beforeend', '<div class="d-rem"><button type="button" class="ghost" id="d-rem">🔔 Añadir recordatorio</button></div>');
     $('#detail-dialog').dataset.id = b.id;
     $('#detail-dialog').showModal();
     $('#d-body').scrollTop = 0;
@@ -1779,13 +1829,15 @@
     document.body.classList.remove('gated');
     const first = !appOpen;
     appOpen = true;
+    if (first && isCoord() && !/semana=/.test(location.hash) && state.mode === 'week') state.mode = 'home';
+    if (!isCoord() && isHome()) state.mode = 'week';
     render();
     await load();
     if (first) {
       const wrap = $('#cal-wrap');
       if (wrap.scrollHeight > wrap.clientHeight) wrap.scrollTop = Math.max(0, (toMin('16:30') - DAY_START) * PX);
     }
-    if (isCoord()) loadPeople();
+    if (isCoord()) { await loadPeople(); loadHome(); }
     maybeTutorial();
   }
 
@@ -2138,10 +2190,321 @@
     catch { const ta = $('#msg-text'); ta.focus(); ta.select(); try { document.execCommand('copy'); toast('Mensaje copiado'); } catch { toast('No se ha podido copiar: selecciónalo y cópialo a mano', true); } }
   }
 
+  // ================================================================
+  //  Inicio del coordinador: recordatorios propios y lo próximo del calendario
+  // ================================================================
+  const HOME_DAYS = 14;                  // horizonte de «próximamente»
+  const isHome = () => state.mode === 'home';
+  const todayKey = () => keyOf(new Date());
+  const shortDate = k => { const d = parseKey(k); return `${DAYS_SHORT[dayIndexOf(k)].toLowerCase()} ${d.getDate()} ${MONTHS[d.getMonth()]}`; };
+  const daysTo = k => Math.round((parseKey(k) - parseKey(todayKey())) / 864e5);
+  const relDays = k => { const n = daysTo(k); return n === 0 ? 'hoy' : n === 1 ? 'mañana' : n === -1 ? 'ayer' : n > 0 ? `en ${n} días` : `hace ${-n} días`; };
+
+  /** vencido (pasó la fecha máxima), urgente (llegó la fecha de aviso o vence hoy), pendiente, hecho */
+  function remStatus(r) {
+    if (r.done) return 'done';
+    const t = todayKey();
+    if (r.due_date && r.due_date < t) return 'overdue';
+    if ((r.alert_date && r.alert_date <= t) || (r.due_date && r.due_date <= t)) return 'urgent';
+    return 'pending';
+  }
+  const REM_GROUPS = [
+    ['overdue', 'Vencidos', 'Ya pasó la fecha máxima'],
+    ['urgent', 'Urgentes', 'Ha llegado la fecha de aviso'],
+    ['pending', 'Pendientes', 'Aún hay margen'],
+  ];
+
+  async function loadReminders() {
+    if (!isCoord()) { state.reminders = []; return; }
+    try { state.reminders = await store.reminders.list(); }
+    catch (e) { state.reminders = state.reminders || []; toast('No se pudieron cargar los recordatorios: ' + e.message, true); }
+    renderHomeBadge();
+    if (isHome()) renderHome();
+  }
+
+  function homeAlertCount() {
+    const r = (state.reminders || []).filter(x => ['overdue', 'urgent'].includes(remStatus(x))).length;
+    const c = (state.upcoming || []).filter(x => x.level === 'error').length;
+    return r + c;
+  }
+  function renderHomeBadge() {
+    const n = homeAlertCount();
+    const txt = n ? String(n) : '';
+    $$('.home-count').forEach(el => { el.textContent = txt; el.hidden = !n; });
+  }
+
+  /** Incidencias de las semanas que tocan los próximos días (sin tocar la semana que se está viendo) */
+  async function computeUpcoming() {
+    const today = todayKey(), limit = keyOf(addDays(new Date(), HOME_DAYS));
+    const weeks = [];
+    for (let w = mondayOf(new Date()); keyOf(w) <= limit; w = addDays(w, 7)) weeks.push(w);
+    const template = await store.template.list().catch(() => state.template || []);
+    const out = [];
+    for (const ws of weeks) {
+      const from = keyOf(ws), to = keyOf(addDays(ws, 6));
+      const [bk, gen] = await Promise.all([store.list(from, to), store.weekGenerated(from).catch(() => true)]);
+      const ps = await store.proposals.list(bk.filter(b => b.kind === 'partido').map(b => b.id)).catch(() => []);
+      const acks = await store.acks.list(bk.filter(b => b.kind === 'entreno').map(b => b.id)).catch(() => []);
+      const proposals = new Map();
+      for (const p of ps) { if (!proposals.has(p.booking_id)) proposals.set(p.booking_id, []); proposals.get(p.booking_id).push(p); }
+      // Calcula con el mismo motor que el calendario, cambiando el estado un momento
+      const keep = { weekStart: state.weekStart, bookings: state.bookings, template: state.template, weekGenerated: state.weekGenerated, proposals: state.proposals, acks: state.acks, mode: state.mode };
+      let full;
+      try {
+        Object.assign(state, { weekStart: ws, bookings: bk, template, weekGenerated: gen, proposals, acks, mode: 'week' });
+        full = applyAcks(addChanges(computeIssues(bk)));
+      } finally { Object.assign(state, keep); }
+      const byId = new Map(bk.map(b => [b.id, b]));
+      for (const it of full.all) {
+        if (!['error', 'warn', 'pending'].includes(it.level) || it.minor) continue;
+        if (!it.day || it.day < today || it.day > limit) continue;
+        out.push({ ...it, bookingId: it.ids.find(id => byId.has(id)) || null });
+      }
+      if (template.length && !gen && to >= today) {
+        out.push({ level: 'pending', kind: 'publish', day: from < today ? today : from, at: 0, ids: [], week: from,
+          msg: `Falta publicar el horario habitual de la semana del ${ws.getDate()} de ${MONTHS[ws.getMonth()]}` });
+      }
+    }
+    const pend = (state.people || []).filter(p => p.status === 'pendiente');
+    if (pend.length) out.push({ level: 'pending', kind: 'people', day: today, at: 0, ids: [], msg: `${pend.length} solicitud${pend.length > 1 ? 'es' : ''} de entrenador${pend.length > 1 ? 'es' : ''} por revisar` });
+    const rank = { error: 0, warn: 1, pending: 2 };
+    out.sort((a, b) => rank[a.level] - rank[b.level] || a.day.localeCompare(b.day) || (a.at || 0) - (b.at || 0));
+    return out;
+  }
+
+  let homeReq = 0;
+  async function loadHome() {
+    if (!isCoord()) return;
+    const req = ++homeReq;
+    state.homeLoading = true;
+    if (isHome()) renderHome();
+    try {
+      const [up] = await Promise.all([computeUpcoming(), loadReminders()]);
+      if (req !== homeReq) return;
+      state.upcoming = up;
+    } catch (e) { toast('No se pudo cargar el inicio: ' + e.message, true); }
+    state.homeLoading = false;
+    renderHomeBadge();
+    if (isHome()) renderHome();
+  }
+
+  function remRow(r) {
+    const st = remStatus(r), t = r.team ? teamOf(r.team) : null;
+    const when = [];
+    if (r.due_date) when.push(`<span class="rem-due">Hasta ${shortDate(r.due_date)} <b>(${relDays(r.due_date)})</b></span>`);
+    if (r.alert_date && st === 'pending') when.push(`<span>aviso ${shortDate(r.alert_date)}</span>`);
+    if (!r.due_date && !r.alert_date) when.push('<span>Sin fecha</span>');
+    if (st === 'done' && r.done_at) when.push(`<span>hecho ${shortDate(keyOf(new Date(r.done_at)))}</span>`);
+    return `<li class="rem rem-${st}" data-rem="${esc(r.id)}">
+      <label class="rem-check" title="${st === 'done' ? 'Marcar como pendiente' : 'Marcar como hecho'}"><input type="checkbox" data-rem-done ${r.done ? 'checked' : ''}><span></span></label>
+      <button type="button" class="rem-body" data-rem-edit>
+        <span class="rem-title">${esc(r.title)}</span>
+        <span class="rem-meta">${t ? `<span class="mini-chip" style="--c:${t.color}">${esc(t.name)}</span>` : '<span class="mini-chip club">Club</span>'}${when.join(' · ')}${r.booking_id ? ' · <span class="rem-link">📅 reserva</span>' : ''}${r.notes ? ' · <span class="rem-notes">📝</span>' : ''}</span>
+      </button>
+    </li>`;
+  }
+
+  function renderHome() {
+    const el = $('#home');
+    if (!el || !isCoord()) return;
+    const rems = state.reminders || [];
+    const up = state.upcoming || [];
+    const by = k => rems.filter(r => remStatus(r) === k).sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999') || (a.alert_date || '9999').localeCompare(b.alert_date || '9999'));
+    const done = rems.filter(r => r.done).sort((a, b) => String(b.done_at || '').localeCompare(String(a.done_at || ''))).slice(0, 15);
+    const n = { overdue: by('overdue').length, urgent: by('urgent').length, pending: by('pending').length };
+    const nc = up.filter(x => x.level === 'error').length, nw = up.filter(x => x.level === 'warn').length, np = up.filter(x => x.level === 'pending').length;
+    const now = new Date();
+    const hello = (state.profile?.full_name || '').split(/\s+/)[0];
+    const keepForm = el.querySelector('#rem-quick');
+    const draft = keepForm ? { title: $('#rq-title').value, team: $('#rq-team').value, due: $('#rq-due').value, alert: $('#rq-alert').value, touched: $('#rq-alert').dataset.touched } : null;
+    const teamOpts = `<option value="">Todo el club</option>${TEAMS.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}`;
+    const upGroups = [['error', 'Conflictos', '⛔'], ['warn', 'Avisos', '⚠️'], ['pending', 'Pendientes', '⏳']];
+    el.innerHTML = `<div class="home-wrap">
+      <div class="home-head">
+        <div class="home-hello"><h2>${hello ? `Hola, ${esc(hello)}` : 'Inicio'}</h2><p>${DAYS[dayIndexOf(keyOf(now))]} ${now.getDate()} de ${MONTHS_LONG[now.getMonth()].toLowerCase()}</p></div>
+        <div class="home-stats">
+          <button type="button" class="hs hs-err ${n.overdue ? '' : 'zero'}" data-jump="rem-overdue"><b>${n.overdue}</b><span>Vencidos</span></button>
+          <button type="button" class="hs hs-urg ${n.urgent ? '' : 'zero'}" data-jump="rem-urgent"><b>${n.urgent}</b><span>Urgentes</span></button>
+          <button type="button" class="hs hs-err ${nc ? '' : 'zero'}" data-jump="up-error"><b>${state.homeLoading && !up.length ? '…' : nc}</b><span>Conflictos</span></button>
+          <button type="button" class="hs hs-pend ${np + nw ? '' : 'zero'}" data-jump="up-pending"><b>${state.homeLoading && !up.length ? '…' : np + nw}</b><span>Avisos y pendientes</span></button>
+        </div>
+        <button type="button" class="ghost home-cal-btn" data-home-go="week">Ver calendario →</button>
+      </div>
+      <div class="home-grid">
+        <section class="panel home-rem">
+          <h3>Recordatorios</h3>
+          <form id="rem-quick" class="rem-quick" autocomplete="off">
+            <input id="rq-title" class="rq-title" maxlength="200" placeholder="¿Qué no se te puede olvidar?" aria-label="Recordatorio" required>
+            <div class="rq-row">
+              <label class="rq-f"><span>Equipo</span><select id="rq-team">${teamOpts}</select></label>
+              <label class="rq-f"><span>Fecha máxima</span><input type="date" id="rq-due"></label>
+              <label class="rq-f"><span>Aviso <small>(pasa a urgente)</small></span><input type="date" id="rq-alert"></label>
+              <button type="submit" class="primary rq-add">Añadir</button>
+            </div>
+            <div class="rq-presets" id="rq-presets" hidden><span>Aviso:</span>
+              <button type="button" data-pre="0">el mismo día</button><button type="button" data-pre="1">1 día antes</button><button type="button" data-pre="3">3 días antes</button><button type="button" data-pre="7">1 semana antes</button><button type="button" data-pre="14">2 semanas antes</button>
+            </div>
+          </form>
+          ${REM_GROUPS.map(([k, label, hint]) => {
+            const list = by(k);
+            return `<div class="rem-group g-${k}" id="rem-${k}"><h4>${label} <span class="count">${list.length}</span><small>${hint}</small></h4>
+              ${list.length ? `<ul class="rem-list">${list.map(remRow).join('')}</ul>` : `<p class="muted rem-empty">${k === 'overdue' ? 'Nada vencido 👍' : k === 'urgent' ? 'Nada urgente' : 'Sin pendientes'}</p>`}</div>`;
+          }).join('')}
+          ${done.length ? `<details class="rem-group g-done"><summary><h4>Hechos <span class="count">${rems.filter(r => r.done).length}</span><small>Los más recientes</small></h4></summary><ul class="rem-list">${done.map(remRow).join('')}</ul></details>` : ''}
+        </section>
+        <section class="panel home-up">
+          <h3>Próximos ${HOME_DAYS} días <small>en el calendario</small></h3>
+          ${state.homeLoading && !up.length ? '<p class="muted rem-empty">Revisando el calendario…</p>' : ''}
+          ${!state.homeLoading && !up.length ? '<p class="muted rem-empty">Todo en orden: sin conflictos, avisos ni pendientes en los próximos días. 👌</p>' : ''}
+          ${upGroups.map(([lv, label, ic]) => {
+            const list = up.filter(x => x.level === lv);
+            if (!list.length) return '';
+            return `<div class="up-group up-${lv}" id="up-${lv === 'warn' ? 'pending-w' : lv}"><h4>${label} <span class="count">${list.length}</span></h4><ul class="up-list">${list.map((it, i) => `
+              <li><button type="button" class="up-item lv-${lv}" data-up="${esc(it.kind || '')}" data-id="${esc(it.bookingId || '')}" data-day="${it.day}" data-week="${esc(it.week || '')}">
+                <span class="up-ic">${ic}</span><span class="up-txt"><span class="up-when">${it.kind === 'people' ? 'Entrenadores' : `${shortDate(it.day)}${it.at ? ' · ' + fmt(it.at) : ''} <i>${relDays(it.day)}</i>`}</span>${esc(it.msg)}</span><span class="up-go">›</span></button></li>`).join('')}</ul></div>`;
+          }).join('')}
+        </section>
+      </div>
+    </div>`;
+    if (draft) {
+      $('#rq-title').value = draft.title; $('#rq-team').value = draft.team; $('#rq-due').value = draft.due; $('#rq-alert').value = draft.alert;
+      if (draft.touched) $('#rq-alert').dataset.touched = '1';
+      $('#rq-presets').hidden = !draft.due;
+    }
+  }
+
+  // Alta rápida: al poner la fecha máxima, el aviso se rellena 3 días antes (sin pasar de hoy) salvo que ya lo hayas tocado
+  function autoAlert(due, days = 3) {
+    if (!due) return '';
+    const t = todayKey();
+    let a = keyOf(addDays(parseKey(due), -days));
+    if (a < t) a = due < t ? due : t;
+    return a;
+  }
+
+  async function quickAddReminder() {
+    const title = $('#rq-title').value.trim();
+    if (!title) { $('#rq-title').focus(); return; }
+    const due = $('#rq-due').value || null;
+    let alert = $('#rq-alert').value || null;
+    if (due && alert && alert > due) { toast('El aviso tiene que ser antes de la fecha máxima', true); $('#rq-alert').focus(); return; }
+    try {
+      await store.reminders.insert({ title: title.slice(0, 200), team: $('#rq-team').value || null, due_date: due, alert_date: alert });
+      $('#rq-title').value = ''; $('#rq-due').value = ''; $('#rq-alert').value = ''; delete $('#rq-alert').dataset.touched;
+      $('#rq-presets').hidden = true;
+      toast('Recordatorio añadido');
+      await loadReminders();
+      $('#rq-title')?.focus();
+    } catch (e) { toast('No se pudo guardar: ' + e.message, true); }
+  }
+
+  // ---------- Ventana de recordatorio (editar, o crear desde una reserva) ----------
+  let remEditing = null;
+  function openReminder(r) {
+    remEditing = r;
+    const isNew = !r.id;
+    $('#rem-title-h').textContent = isNew ? 'Nuevo recordatorio' : 'Recordatorio';
+    $('#rm-title').value = r.title || '';
+    $('#rm-team').innerHTML = `<option value="">Todo el club</option>${TEAMS.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}`;
+    $('#rm-team').value = r.team || '';
+    $('#rm-due').value = r.due_date || '';
+    $('#rm-alert').value = r.alert_date || '';
+    $('#rm-notes').value = r.notes || '';
+    $('#rm-delete').hidden = isNew;
+    $('#rm-done').hidden = isNew;
+    $('#rm-done').textContent = r.done ? 'Marcar como pendiente' : 'Marcar como hecho';
+    const b = r.booking_id && (state.bookings.find(x => x.id === r.booking_id) || r._booking);
+    $('#rm-booking').hidden = !r.booking_id;
+    $('#rm-booking').innerHTML = r.booking_id ? `📅 ${b ? esc(`${whoOf(b).name}${b.opponent ? ' vs ' + b.opponent : ''} · ${shortDate(b.day)} ${fmt(b.start_min)}`) : 'Reserva del calendario'} <button type="button" class="link" id="rm-goto">Ver en el calendario</button>` : '';
+    $('#rem-dialog').showModal();
+    if (isNew) setTimeout(() => $('#rm-title').focus(), 50);
+  }
+  function reminderFromBooking(b) {
+    const who = whoOf(b).name;
+    const what = b.kind === 'partido' ? `${who}${b.opponent ? ' vs ' + b.opponent : ''}: ` : b.kind === 'evento' ? `${who}: ` : `${who} (entreno ${shortDate(b.day)}): `;
+    const due = b.day < todayKey() ? todayKey() : b.day;
+    openReminder({ title: what, team: b.team || null, due_date: due, alert_date: autoAlert(due), booking_id: b.id, _booking: b });
+  }
+  async function saveReminder() {
+    const r = remEditing; if (!r) return;
+    const row = {
+      title: $('#rm-title').value.trim().slice(0, 200), team: $('#rm-team').value || null,
+      due_date: $('#rm-due').value || null, alert_date: $('#rm-alert').value || null,
+      notes: $('#rm-notes').value.trim().slice(0, 1000) || null,
+    };
+    if (!row.title) { toast('Escribe qué hay que hacer', true); $('#rm-title').focus(); return; }
+    if (row.due_date && row.alert_date && row.alert_date > row.due_date) { toast('El aviso tiene que ser antes de la fecha máxima', true); return; }
+    try {
+      if (r.id) await store.reminders.update(r.id, row);
+      else await store.reminders.insert({ ...row, booking_id: r.booking_id || null });
+      $('#rem-dialog').close();
+      toast(r.id ? 'Recordatorio guardado' : 'Recordatorio añadido: lo verás en Inicio');
+      await loadReminders();
+    } catch (e) { toast('No se pudo guardar: ' + e.message, true); }
+  }
+  async function setReminderDone(id, done) {
+    const r = (state.reminders || []).find(x => x.id === id);
+    if (r) { r.done = done; r.done_at = done ? new Date().toISOString() : null; renderHome(); renderHomeBadge(); }
+    try { await store.reminders.update(id, { done }); toast(done ? 'Hecho ✓' : 'Vuelve a pendientes'); await loadReminders(); }
+    catch (e) { toast('No se pudo guardar: ' + e.message, true); await loadReminders(); }
+  }
+  async function deleteReminder() {
+    const r = remEditing; if (!r?.id) return;
+    $('#rem-dialog').close();
+    if (!(await askConfirm(`¿Borrar el recordatorio «${r.title}»?`, 'Borrar'))) { $('#rem-dialog').showModal(); return; }
+    try { await store.reminders.remove(r.id); toast('Recordatorio borrado'); await loadReminders(); }
+    catch (e) { toast('No se pudo borrar: ' + e.message, true); }
+  }
+
+  function bindHome() {
+    const home = $('#home');
+    home.addEventListener('submit', e => { if (e.target.id === 'rem-quick') { e.preventDefault(); quickAddReminder(); } });
+    home.addEventListener('change', e => {
+      const t = e.target;
+      if (t.matches('[data-rem-done]')) { const id = t.closest('[data-rem]').dataset.rem; setReminderDone(id, t.checked); }
+      if (t.id === 'rq-due') {
+        $('#rq-presets').hidden = !t.value;
+        if (!$('#rq-alert').dataset.touched) $('#rq-alert').value = autoAlert(t.value);
+      }
+      if (t.id === 'rq-alert') $('#rq-alert').dataset.touched = '1';
+    });
+    home.addEventListener('click', e => {
+      const pre = e.target.closest('[data-pre]');
+      if (pre) { const due = $('#rq-due').value; if (due) { $('#rq-alert').value = autoAlert(due, +pre.dataset.pre); $('#rq-alert').dataset.touched = '1'; } return; }
+      const ed = e.target.closest('[data-rem-edit]');
+      if (ed) { const r = (state.reminders || []).find(x => x.id === ed.closest('[data-rem]').dataset.rem); if (r) openReminder(r); return; }
+      const jump = e.target.closest('[data-jump]');
+      if (jump) { const t = $('#' + jump.dataset.jump) || (jump.dataset.jump === 'up-pending' && $('#up-pending-w')); t?.scrollIntoView({ behavior: 'smooth', block: 'start' }); if (t?.tagName === 'DETAILS') t.open = true; return; }
+      if (e.target.closest('[data-home-go]')) { setMode('week'); return; }
+      const up = e.target.closest('.up-item');
+      if (up) {
+        if (up.dataset.up === 'people') { openPeople('pendiente'); return; }
+        if (up.dataset.up === 'publish') { state.mode = 'week'; setWeek(parseKey(up.dataset.week)); return; }
+        if (up.dataset.id) goToBooking(up.dataset.id, up.dataset.day);
+        else { state.mode = 'week'; state.dayIndex = dayIndexOf(up.dataset.day); setWeek(parseKey(up.dataset.day)); }
+      }
+    });
+    $('#rem-form').addEventListener('submit', e => { e.preventDefault(); saveReminder(); });
+    $('#rm-delete').onclick = deleteReminder;
+    $('#rm-done').onclick = async () => { const r = remEditing; if (!r?.id) return; $('#rem-dialog').close(); await setReminderDone(r.id, !r.done); };
+    $('#rm-booking').addEventListener('click', e => {
+      if (e.target.id !== 'rm-goto') return;
+      const r = remEditing; $('#rem-dialog').close();
+      const b = r._booking || state.bookings.find(x => x.id === r.booking_id);
+      if (b) goToBooking(b.id, b.day); else toast('La reserva ya no está en el calendario', true);
+    });
+    $('#rm-alert-pre').addEventListener('click', e => {
+      const p = e.target.closest('[data-pre]'); if (!p) return;
+      const due = $('#rm-due').value; if (!due) { toast('Pon primero la fecha máxima', true); return; }
+      $('#rm-alert').value = autoAlert(due, +p.dataset.pre);
+    });
+    $('#m-home').onclick = () => { closeUserMenu(); setMode('home'); };
+  }
+
   async function goToBooking(id, day) {
     $('#matches-dialog').close();
     state.filter = null;
-    if (isTpl()) state.mode = 'week';
+    if (isTpl() || isHome()) state.mode = 'week';
     state.dayIndex = dayIndexOf(day);
     await setWeek(parseKey(day));
     focusBooking(id);
@@ -2421,6 +2784,9 @@
   //  Eventos
   // ================================================================
   function bind() {
+    bindHome();
+    $('#d-body').addEventListener('click', e => { if (e.target.id === 'd-rem') { const b = state.bookings.find(x => x.id === $('#detail-dialog').dataset.id); $('#detail-dialog').close(); if (b) reminderFromBooking(b); } });
+    $('#f-rem').onclick = () => { const b = state.bookings.find(x => x.id === editingId); if (!b) return; $('#booking-dialog').close(); reminderFromBooking(b); };
     $('#install-go').onclick = doInstall;
     $('#install-later').onclick = () => hideInstall(14);
     $('#install-close').onclick = () => hideInstall(14);
@@ -2641,7 +3007,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027074958';
+  const APP_VERSION = '20261027081912';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;
@@ -2660,6 +3026,20 @@
     try { bar.showPopover?.(); } catch { }   // por encima de las ventanas abiertas
     $('#update-now').onclick = () => reloadTo(v);
   }
+  // Número de versión visible en la cabecera (la versión es la fecha de publicación en UTC: AAAAMMDDhhmmss)
+  function showVersion() {
+    const m = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/.exec(APP_VERSION);
+    let short = APP_VERSION, long = APP_VERSION;
+    if (m) {
+      const d = new Date(Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5], +m[6]));
+      short = `v${pad(d.getDate())}.${pad(d.getMonth() + 1)} · ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      long = `Versión ${APP_VERSION}, publicada el ${d.getDate()} de ${MONTHS_LONG[d.getMonth()].toLowerCase()} de ${d.getFullYear()} a las ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+    const el = $('#app-ver'); if (el) { el.textContent = short; el.title = long; }
+    const top = $('#app-ver-top'); if (top) { top.innerHTML = esc(short).replace(' · ', '<br>'); top.title = long; }
+    const up = $('#up-ver'); if (up) up.textContent = long;
+  }
+
   async function checkVersion() {
     if (store?.mode === 'demo') return;
     try {
@@ -2733,7 +3113,8 @@
       if (ev === 'SIGNED_OUT') { applySession(null); showAuth('login'); return; }
       if (ev === 'SIGNED_IN' && !appOpen && $('#auth-body').dataset.view === 'sent') await refreshSession();
     });
-    store.subscribe(() => { if (!drag && appOpen) load(); });
+    store.subscribe(() => { if (!drag && appOpen) { load(); if (isCoord()) loadHome(); } });
+    store.reminders.subscribe(() => { if (appOpen && isCoord()) loadReminders(); });
     store.template.subscribe(() => { if (!drag && appOpen) load(); });
     store.proposals.subscribe(() => { if (!drag && appOpen) load(); });
     store.acks.subscribe(() => { if (!drag && appOpen) load(); });
@@ -2750,6 +3131,7 @@
     });
     readInviteFromUrl();
     window.addEventListener('hashchange', () => { readInviteFromUrl(); if (state.inviteToken && !state.user) showInvite(); });
+    showVersion();
     watchVersion();
     await refreshSession();
     if (state.user && state.inviteToken) { clearInvite(); toast('Ya tienes sesión iniciada. Para usar la invitación, cierra sesión y abre el enlace otra vez.'); }
