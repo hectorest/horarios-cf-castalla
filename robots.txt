@@ -1,0 +1,5 @@
+# Herramienta interna del Castalla C.F.: no debe aparecer en buscadores.
+# Se deja leer solo la portada para que los buscadores vean su etiqueta noindex.
+User-agent: *
+Allow: /$
+Disallow: /

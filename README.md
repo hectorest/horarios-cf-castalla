@@ -53,6 +53,10 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
 - **Observaciones**: texto libre del partido (por ejemplo, «el entrenador pide jugar el viernes porque el sábado tiene 5 bajas»). Lo escribe el coordinador; todos lo ven en el detalle.
 - **Propuestas de horario**: el coordinador y los entrenadores del equipo pueden proponer alternativas para un partido: día y hora exacta, «por la mañana», «por la tarde» o «a cualquier hora», con su motivo. Junto a cada propuesta se comprueba si el hueco está libre (sin hora exacta, se busca la primera hora libre de la franja; entre semana, a partir de las 16:00). El coordinador la **aplica** (mueve el partido) o la **descarta**. Los partidos con propuestas pendientes llevan la marca **⇄**.
 
+## Buscadores
+
+La web no se indexa: `index.html` lleva `<meta name="robots" content="noindex, nofollow…">` y `robots.txt` impide rastrear el resto (solo deja leer la portada para que los buscadores vean el `noindex`). Además, sin iniciar sesión no se ve ningún dato.
+
 ## Mantener la sesión
 
 En la pantalla de acceso, **Mantener la sesión iniciada** (marcada por defecto) guarda la sesión en el dispositivo: no hay que volver a entrar aunque se cierre el navegador o la app. Si se desmarca (ordenadores o tablets compartidos), la sesión se guarda solo mientras el navegador está abierto. La elección se recuerda en cada dispositivo.
