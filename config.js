@@ -38,30 +38,31 @@ window.APP_CONFIG = {
   //   warmup = calentamiento, half = minutos por parte, halves = nº de partes,
   //   break = descanso, margin = margen posterior, format = formato por defecto.
   // Convocables (solo para el modo demo): el equipo «team» puede tener en cuenta a jugadores de «from».
-  // sub23: solo si el jugador está marcado como sub-23. Con Supabase, las reglas están en public.callup_rules
+  // sub23: solo si el jugador cumple la condición de su equipo («upFlag» en TEAMS: Sub-23 en los Senior,
+  // 15 cumplidos en el Cadete, 2º año en el Infantil A). Con Supabase, las reglas están en public.callup_rules
   // y las ajusta la coordinación desde Equipos. El Infantil B no sube al Infantil A porque no está federado.
   CALLUPS: [
     { team: 'senior-a',   from: 'senior-b', sub23: true },
     { team: 'senior-a',   from: 'juvenil' },
     { team: 'senior-b',   from: 'juvenil' },
-    { team: 'juvenil',    from: 'cadete' },
-    { team: 'cadete',     from: 'infantil-a' },
+    { team: 'juvenil',    from: 'cadete', sub23: true },
+    { team: 'cadete',     from: 'infantil-a', sub23: true },
     { team: 'infantil-a', from: 'alevin-a' },
     { team: 'alevin-a',   from: 'alevin-b' },
   ],
 
   TEAMS: [
-    { id: 'senior-a',   name: 'Senior A',        short: 'SEN A', color: '#b42318', fed: 'senior', sub23: true,
+    { id: 'senior-a',   name: 'Senior A',        short: 'SEN A', color: '#b42318', fed: 'senior', upFlag: { label: 'Sub-23', short: 'S-23' },
       match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
-    { id: 'senior-b',   name: 'Senior B',        short: 'SEN B', color: '#c2410c', fed: 'senior', sub23: true,
+    { id: 'senior-b',   name: 'Senior B',        short: 'SEN B', color: '#c2410c', fed: 'senior', upFlag: { label: 'Sub-23', short: 'S-23' },
       match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
     { id: 'veteranos',  name: 'Veteranos',       short: 'VET',   color: '#1f2937',
       match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
     { id: 'juvenil',    name: 'Juvenil',         short: 'JUV',   color: '#6d28d9', fed: 'senior',
       match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
-    { id: 'cadete',     name: 'Cadete',          short: 'CAD',   color: '#1d4ed8', fed: 'base',
+    { id: 'cadete',     name: 'Cadete',          short: 'CAD',   color: '#1d4ed8', fed: 'base', upFlag: { label: '15 cumplidos', short: '15 ✓' },
       match: { warmup: 30, half: 40, halves: 2, break: 15, margin: 15, format: 'F11' } },
-    { id: 'infantil-a', name: 'Infantil A',      short: 'INF A', color: '#0f766e', fed: 'base',
+    { id: 'infantil-a', name: 'Infantil A',      short: 'INF A', color: '#0f766e', fed: 'base', upFlag: { label: '2º año', short: '2º año' },
       match: { warmup: 30, half: 35, halves: 2, break: 15, margin: 15, format: 'F11' } },
     { id: 'infantil-b', name: 'Infantil B',      short: 'INF B', color: '#0e7490', fed: 'escolar',
       match: { warmup: 30, half: 35, halves: 2, break: 15, margin: 15, format: 'F11' } },

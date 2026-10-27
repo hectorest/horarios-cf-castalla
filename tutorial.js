@@ -266,6 +266,11 @@ window.TUTORIAL_STEPS = [
     body: 'En la plantilla, toca un jugador para abrir su ficha y ponerle estado: <b>Molestias</b> (convocable, en duda), <b>Lesión leve</b>, <b>Lesión</b>, <b>Lesión grave</b> o <b>No disponible</b> (con el motivo), con la vuelta prevista si la sabes. En <b>A tener en cuenta</b> apunta lo que no cambia, como «el domingo por la mañana no puede». El resumen del equipo cuenta los convocables y las bajas.',
   },
   {
+    id: 'condicion-subir', since: 29, target: '#mode-toggle [data-mode="teams"], #user-btn',
+    title: 'Condición para subir de equipo',
+    body: 'Algunos equipos tienen una condición para que sus jugadores puedan ser convocables arriba: <b>Sub-23</b> en los Senior (Senior B → Senior A), <b>15 cumplidos</b> en el Cadete (→ Juvenil) y <b>2º año</b> en el Infantil A (→ Cadete). Márcala en la plantilla con el botón de cada jugador o en su ficha; solo los marcados aparecen al proponer convocables.',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',

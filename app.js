@@ -385,14 +385,14 @@
     const rems = () => { let a = ls.get(RKEY); if (!a) { a = demoReminders(); ls.set(RKEY, a); } return a; };
     const remListeners = [];
     const writeRems = a => { ls.set(RKEY, a); remListeners.forEach(cb => setTimeout(cb, 0)); };
-    const PLKEY = 'planificador-campo-demo-players-v3';
+    const PLKEY = 'planificador-campo-demo-players-v4';
     const demoPlayers = () => {
       const mk = (team, list) => list.map(([number, name, sub23]) => ({ id: uid(), team, number, name, sub23: !!sub23, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }));
       return [
-        ...mk('cadete', [[1, 'Hugo Sanchis'], [2, 'Marc Pastor'], [4, 'Pablo Rico'], [5, 'Álex Verdú'], [7, 'Iker Molina'], [8, 'Jorge Bernabeu'], [9, 'Adrián Payá'], [10, 'Dani Amorós'], [11, 'Leo Navarro'], [14, 'Rubén Gisbert'], [17, 'Nico Ferrándiz'], [null, 'Sergio Coloma']]),
+        ...mk('cadete', [[1, 'Hugo Sanchis', true], [2, 'Marc Pastor'], [4, 'Pablo Rico', true], [5, 'Álex Verdú'], [7, 'Iker Molina', true], [8, 'Jorge Bernabeu'], [9, 'Adrián Payá'], [10, 'Dani Amorós'], [11, 'Leo Navarro'], [14, 'Rubén Gisbert'], [17, 'Nico Ferrándiz'], [null, 'Sergio Coloma']]),
         ...mk('juvenil', [[1, 'Carlos Mira'], [3, 'Javi Sempere'], [6, 'Raúl Vidal'], [9, 'Mario Albero'], [10, 'Óscar Brotons']]),
         ...mk('senior-b', [[1, 'Toni Payá', true], [4, 'Fran Guill'], [8, 'Edu Ribera', true], [11, 'Quique Sanz'], [19, 'Lucas Barceló', true]]),
-        ...mk('infantil-a', [[3, 'Aitor Pla'], [6, 'Biel Moltó'], [9, 'Gael Castelló'], [10, 'Unai Reig']]),
+        ...mk('infantil-a', [[3, 'Aitor Pla', true], [6, 'Biel Moltó'], [9, 'Gael Castelló', true], [10, 'Unai Reig']]),
       ];
     };
     const demoStatus = a => {
@@ -411,7 +411,7 @@
     const me = () => (users() || []).find(x => x.id === sid);
     const canRoster = team => { const u = me(); return !!u && u.status === 'aprobado' && (u.role === 'coordinador' || (u.teams || []).includes(team)); };
     const isCoordDemo = () => me()?.role === 'coordinador' && me()?.status === 'aprobado';
-    const CRKEY = 'planificador-campo-demo-callup-rules-v1', CUKEY = 'planificador-campo-demo-callups-v1';
+    const CRKEY = 'planificador-campo-demo-callup-rules-v2', CUKEY = 'planificador-campo-demo-callups-v2';
     const cRules = () => ls.get(CRKEY) || (CFG.CALLUPS || []).map(r => ({ team: r.team, from: r.from, sub23: !!r.sub23 }));
     const cups = () => ls.get(CUKEY) || [];
     const cuListeners = [], crListeners = [];
@@ -3191,6 +3191,9 @@
   };
   // Convocables: reglas (qué equipo puede tirar de cuál) y propuestas pendientes/aprobadas/rechazadas
   const rulesFor = team => (state.callupRules || []).filter(r => r.team === team).sort((a, b) => TEAMS.findIndex(t => t.id === a.from) - TEAMS.findIndex(t => t.id === b.from));
+  // Condición para subir de cada equipo (config.js > upFlag): Sub-23, 15 cumplidos, 2º año… Se guarda en players.sub23
+  const upFlag = team => TEAM[team]?.upFlag || null;
+  const upLabel = team => upFlag(team)?.label || 'cumple la condición';
   const ruleOk = (p, team) => !!p && (state.callupRules || []).some(r => r.team === team && r.from === p.team && (!r.sub23 || p.sub23));
   const callupsOf = team => (state.callups || []).filter(c => c.team === team);
   const pendingCallups = () => (state.callups || []).filter(c => c.status === 'pendiente');
@@ -3306,12 +3309,12 @@
       const avail = TEAMS.filter(o => o.id !== t.id && !rs.some(r => r.from === o.id));
       return `<li class="cr-row" style="--team:${t.color}"><span class="cr-team">${esc(t.name)}</span>
         <span class="cr-chips">${rs.length ? rs.map(r => { const f = teamOf(r.from); return `<span class="cr-chip" style="--team:${f.color}" data-cr="${t.id}|${r.from}"><b>${esc(f.name)}</b>
-            <button type="button" class="cr-s23 ${r.sub23 ? 'on' : ''}" data-cr-s23 aria-pressed="${!!r.sub23}" title="Solo jugadores marcados como sub-23">sub-23</button>
+            ${upFlag(r.from) || r.sub23 ? `<button type="button" class="cr-s23 ${r.sub23 ? 'on' : ''}" data-cr-s23 aria-pressed="${!!r.sub23}" title="Solo los jugadores marcados con «${esc(upLabel(r.from))}» en su plantilla">solo ${esc(upLabel(r.from).toLowerCase())}</button>` : ''}
             <button type="button" class="cr-del" data-cr-del aria-label="Quitar ${esc(f.name)}" title="Quitar">×</button></span>`; }).join('') : '<span class="muted cr-none">Nadie</span>'}
           <select class="cr-add" data-cr-add="${t.id}" aria-label="Añadir un equipo del que ${esc(t.name)} puede convocar"><option value="">＋ Equipo</option>${avail.map(o => `<option value="${o.id}">${esc(o.name)}</option>`).join('')}</select></span></li>`;
     }).join('');
     return `<details class="panel cr-panel" ${state.rulesOpen ? 'open' : ''}><summary><h3>Reglas de convocables <small>qué jugadores puede tener en cuenta cada equipo</small></h3></summary>
-      <p class="cr-help">Cada fila dice de qué equipos puede proponer convocables el entrenador. Marca <b>sub-23</b> para que solo valgan los jugadores marcados como sub-23 en su plantilla. Tú apruebas cada propuesta.</p>
+      <p class="cr-help">Cada fila dice de qué equipos puede proponer convocables el entrenador. Si el equipo de origen tiene condición para subir (<b>sub-23</b> en los Senior, <b>15 cumplidos</b> en el Cadete, <b>2º año</b> en el Infantil A), márcala para que solo valgan los jugadores que la cumplen. Tú apruebas cada propuesta.</p>
       <ul class="cr-list">${rows}</ul></details>`;
   }
 
@@ -3320,23 +3323,23 @@
     const loading = state.teamsLoading && !state.players;
     const noNum = sq.filter(p => p.number == null).length;
     const co = isCoord() ? coachesOf(t.id) : [];
-    const s23 = !!t.sub23;
+    const s23 = !!upFlag(t.id), fl = upFlag(t.id);
     const ups = id => (state.callups || []).filter(c => c.player_id === id && c.status !== 'rechazado' && c.team !== t.id);
     const rows = sq.map(p => `<li class="tm-row ${isOut(p) ? 'is-out' : ''}" data-pl="${p.id}"><span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span>
           <button type="button" class="tm-pname" data-pl-open title="Ver la ficha de ${esc(p.name)}"><span class="tm-pn">${esc(p.name)}</span>${psBadge(p)}${ups(p.id).map(c => `<span class="tm-up ${c.status}" title="${c.status === 'pendiente' ? 'Propuesto como convocable, pendiente de aprobar' : 'Convocable'} en ${esc(teamOf(c.team).name)}">↑ ${esc(teamOf(c.team).short)}${c.status === 'pendiente' ? ' ⏳' : ''}</span>`).join('')}${playerSub(p)}</button>
-          ${s23 ? `<button type="button" class="tm-s23 ${p.sub23 ? 'on' : ''}" data-pl-s23 aria-pressed="${!!p.sub23}" title="${p.sub23 ? 'Es sub-23' : 'Marcar como sub-23'}">S-23</button>` : ''}
+          ${s23 ? `<button type="button" class="tm-s23 ${p.sub23 ? 'on' : ''}" data-pl-s23 aria-pressed="${!!p.sub23}" title="${p.sub23 ? esc(fl.label) + ': sí' : 'Marcar: ' + esc(fl.label)}">${esc(fl.short)}</button>` : ''}
           <button type="button" class="icon-btn" data-pl-open title="Estado y datos" aria-label="Estado y datos de ${esc(p.name)}">✎</button></li>`).join('');
     return `<div class="tm-head" style="--team:${t.color}">
         ${back ? `<button type="button" class="ghost tm-back" data-team-open="">‹ Equipos</button>` : ''}
         <div class="tm-title"><h2><span class="tm-dot"></span>${esc(t.name)}</h2>
-          <p>${loading ? 'Cargando…' : plural(sq.length, 'jugador', 'jugadores') + (sq.length ? ' · ' + squadSummary(sq) : '')}${noNum && !loading ? ` · ${noNum} sin dorsal` : ''}${s23 && !loading ? ` · ${sq.filter(p => p.sub23).length} sub-23` : ''}${co.length ? ` · 👤 ${esc(co.join(', '))}` : ''}</p></div>
+          <p>${loading ? 'Cargando…' : plural(sq.length, 'jugador', 'jugadores') + (sq.length ? ' · ' + squadSummary(sq) : '')}${noNum && !loading ? ` · ${noNum} sin dorsal` : ''}${s23 && !loading ? ` · ${sq.filter(p => p.sub23).length} con ${esc(fl.label.toLowerCase())}` : ''}${co.length ? ` · 👤 ${esc(co.join(', '))}` : ''}</p></div>
         <button type="button" class="ghost home-cal-btn" data-tm-week>Ver calendario →</button>
       </div>
       <section class="panel tm-roster" style="--team:${t.color}">
         <form class="tm-add ${s23 ? 'with-s23' : ''}" id="tm-add" autocomplete="off">
           <input id="tm-num" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="Dorsal" aria-label="Dorsal (opcional)">
           <input id="tm-name" maxlength="80" placeholder="Nombre y apellidos" aria-label="Nombre del jugador" required>
-          ${s23 ? `<label class="tm-add-s23"><input type="checkbox" id="tm-s23"> Sub-23</label>` : ''}
+          ${s23 ? `<label class="tm-add-s23"><input type="checkbox" id="tm-s23"> ${esc(fl.label)}</label>` : ''}
           <button class="primary">Añadir</button>
         </form>
         <div class="tm-tools">
@@ -3362,13 +3365,13 @@
     const order = { pendiente: 0, aprobado: 1, rechazado: 2 };
     const list = cu.map(c => ({ c, p: playerById(c.player_id) })).filter(x => x.p)
       .sort((a, b) => order[a.c.status] - order[b.c.status] || TEAMS.findIndex(x => x.id === a.p.team) - TEAMS.findIndex(x => x.id === b.p.team) || byDorsal(a.p, b.p));
-    const from = rs.map(r => teamOf(r.from).name + (r.sub23 ? ' (sub-23)' : '')).join(', ');
+    const from = rs.map(r => teamOf(r.from).name + (r.sub23 ? ` (${upLabel(r.from).toLowerCase()})` : '')).join(', ');
     const rows = list.map(({ c, p }) => {
       const f = teamOf(p.team), bad = !ruleOk(p, t.id);
       return `<li class="tm-row cu-row st-${c.status}" data-cu="${c.id}" style="--team:${f.color}">
         <span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span>
         <button type="button" class="tm-pname" data-pl-open data-pl-id="${p.id}"><span class="tm-pn">${esc(p.name)}</span><span class="cu-from">${esc(f.name)}</span>${psBadge(p)}
-          ${CU_ST[c.status] ? `<span class="cu-st">${CU_ST[c.status]}</span>` : ''}${bad ? '<span class="cu-st cu-bad" title="Las reglas o el sub-23 han cambiado desde que se añadió">⚠️ Ya no cumple las reglas</span>' : ''}${playerSub(p)}</button>
+          ${CU_ST[c.status] ? `<span class="cu-st">${CU_ST[c.status]}</span>` : ''}${bad ? '<span class="cu-st cu-bad" title="Las reglas o la condición del jugador han cambiado desde que se añadió">⚠️ Ya no cumple las reglas</span>' : ''}${playerSub(p)}</button>
         ${coord && c.status === 'pendiente' ? `<button type="button" class="cu-ok" data-cu-set="aprobado" title="Aprobar">✓<span class="hide-sm"> Aprobar</span></button><button type="button" class="cu-no" data-cu-set="rechazado" title="Rechazar">✗</button>` : ''}
         <button type="button" class="icon-btn tm-del" data-cu-del title="Quitar de convocables" aria-label="Quitar a ${esc(p.name)} de convocables">×</button></li>`;
     }).join('');
@@ -3388,10 +3391,10 @@
       const f = teamOf(r.from);
       const all = squadOf(r.from), ok = all.filter(p => !r.sub23 || p.sub23), free = ok.filter(p => !taken.has(p.id));
       const hidden = isCoord() ? all.length - ok.length : 0;
-      return `<div class="pk-group" style="--team:${f.color}"><h4>${esc(f.name)}${r.sub23 ? ' <small>solo sub-23</small>' : ''}</h4>
+      return `<div class="pk-group" style="--team:${f.color}"><h4>${esc(f.name)}${r.sub23 ? ` <small>solo ${esc(upLabel(r.from).toLowerCase())}</small>` : ''}</h4>
         ${free.length ? `<div class="pk-list">${free.map(p => `<label class="pk-item"><input type="checkbox" value="${p.id}" ${sel.has(p.id) ? 'checked' : ''}><span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span><span class="pk-name">${esc(p.name)}</span>${psBadge(p)}</label>`).join('')}</div>`
-          : `<p class="muted pk-none">${all.length ? 'No queda nadie más por añadir.' : 'Su plantilla está vacía.'}${r.sub23 && !ok.length && all.length ? ' Ninguno está marcado como sub-23.' : ''}</p>`}
-        ${hidden ? `<p class="muted pk-none">${plural(hidden, 'jugador no aparece', 'jugadores no aparecen')} por no estar marcado${hidden === 1 ? '' : 's'} como sub-23.</p>` : ''}</div>`;
+          : `<p class="muted pk-none">${all.length ? 'No queda nadie más por añadir.' : 'Su plantilla está vacía.'}${r.sub23 && !ok.length && all.length ? ` Ninguno está marcado con «${esc(upLabel(r.from))}».` : ''}</p>`}
+        ${hidden ? `<p class="muted pk-none">${plural(hidden, 'jugador no aparece', 'jugadores no aparecen')} por no estar marcado${hidden === 1 ? '' : 's'} con «${esc(upLabel(r.from))}».</p>` : ''}</div>`;
     }).join('');
     const n = sel.size;
     return `<div class="pk">${groups}
@@ -3427,7 +3430,7 @@
     $('#pd-title').textContent = p.name;
     $('#pd-team').innerHTML = `<span class="tm-dot" style="--team:${t.color}"></span>${esc(t.name)}`;
     $('#pd-num').value = p.number ?? ''; $('#pd-name').value = p.name;
-    $('#pd-s23-row').hidden = !t.sub23; $('#pd-s23').checked = !!p.sub23;
+    $('#pd-s23-row').hidden = !upFlag(p.team); $('#pd-s23').checked = !!p.sub23; $('#pd-s23-l').textContent = upLabel(p.team);
     $('#pd-st-note').value = p.status_note || ''; $('#pd-until').value = p.status_until || '';
     $('#pd-notes').value = p.notes || '';
     setPdStatus(p.status || '');
@@ -3459,7 +3462,7 @@
     if (other) { toast(`El ${d.n} ya lo lleva ${other.name}`, true); return; }
     const st = $('#player-dialog').dataset.st || null;
     const row = {
-      number: d.n, name, sub23: teamOf(p.team).sub23 ? $('#pd-s23').checked : !!p.sub23,
+      number: d.n, name, sub23: upFlag(p.team) ? $('#pd-s23').checked : !!p.sub23,
       status: st, status_note: st ? ($('#pd-st-note').value.trim() || null) : null,
       status_until: st ? ($('#pd-until').value || null) : null,
       status_since: st ? (st === p.status && p.status_since ? p.status_since : todayKey()) : null,
@@ -4157,7 +4160,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027231554';
+  const APP_VERSION = '20261027232111';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

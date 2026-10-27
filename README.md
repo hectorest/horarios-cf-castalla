@@ -85,7 +85,7 @@ Pestaña **Equipos** (en el móvil, en el menú del usuario). La coordinación v
 
 ### Estado de los jugadores
 
-- Toca un jugador para abrir su ficha: dorsal, nombre, sub-23 (en los Senior), **estado** y **a tener en cuenta**.
+- Toca un jugador para abrir su ficha: dorsal, nombre, condición para subir (si su equipo la tiene), **estado** y **a tener en cuenta**.
 - Estados:
   - **Disponible**.
   - **Molestias**: convocable, pero en duda.
@@ -98,9 +98,9 @@ Pestaña **Equipos** (en el móvil, en el menú del usuario). La coordinación v
 ### Convocables de equipos inferiores
 
 - Cada entrenador puede proponer como **convocables** a jugadores del equipo de debajo. Los propuestos quedan **⏳ pendientes** hasta que la coordinación los aprueba o rechaza (desde Inicio, «Convocables por aprobar», o dentro del equipo). Si los añade la coordinación, van aprobados.
-- Reglas iniciales: Senior B → Senior A (solo **sub-23**), Juvenil → Senior A y Senior B, Cadete → Juvenil, Infantil A → Cadete, Alevín A → Infantil A, Alevín B → Alevín A. El Infantil B no sube porque no está federado.
+- Reglas iniciales: Senior B → Senior A (solo **sub-23**), Juvenil → Senior A y Senior B, Cadete → Juvenil (solo con **15 cumplidos**), Infantil A → Cadete (solo de **2º año**), Alevín A → Infantil A, Alevín B → Alevín A. El Infantil B no sube porque no está federado.
 - La coordinación las cambia en **Equipos → Reglas de convocables** (añadir o quitar equipos y marcar «sub-23»). Si una regla cambia, los convocables que ya no la cumplen se marcan con ⚠️.
-- En los Senior, cada jugador tiene la marca **S-23**.
+- **Condición para subir** de cada equipo (`config.js > upFlag`): **Sub-23** en Senior A y B, **15 cumplidos** en el Cadete y **2º año** en el Infantil A. Se marca en la plantilla (botón junto al jugador) o en su ficha. En las reglas, «solo …» hace que solo valgan los jugadores que la cumplen.
 - El jugador sigue en la plantilla de su equipo, donde se ve «↑ JUV» si es convocable de otro.
 - Tablas `player_callups` (estado `pendiente`/`aprobado`/`rechazado`) y `callup_rules`. El entrenador del equipo de arriba solo ve a los jugadores del de abajo que puede convocar.
 

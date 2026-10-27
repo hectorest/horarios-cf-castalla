@@ -930,9 +930,11 @@ end $$;
 
 -- ---------- Convocables de equipos inferiores ----------
 -- El entrenador de un equipo puede proponer como convocables a jugadores del equipo de debajo según las reglas
--- de callup_rules (las ajusta la coordinación; las iniciales son las de abajo). Del Senior B al Senior A solo sub-23.
+-- de callup_rules (las ajusta la coordinación; las iniciales son las de abajo). Con sub23_only, solo valen los jugadores
+-- que cumplen la condición de su equipo (players.sub23): sub-23 (Senior B → Senior A), 15 cumplidos (Cadete → Juvenil)
+-- y 2º año (Infantil A → Cadete).
 alter table public.players add column if not exists sub23 boolean not null default false;
-comment on column public.players.sub23 is 'Senior: el jugador es sub-23 (condición para subir del Senior B al Senior A).';
+comment on column public.players.sub23 is 'Cumple la condición para subir de su equipo (config.js > upFlag): Sub-23 en los Senior, 15 cumplidos en el Cadete, 2º año en el Infantil A.';
 
 -- Estado del jugador (disponibilidad) y notas a tener en cuenta
 alter table public.players add column if not exists status text check (status in ('molestias', 'lesion_leve', 'lesion', 'lesion_grave', 'no_disponible'));
@@ -981,11 +983,12 @@ insert into public.callup_rules (team, from_team, sub23_only) values
   ('senior-a', 'senior-b', true),
   ('senior-a', 'juvenil', false),
   ('senior-b', 'juvenil', false),
-  ('juvenil', 'cadete', false),
-  ('cadete', 'infantil-a', false),
+  ('juvenil', 'cadete', true),
+  ('cadete', 'infantil-a', true),
   ('infantil-a', 'alevin-a', false),
   ('alevin-a', 'alevin-b', false)
 on conflict (team, from_team) do nothing;
+comment on column public.callup_rules.sub23_only is 'Solo valen los jugadores que cumplen la condición de su equipo (players.sub23).';
 
 create table if not exists public.player_callups (
   id          uuid primary key default gen_random_uuid(),
