@@ -351,7 +351,7 @@
     const sessionOf = u => u ? { user: { id: u.id, email: u.email }, profile: { full_name: u.full_name, role: u.role, status: u.status, teams: u.teams || [], requested_teams: u.requested_teams || [] } } : null;
     const PKEY = 'planificador-campo-demo-proposals-v1';
     const AKEY = 'planificador-campo-demo-acks-v1';
-    const RKEY = 'planificador-campo-demo-reminders-v1';
+    const RKEY = 'planificador-campo-demo-reminders-v2';
     const demoReminders = () => {
       const d = n => keyOf(addDays(new Date(), n)), now = new Date().toISOString();
       const r = (title, team, due, alert, extra = {}) => ({ id: uid(), title, team, due_date: due, alert_date: alert, notes: null, booking_id: null, done: false, done_at: null, created_by: 'demo-coord', created_at: now, updated_at: now, ...extra });
@@ -360,6 +360,7 @@
         r('Pedir el campo al Ayuntamiento para el torneo de Navidad', null, d(3), d(0)),
         r('Confirmar árbitro del amistoso', 'juvenil', d(10), d(7)),
         r('Encargar balones nuevos', 'alevin-a', d(20), d(15), { notes: 'Talla 4, 10 unidades' }),
+        r('Recibir las fichas firmadas del Cadete', 'cadete', d(4), d(2), { waiting_on: 'Laura Martí', waiting_since: d(-3) }),
         r('Revisar redes de las porterías', null, d(-3), d(-5), { done: true, done_at: now }),
       ];
     };
@@ -618,7 +619,7 @@
         endpoint: CFG.SUPABASE_URL.replace(/\/$/, '') + '/functions/v1/atajo-recordatorio',
       },
       reminders: {
-        async list() { return chk(await sb.from('reminders').select('id, title, team, due_date, alert_date, notes, booking_id, done, done_at, created_by, created_at, updated_at, source, source_text').order('due_date', { nullsFirst: false }).order('created_at')); },
+        async list() { return chk(await sb.from('reminders').select('id, title, team, due_date, alert_date, notes, booking_id, done, done_at, created_by, created_at, updated_at, source, source_text, waiting_on, waiting_since').order('due_date', { nullsFirst: false }).order('created_at')); },
         async insert(r) { return chk(await sb.from('reminders').insert(r).select().single()); },
         async update(id, r) {
           const rows = chk(await sb.from('reminders').update(r).eq('id', id).select('id'));
@@ -2257,8 +2258,24 @@
   const REM_GROUPS = [
     ['overdue', 'Vencidos', 'Ya pasó la fecha máxima'],
     ['urgent', 'Urgentes', 'Ha llegado la fecha de aviso'],
+    ['waiting', 'En espera de otros', 'Depende de otra persona'],
     ['pending', 'Pendientes', 'Aún hay margen'],
   ];
+  /** Grupo en Inicio: los que esperan a otra persona van aparte (salvo hechos) */
+  const remGroup = r => r.done ? 'done' : r.waiting_on ? 'waiting' : remStatus(r);
+  const WAIT_SUGGEST = ['Federación', 'Ayuntamiento', 'Árbitros', 'Club rival'];
+  const waitOptions = () => [...new Set([...(state.people || []).filter(p => p.status === 'aprobado' && p.id !== state.user?.id).map(p => p.full_name).filter(Boolean), ...WAIT_SUGGEST])]
+    .map(n => `<option value="${esc(n)}"></option>`).join('');
+  function claimText(r) {
+    const first = String(r.waiting_on || '').split(/\s+/)[0];
+    const named = first && !WAIT_SUGGEST.includes(r.waiting_on) ? ` ${first}` : '';
+    return `Hola${named}, ¿cómo va lo de «${r.title}»?${r.due_date ? ` Lo necesitamos para el ${DAYS[dayIndexOf(r.due_date)].toLowerCase()} ${parseKey(r.due_date).getDate()}.` : ''} ¡Gracias!`;
+  }
+  async function claimReminder(r) {
+    const text = claimText(r);
+    if (navigator.share && /iPhone|iPad|Android/.test(navigator.userAgent)) { try { await navigator.share({ text }); return; } catch { return; } }
+    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
+  }
 
   async function loadReminders() {
     if (!isCoord()) { state.reminders = []; return; }
@@ -2269,7 +2286,7 @@
   }
 
   function homeAlertCount() {
-    const r = (state.reminders || []).filter(x => ['overdue', 'urgent'].includes(remStatus(x))).length;
+    const r = (state.reminders || []).filter(x => remStatus(x) === 'overdue' || (remStatus(x) === 'urgent' && !x.waiting_on)).length;
     const c = (state.upcoming || []).filter(x => x.level === 'error').length;
     return r + c;
   }
@@ -2344,12 +2361,16 @@
     if (r.alert_date && st === 'pending') when.push(`<span>aviso ${shortDate(r.alert_date)}</span>`);
     if (!r.due_date && !r.alert_date) when.push('<span>Sin fecha</span>');
     if (st === 'done' && r.done_at) when.push(`<span>hecho ${shortDate(keyOf(new Date(r.done_at)))}</span>`);
-    return `<li class="rem rem-${st}" data-rem="${esc(r.id)}">
+    const wait = r.waiting_on && st !== 'done'
+      ? `<span class="rem-wait">⏳ En espera de <b>${esc(r.waiting_on)}</b>${r.waiting_since ? ` · ${r.waiting_since === todayKey() ? 'desde hoy' : 'desde ' + relDays(r.waiting_since).replace('hace ', 'hace ')}` : ''}</span>` : '';
+    return `<li class="rem rem-${st}${r.waiting_on && st !== 'done' ? ' rem-waiting' : ''}" data-rem="${esc(r.id)}">
       <label class="rem-check" title="${st === 'done' ? 'Marcar como pendiente' : 'Marcar como hecho'}"><input type="checkbox" data-rem-done ${r.done ? 'checked' : ''}><span></span></label>
       <button type="button" class="rem-body" data-rem-edit>
         <span class="rem-title">${esc(r.title)}</span>
+        ${wait}
         <span class="rem-meta">${t ? `<span class="mini-chip" style="--c:${t.color}">${esc(t.name)}</span>` : '<span class="mini-chip club">Club</span>'}${when.join(' · ')}${r.source === 'atajo' ? ' · <span class="rem-src" title="Creado desde un Atajo del iPhone">📲</span>' : ''}${r.booking_id ? ' · <span class="rem-link">📅 reserva</span>' : ''}${r.notes ? ' · <span class="rem-notes">📝</span>' : ''}</span>
       </button>
+      ${r.waiting_on && st !== 'done' ? `<button type="button" class="rem-snz-btn" data-claim title="Reclamar a ${esc(r.waiting_on)}" aria-label="Reclamar">📨</button>` : ''}
       ${st === 'done' ? '' : `<button type="button" class="rem-snz-btn ${state.snoozeOpen === r.id ? 'on' : ''}" data-snooze-open title="Posponer" aria-label="Posponer" aria-expanded="${state.snoozeOpen === r.id}">⏰</button>`}
       ${st !== 'done' && state.snoozeOpen === r.id ? `<div class="rem-snooze"><span>Posponer</span>${SNOOZE.map(([d, l]) => `<button type="button" data-snooze="${d}">${l}</button>`).join('')}</div>` : ''}
     </li>`;
@@ -2360,14 +2381,14 @@
     if (!el || !isCoord()) return;
     const rems = state.reminders || [];
     const up = state.upcoming || [];
-    const by = k => rems.filter(r => remStatus(r) === k).sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999') || (a.alert_date || '9999').localeCompare(b.alert_date || '9999'));
+    const by = k => rems.filter(r => remGroup(r) === k).sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999') || (a.alert_date || '9999').localeCompare(b.alert_date || '9999'));
     const done = rems.filter(r => r.done).sort((a, b) => String(b.done_at || '').localeCompare(String(a.done_at || ''))).slice(0, 15);
-    const n = { overdue: by('overdue').length, urgent: by('urgent').length, pending: by('pending').length };
+    const n = { overdue: by('overdue').length, urgent: by('urgent').length, waiting: by('waiting').length, pending: by('pending').length };
     const nc = up.filter(x => x.level === 'error').length, nw = up.filter(x => x.level === 'warn').length, np = up.filter(x => x.level === 'pending').length;
     const now = new Date();
     const hello = (state.profile?.full_name || '').split(/\s+/)[0];
     const keepForm = el.querySelector('#rem-quick');
-    const draft = keepForm ? { title: $('#rq-title').value, team: $('#rq-team').value, due: $('#rq-due').value, alert: $('#rq-alert').value, touched: $('#rq-alert').dataset.touched } : null;
+    const draft = keepForm ? { title: $('#rq-title').value, team: $('#rq-team').value, due: $('#rq-due').value, alert: $('#rq-alert').value, wait: $('#rq-wait').value, touched: $('#rq-alert').dataset.touched } : null;
     const teamOpts = `<option value="">Todo el club</option>${TEAMS.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}`;
     const upGroups = [['error', 'Conflictos', '⛔'], ['warn', 'Avisos', '⚠️'], ['pending', 'Pendientes', '⏳']];
     el.innerHTML = `<div class="home-wrap">
@@ -2376,6 +2397,7 @@
         <div class="home-stats">
           <button type="button" class="hs hs-err ${n.overdue ? '' : 'zero'}" data-jump="rem-overdue"><b>${n.overdue}</b><span>Vencidos</span></button>
           <button type="button" class="hs hs-urg ${n.urgent ? '' : 'zero'}" data-jump="rem-urgent"><b>${n.urgent}</b><span>Urgentes</span></button>
+          <button type="button" class="hs hs-wait ${n.waiting ? '' : 'zero'}" data-jump="rem-waiting"><b>${n.waiting}</b><span>En espera</span></button>
           <button type="button" class="hs hs-err ${nc ? '' : 'zero'}" data-jump="up-error"><b>${state.homeLoading && !up.length ? '…' : nc}</b><span>Conflictos</span></button>
           <button type="button" class="hs hs-pend ${np + nw ? '' : 'zero'}" data-jump="up-pending"><b>${state.homeLoading && !up.length ? '…' : np + nw}</b><span>Avisos y pendientes</span></button>
         </div>
@@ -2394,13 +2416,15 @@
               <label class="rq-f"><span>Equipo</span><select id="rq-team">${teamOpts}</select></label>
               <label class="rq-f"><span>Fecha máxima</span><input type="date" id="rq-due"></label>
               <label class="rq-f"><span>Aviso <small>(pasa a urgente)</small></span><input type="date" id="rq-alert"></label>
+              <label class="rq-f rq-wait"><span>En espera de <small>(opcional)</small></span><input id="rq-wait" maxlength="80" list="wait-people" placeholder="Nadie: depende de mí" autocomplete="off"></label>
               <button type="submit" class="primary rq-add">Añadir</button>
             </div>
           </form>
+          <datalist id="wait-people">${waitOptions()}</datalist>
           ${REM_GROUPS.map(([k, label, hint]) => {
             const list = by(k);
             return `<div class="rem-group g-${k}" id="rem-${k}"><h4>${label} <span class="count">${list.length}</span><small>${hint}</small></h4>
-              ${list.length ? `<ul class="rem-list">${list.map(remRow).join('')}</ul>` : `<p class="muted rem-empty">${k === 'overdue' ? 'Nada vencido 👍' : k === 'urgent' ? 'Nada urgente' : 'Sin pendientes'}</p>`}</div>`;
+              ${list.length ? `<ul class="rem-list">${list.map(remRow).join('')}</ul>` : `<p class="muted rem-empty">${k === 'overdue' ? 'Nada vencido 👍' : k === 'urgent' ? 'Nada urgente' : k === 'waiting' ? 'No esperas nada de nadie' : 'Sin pendientes'}</p>`}</div>`;
           }).join('')}
           ${done.length ? `<details class="rem-group g-done"><summary><h4>Hechos <span class="count">${rems.filter(r => r.done).length}</span><small>Los más recientes</small></h4></summary><ul class="rem-list">${done.map(remRow).join('')}</ul></details>` : ''}
         </section>
@@ -2419,7 +2443,7 @@
       </div>
     </div>`;
     if (draft) {
-      $('#rq-title').value = draft.title; $('#rq-team').value = draft.team; $('#rq-due').value = draft.due; $('#rq-alert').value = draft.alert;
+      $('#rq-title').value = draft.title; $('#rq-team').value = draft.team; $('#rq-due').value = draft.due; $('#rq-alert').value = draft.alert; $('#rq-wait').value = draft.wait || '';
       if (draft.touched) $('#rq-alert').dataset.touched = '1';
       $('#rq-presets').hidden = !draft.due;
     }
@@ -2452,8 +2476,9 @@
     let alert = $('#rq-alert').value || null;
     if (due && alert && alert > due) { toast('El aviso tiene que ser antes de la fecha máxima', true); $('#rq-alert').focus(); return; }
     try {
-      await store.reminders.insert({ title: title.slice(0, 200), team: $('#rq-team').value || null, due_date: due, alert_date: alert });
-      $('#rq-title').value = ''; $('#rq-due').value = ''; $('#rq-alert').value = ''; delete $('#rq-alert').dataset.touched;
+      const wait = $('#rq-wait').value.trim().slice(0, 80) || null;
+      await store.reminders.insert({ title: title.slice(0, 200), team: $('#rq-team').value || null, due_date: due, alert_date: alert, waiting_on: wait, waiting_since: wait ? todayKey() : null });
+      $('#rq-title').value = ''; $('#rq-wait').value = ''; $('#rq-due').value = ''; $('#rq-alert').value = ''; delete $('#rq-alert').dataset.touched;
       $('#rq-presets').hidden = true; markPresets();
       toast('Recordatorio añadido');
       await loadReminders();
@@ -2476,6 +2501,9 @@
     $('#rm-snooze').hidden = !r.id || r.done;
     fitAlertPresets('#rm-alert-pre', '#rm-due', '#rm-alert');
     $('#rm-notes').value = r.notes || '';
+    $('#rm-wait').value = r.waiting_on || '';
+    $('#rm-wait-list').innerHTML = waitOptions();
+    $('#rm-claim').hidden = !(r.id && r.waiting_on && !r.done);
     $('#rm-delete').hidden = isNew;
     $('#rm-done').hidden = isNew;
     $('#rm-done').textContent = r.done ? 'Marcar como pendiente' : 'Marcar como hecho';
@@ -2499,7 +2527,9 @@
       title: $('#rm-title').value.trim().slice(0, 200), team: $('#rm-team').value || null,
       due_date: $('#rm-due').value || null, alert_date: $('#rm-alert').value || null,
       notes: $('#rm-notes').value.trim().slice(0, 1000) || null,
+      waiting_on: $('#rm-wait').value.trim().slice(0, 80) || null,
     };
+    row.waiting_since = !row.waiting_on ? null : (r.waiting_on === row.waiting_on && r.waiting_since) ? r.waiting_since : todayKey();
     if (!row.title) { toast('Escribe qué hay que hacer', true); $('#rm-title').focus(); return; }
     if (row.due_date && row.alert_date && row.alert_date > row.due_date) { toast('El aviso tiene que ser antes de la fecha máxima', true); return; }
     try {
@@ -2584,6 +2614,8 @@
       if (pre) { const due = $('#rq-due').value; if (due) { $('#rq-alert').value = autoAlert(due, +pre.dataset.pre); $('#rq-alert').dataset.touched = '1'; markPresets(); } return; }
       const dp = e.target.closest('#rq-due-pre [data-due]');
       if (dp) { setQuickDue(dueFromPreset(dp.dataset.due)); return; }
+      const cl = e.target.closest('[data-claim]');
+      if (cl) { const r = (state.reminders || []).find(x => x.id === cl.closest('[data-rem]').dataset.rem); if (r) claimReminder(r); return; }
       const so = e.target.closest('[data-snooze-open]');
       if (so) { const id = so.closest('[data-rem]').dataset.rem; state.snoozeOpen = state.snoozeOpen === id ? null : id; renderHome(); return; }
       const sz = e.target.closest('[data-snooze]');
@@ -2603,6 +2635,8 @@
     });
     $('#rem-form').addEventListener('submit', e => { e.preventDefault(); saveReminder(); });
     $('#rm-delete').onclick = deleteReminder;
+    $('#rm-claim').onclick = () => { if (remEditing) claimReminder({ ...remEditing, waiting_on: $('#rm-wait').value.trim() || remEditing.waiting_on, title: $('#rm-title').value.trim() || remEditing.title }); };
+    $('#rm-wait').addEventListener('input', () => { $('#rm-claim').hidden = !(remEditing?.id && $('#rm-wait').value.trim()); });
     $('#rm-done').onclick = async () => { const r = remEditing; if (!r?.id) return; $('#rem-dialog').close(); await setReminderDone(r.id, !r.done); };
     $('#rm-booking').addEventListener('click', e => {
       if (e.target.id !== 'rm-goto') return;
@@ -3334,7 +3368,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027100643';
+  const APP_VERSION = '20261027104011';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

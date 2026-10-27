@@ -655,6 +655,12 @@ alter table public.reminders add column if not exists source_text text check (ch
 comment on column public.reminders.source is 'app = creado en la herramienta; atajo = creado desde un Atajo del iPhone (interpretado por Claude).';
 comment on column public.reminders.source_text is 'Atajos: texto que se envió o que se leyó en la captura (para revisar qué se interpretó).';
 
+-- En espera de otra persona: quién tiene que hacer algo y desde cuándo
+alter table public.reminders add column if not exists waiting_on text check (char_length(btrim(waiting_on)) between 1 and 80);
+alter table public.reminders add column if not exists waiting_since date;
+comment on column public.reminders.waiting_on is 'En espera de otra persona (entrenador, federación…): quién tiene que hacer algo para poder cerrarlo.';
+comment on column public.reminders.waiting_since is 'Desde cuándo está en espera de esa persona.';
+
 -- ---------- Notificaciones push (coordinación) ----------
 -- Dispositivos suscritos (Web Push), preferencias de cada coordinador, registro de envíos para no repetir,
 -- y una «foto» de las incidencias calculadas por la herramienta (conflictos y cambios) para el resumen diario.

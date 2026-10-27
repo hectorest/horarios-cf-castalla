@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261027100643">
+  <link rel="stylesheet" href="styles.css?v=20261027104011">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -323,6 +323,9 @@
         <div class="rq-presets rq-due-pre" id="rm-due-pre"><span>Fecha máxima:</span><button type="button" data-due="0">Hoy</button><button type="button" data-due="1">Mañana</button><button type="button" data-due="3">En 3 días</button><button type="button" data-due="fri">Viernes</button><button type="button" data-due="7">1 semana</button><button type="button" data-due="14">2 semanas</button></div>
         <div class="rq-presets" id="rm-alert-pre"><span>Aviso:</span><button type="button" data-pre="0">el mismo día</button><button type="button" data-pre="1">1 día antes</button><button type="button" data-pre="2">2 días antes</button><button type="button" data-pre="7">1 semana antes</button></div>
         <div class="rq-presets rm-snooze" id="rm-snooze"><span>Posponer:</span><button type="button" data-snooze="1">+1 día</button><button type="button" data-snooze="2">+2 días</button><button type="button" data-snooze="3">+3 días</button><button type="button" data-snooze="7">+1 semana</button><button type="button" data-snooze="14">+2 semanas</button></div>
+        <div class="field"><label for="rm-wait">En espera de <small>(si depende de otra persona)</small></label>
+          <div class="rm-wait-row"><input id="rm-wait" maxlength="80" list="rm-wait-list" placeholder="Nadie: depende de mí" autocomplete="off"><button type="button" id="rm-claim" class="ghost" hidden>📨 Reclamar</button></div>
+          <datalist id="rm-wait-list"></datalist></div>
         <div class="field"><label for="rm-notes">Notas</label><textarea id="rm-notes" rows="3" maxlength="1000"></textarea></div>
         <details id="rm-source" class="rm-source" hidden><summary>📲 Creado desde un Atajo: ver lo que se interpretó</summary><p id="rm-source-text"></p></details>
         <p id="rm-booking" class="rm-booking" hidden></p>
@@ -459,8 +462,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261027100643"></script>
-  <script src="tutorial.js?v=20261027100643"></script>
-  <script src="app.js?v=20261027100643"></script>
+  <script src="config.js?v=20261027104011"></script>
+  <script src="tutorial.js?v=20261027104011"></script>
+  <script src="app.js?v=20261027104011"></script>
 </body>
 </html>

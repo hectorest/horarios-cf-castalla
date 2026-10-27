@@ -1007,3 +1007,17 @@ input[type="date"]::-webkit-datetime-edit, input[type="time"]::-webkit-datetime-
 .nf-kind input { width: 18px; height: 18px; margin-top: 1px; flex: none; accent-color: var(--pitch); }
 .nf-kind b { display: block; font-size: 13.5px; } .nf-kind small { color: var(--muted); font-size: 12px; }
 .nf-hint { margin: 0; font-size: 12.5px; }
+
+/* ---------- Recordatorios en espera de otra persona ---------- */
+.rem-wait { font-size: 12.5px; color: #5b3fa0; }
+.rem-wait b { font-weight: 700; }
+.rem-waiting { border-left-color: #8b6fd6; }
+.rem-waiting.rem-pending, .rem-waiting.rem-urgent { background: #f6f2fe; }
+.g-waiting h4 { color: #6b4fc0; }
+.hs-wait b { color: #6b4fc0; } .hs-wait { background: #f6f2fe; border-color: #ddd2f7; }
+.hs-wait.zero { background: var(--panel); border-color: var(--line); }
+.rm-wait-row { display: flex; gap: 8px; } .rm-wait-row input { flex: 1; min-width: 0; }
+.rq-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.rq-row .rq-wait { grid-column: span 2; }
+.rq-wait input::placeholder { color: var(--muted); opacity: .8; }
+@media (max-width: 720px) { .rq-row { grid-template-columns: 1fr 1fr; } .rq-row .rq-f:first-child, .rq-row .rq-wait, .rq-row .rq-add { grid-column: 1 / -1; } }

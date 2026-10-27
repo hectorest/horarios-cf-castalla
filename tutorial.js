@@ -221,6 +221,11 @@ window.TUTORIAL_STEPS = [
     body: 'En tu menú → <b>🔔 Notificaciones</b> actívalas en cada dispositivo (en iPhone, con la herramienta instalada en la pantalla de inicio). Elige la <b>hora del aviso diario</b> y qué quieres recibir: recordatorios urgentes y vencidos, conflictos del calendario, resumen del día y altas de entrenadores (estas, al momento). Tocando el aviso se abre Inicio.',
   },
   {
+    id: 'en-espera', since: 22, roles: ['coordinador'], target: '#mode-toggle [data-mode=home], #user-btn',
+    title: 'Recordatorios en espera de otra persona',
+    body: 'Si algo depende de otra persona (un entrenador, la Federación, el Ayuntamiento…), escríbelo en <b>En espera de</b> al crear o editar el recordatorio. Pasa al grupo <b>En espera de otros</b>, con desde cuándo esperas, y con <b>📨</b> le mandas un mensaje para reclamarlo. Los Atajos también lo detectan («cuando Paco me pase las fichas»).',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',

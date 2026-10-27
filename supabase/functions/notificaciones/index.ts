@@ -85,8 +85,8 @@ async function buildDigest(sb: Sb, kinds: Record<string, boolean>, today: string
   const k = { recordatorios: true, conflictos: true, resumen: true, ...(kinds || {}) };
 
   if (k.recordatorios) {
-    const { data: rems } = await sb.from("reminders").select("title, team, due_date, alert_date").eq("done", false);
-    const tn = (r: any) => (r.team ? ` (${TEAM_NAME[r.team] || r.team})` : "");
+    const { data: rems } = await sb.from("reminders").select("title, team, due_date, alert_date, waiting_on").eq("done", false);
+    const tn = (r: any) => (r.team ? ` (${TEAM_NAME[r.team] || r.team})` : "") + (r.waiting_on ? ` · ⏳ ${r.waiting_on}` : "");
     const overdue = (rems || []).filter((r) => r.due_date && r.due_date < today).sort((a, b) => a.due_date.localeCompare(b.due_date));
     const dueToday = (rems || []).filter((r) => r.due_date === today);
     const newUrgent = (rems || []).filter((r) => r.alert_date === today && (!r.due_date || r.due_date > today));
