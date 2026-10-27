@@ -37,7 +37,7 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
 
 Los coordinadores entran en **Inicio** (pestaña junto a *Semana* y *Horario habitual*; en el móvil, menú de usuario → *Inicio*). Si el enlace lleva una semana (`#semana=…`), se abre el calendario.
 
-- **Recordatorios** (tabla `reminders`, solo los ven y gestionan los coordinadores): alta rápida con qué hay que hacer, equipo (o *Todo el club*), **fecha máxima** y **fecha de aviso**. La fecha máxima se elige con botones (*Hoy, Mañana, En 3 días, Viernes, 1 semana, 2 semanas*) o en el calendario, y el aviso se rellena solo **2 días antes** (con botones para *el mismo día, 1 día, 2 días o 1 semana antes*).
+- **Recordatorios** (tabla `reminders`, solo los ven y gestionan los coordinadores): alta rápida con qué hay que hacer, equipo (o *Todo el club*), **fecha máxima** y **fecha de aviso**. La fecha máxima se elige con botones (*Hoy, Mañana, En 3 días, Viernes, 1 semana, 2 semanas*) o en el calendario, y el aviso se rellena solo **2 días antes** (con botones para *el mismo día, 1 día, 2 días o 1 semana antes*; solo salen los que no caen antes de hoy, y la casilla de aviso solo deja elegir entre hoy y la fecha máxima).
   - **Pendiente** → aún no ha llegado la fecha de aviso.
   - **Urgente** → ha llegado la fecha de aviso (o vence hoy).
   - **Vencido** → ya pasó la fecha máxima.

@@ -2425,6 +2425,7 @@
     $('#rm-alert').value = r.alert_date || '';
     if (r.id && r.alert_date) $('#rm-alert').dataset.touched = '1'; else delete $('#rm-alert').dataset.touched;
     $('#rm-snooze').hidden = !r.id || r.done;
+    fitAlertPresets('#rm-alert-pre', '#rm-due', '#rm-alert');
     $('#rm-notes').value = r.notes || '';
     $('#rm-delete').hidden = isNew;
     $('#rm-done').hidden = isNew;
@@ -2476,6 +2477,19 @@
     const due = $('#rq-due')?.value, alert = $('#rq-alert')?.value;
     $$('#rq-due-pre [data-due]').forEach(b => b.classList.toggle('on', !!due && dueFromPreset(b.dataset.due) === due));
     $$('#rq-presets [data-pre]').forEach(b => b.classList.toggle('on', !!due && keyOf(addDays(parseKey(due), -b.dataset.pre)) === alert));
+    fitAlertPresets('#rq-presets', '#rq-due', '#rq-alert');
+  }
+  /** Oculta los botones de aviso que caerían antes de hoy y limita la casilla de aviso a [hoy, fecha máxima] */
+  function fitAlertPresets(box, dueSel, alertSel) {
+    const due = $(dueSel)?.value, t = todayKey();
+    let any = false;
+    $$(box + ' [data-pre]').forEach(b => {
+      const ok = !!due && keyOf(addDays(parseKey(due), -b.dataset.pre)) >= t;
+      b.hidden = !ok; any = any || ok;
+    });
+    const boxEl = $(box); if (boxEl && box !== '#rq-presets') boxEl.hidden = !any;
+    if (box === '#rq-presets' && boxEl) boxEl.hidden = !due || !any;
+    const a = $(alertSel); if (a) { a.min = t < (due || t) ? t : (due || t); if (due) a.max = due; else a.removeAttribute('max'); }
   }
   function setQuickDue(due) {
     $('#rq-due').value = due;
@@ -2550,7 +2564,7 @@
       const due = $('#rm-due').value; if (!due) { toast('Pon primero la fecha máxima', true); return; }
       $('#rm-alert').value = autoAlert(due, +p.dataset.pre); $('#rm-alert').dataset.touched = '1';
     });
-    const setDlgDue = due => { $('#rm-due').value = due; if (!$('#rm-alert').dataset.touched) $('#rm-alert').value = autoAlert(due); };
+    const setDlgDue = due => { $('#rm-due').value = due; if (!$('#rm-alert').dataset.touched) $('#rm-alert').value = autoAlert(due); fitAlertPresets('#rm-alert-pre', '#rm-due', '#rm-alert'); };
     $('#rm-due-pre').addEventListener('click', e => { const b = e.target.closest('[data-due]'); if (b) setDlgDue(dueFromPreset(b.dataset.due)); });
     $('#rm-due').addEventListener('change', e => setDlgDue(e.target.value));
     $('#rm-alert').addEventListener('change', () => { $('#rm-alert').dataset.touched = '1'; });
@@ -3067,7 +3081,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027084039';
+  const APP_VERSION = '20261027084233';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;
