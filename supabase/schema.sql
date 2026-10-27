@@ -934,6 +934,18 @@ end $$;
 alter table public.players add column if not exists sub23 boolean not null default false;
 comment on column public.players.sub23 is 'Senior: el jugador es sub-23 (condición para subir del Senior B al Senior A).';
 
+-- Estado del jugador (disponibilidad) y notas a tener en cuenta
+alter table public.players add column if not exists status text check (status in ('molestias', 'lesion_leve', 'lesion', 'lesion_grave', 'no_disponible'));
+alter table public.players add column if not exists status_note text check (char_length(status_note) <= 200);
+alter table public.players add column if not exists status_until date;
+alter table public.players add column if not exists status_since date;
+alter table public.players add column if not exists notes text check (char_length(notes) <= 500);
+comment on column public.players.status is 'Disponibilidad: null = disponible; molestias = convocable en duda; lesion_leve/lesion/lesion_grave/no_disponible = no convocable.';
+comment on column public.players.status_note is 'Detalle del estado (lesión o motivo de no estar disponible).';
+comment on column public.players.status_until is 'Fecha prevista de vuelta (opcional).';
+comment on column public.players.status_since is 'Desde cuándo tiene ese estado.';
+comment on column public.players.notes is 'A tener en cuenta siempre (p. ej. «el domingo por la mañana no puede»).';
+
 create table if not exists public.callup_rules (
   team        text not null,
   from_team   text not null,

@@ -385,7 +385,7 @@
     const rems = () => { let a = ls.get(RKEY); if (!a) { a = demoReminders(); ls.set(RKEY, a); } return a; };
     const remListeners = [];
     const writeRems = a => { ls.set(RKEY, a); remListeners.forEach(cb => setTimeout(cb, 0)); };
-    const PLKEY = 'planificador-campo-demo-players-v2';
+    const PLKEY = 'planificador-campo-demo-players-v3';
     const demoPlayers = () => {
       const mk = (team, list) => list.map(([number, name, sub23]) => ({ id: uid(), team, number, name, sub23: !!sub23, created_at: new Date().toISOString(), updated_at: new Date().toISOString() }));
       return [
@@ -395,7 +395,17 @@
         ...mk('infantil-a', [[3, 'Aitor Pla'], [6, 'Biel Moltó'], [9, 'Gael Castelló'], [10, 'Unai Reig']]),
       ];
     };
-    const players = () => { let a = ls.get(PLKEY); if (!a) { a = demoPlayers(); ls.set(PLKEY, a); } return a; };
+    const demoStatus = a => {
+      const set = (name, o) => { const p = a.find(x => x.name === name); if (p) Object.assign(p, o); };
+      const d = n => keyOf(addDays(new Date(), n));
+      set('Iker Molina', { status: 'lesion', status_note: 'Esguince de tobillo', status_since: d(-6), status_until: d(10) });
+      set('Pablo Rico', { status: 'molestias', status_note: 'Carga en el gemelo', status_since: d(-2) });
+      set('Leo Navarro', { status: 'no_disponible', status_note: 'De viaje con la familia', status_since: d(-1), status_until: d(5) });
+      set('Dani Amorós', { notes: 'El domingo por la mañana no puede' });
+      set('Edu Ribera', { status: 'lesion_grave', status_note: 'Rotura de ligamento cruzado', status_since: d(-40) });
+      return a;
+    };
+    const players = () => { let a = ls.get(PLKEY); if (!a) { a = demoStatus(demoPlayers()); ls.set(PLKEY, a); } return a; };
     const plListeners = [];
     const writePlayers = a => { ls.set(PLKEY, a); plListeners.forEach(cb => setTimeout(cb, 0)); };
     const me = () => (users() || []).find(x => x.id === sid);
@@ -720,8 +730,8 @@
         },
       },
       players: {
-        async list() { return chk(await sb.from('players').select('id, team, number, name, sub23, created_at, updated_at').order('team').order('number', { nullsFirst: false }).order('name')); },
-        async insertMany(rows) { return chk(await sb.from('players').insert(rows).select('id, team, number, name, sub23, created_at, updated_at')); },
+        async list() { return chk(await sb.from('players').select('id, team, number, name, sub23, status, status_note, status_until, status_since, notes, created_at, updated_at').order('team').order('number', { nullsFirst: false }).order('name')); },
+        async insertMany(rows) { return chk(await sb.from('players').insert(rows).select('id, team, number, name, sub23, status, status_note, status_until, status_since, notes, created_at, updated_at')); },
         async update(id, r) {
           const rows = chk(await sb.from('players').update(r).eq('id', id).select('id'));
           if (!rows.length) throw new Error('No tienes permiso para esta plantilla.');
@@ -1300,7 +1310,7 @@
     closeUserMenu();
     render();
     if (m === 'home') { $('#home').scrollTop = 0; loadHome(); return; }
-    if (m === 'teams') { $('#teams').scrollTop = 0; state.plEdit = null; loadTeams(); return; }
+    if (m === 'teams') { $('#teams').scrollTop = 0; loadTeams(); return; }
     load();
   }
 
@@ -3184,6 +3194,32 @@
   const ruleOk = (p, team) => !!p && (state.callupRules || []).some(r => r.team === team && r.from === p.team && (!r.sub23 || p.sub23));
   const callupsOf = team => (state.callups || []).filter(c => c.team === team);
   const pendingCallups = () => (state.callups || []).filter(c => c.status === 'pendiente');
+  // Estado del jugador: null = disponible; molestias = convocable en duda; el resto, no convocable
+  const PST = {
+    molestias:     { label: 'Molestias',     cls: 'ps-mol', out: false },
+    lesion_leve:   { label: 'Lesión leve',   cls: 'ps-lev', out: true },
+    lesion:        { label: 'Lesión',        cls: 'ps-les', out: true },
+    lesion_grave:  { label: 'Lesión grave',  cls: 'ps-gra', out: true },
+    no_disponible: { label: 'No disponible', cls: 'ps-no',  out: true },
+  };
+  const isOut = p => !!PST[p.status]?.out;
+  const psBadge = p => {
+    const st = PST[p.status]; if (!st) return '';
+    const late = p.status_until && p.status_until < todayKey();
+    const tip = [st.label, p.status_note, p.status_since ? 'desde ' + shortDate(p.status_since) : '', p.status_until ? 'vuelta prevista ' + shortDate(p.status_until) : ''].filter(Boolean).join(' · ');
+    return `<span class="ps ${st.cls}" title="${esc(tip)}">${st.label}${p.status_until ? ` · ${late ? 'revisar' : 'hasta ' + shortDate(p.status_until)}` : ''}</span>`;
+  };
+  const playerSub = p => {
+    const bits = [];
+    if (p.status && p.status_note) bits.push(`<span>${p.status === 'no_disponible' ? '🚫' : '🩹'} ${esc(p.status_note)}</span>`);
+    if (p.notes) bits.push(`<span>📝 ${esc(p.notes)}</span>`);
+    return bits.length ? `<span class="tm-sub">${bits.join('')}</span>` : '';
+  };
+  const squadSummary = sq => {
+    const out = sq.filter(isOut).length, mol = sq.filter(p => p.status === 'molestias').length;
+    return [`${sq.length - out} convocable${sq.length - out === 1 ? '' : 's'}`, mol ? `${mol} con molestias` : '', out ? `${plural(out, 'baja', 'bajas')}` : ''].filter(Boolean).join(' · ');
+  };
+  const canEditPlayer = p => isCoord() || isMine(p.team);
   const CU_ST = { pendiente: '⏳ Pendiente de aprobar', aprobado: '', rechazado: '✗ Rechazado' };
   const personName = id => { const p = (state.people || []).find(x => x.id === id); return p ? (p.full_name || p.email) : id === state.user?.id ? 'ti' : ''; };
 
@@ -3227,7 +3263,7 @@
 
   /** Al repintar (tiempo real, recarga del calendario…) no se pierde lo que se está escribiendo ni el foco */
   function keepFields(root) {
-    const key = i => i.id ? '#' + i.id : i.closest('[data-pl-form]') ? `[data-pl-form="${i.closest('[data-pl-form]').dataset.plForm}"] .${i.className.split(' ')[0]}` : null;
+    const key = i => i.id ? '#' + i.id : null;
     const saved = [...root.querySelectorAll('input, textarea')].map(i => ({ k: key(i), v: i.value, c: i.checked, t: i.type })).filter(x => x.k && x.t !== 'checkbox' || x.k && x.c);
     const a = document.activeElement, fk = a && root.contains(a) ? key(a) : null;
     const sel = fk && 'selectionStart' in a ? [a.selectionStart, a.selectionEnd] : null;
@@ -3251,6 +3287,7 @@
       return `<button type="button" class="tm-card" data-team-open="${t.id}" style="--team:${t.color}">
         <span class="tm-card-name">${esc(t.name)}</span>
         <span class="tm-card-n ${n ? '' : 'zero'}"><b>${loading ? '…' : n}</b> ${n === 1 ? 'jugador' : 'jugadores'}${ok ? ` <span class="tm-card-cu">+${ok} conv.</span>` : ''}</span>
+        ${(() => { const sq = squadOf(t.id), o = sq.filter(isOut).length, m = sq.filter(p => p.status === 'molestias').length; return o || m ? `<span class="tm-card-st">${o ? `<span class="ps ps-les">${plural(o, 'baja', 'bajas')}</span>` : ''}${m ? `<span class="ps ps-mol">${m} con molestias</span>` : ''}</span>` : ''; })()}
         ${pe ? `<span class="tm-card-pe">⏳ ${plural(pe, 'convocable por aprobar', 'convocables por aprobar')}</span>` : ''}
         ${co ? `<span class="tm-card-co">${co.length ? '👤 ' + esc(co.join(', ')) : '<i>Sin entrenador</i>'}</span>` : ''}
         <span class="tm-card-go" aria-hidden="true">›</span></button>`;
@@ -3285,21 +3322,14 @@
     const co = isCoord() ? coachesOf(t.id) : [];
     const s23 = !!t.sub23;
     const ups = id => (state.callups || []).filter(c => c.player_id === id && c.status !== 'rechazado' && c.team !== t.id);
-    const rows = sq.map(p => state.plEdit === p.id
-      ? `<li class="tm-row tm-editing" data-pl="${p.id}"><form class="tm-edit" data-pl-form="${p.id}" autocomplete="off">
-          <input class="tm-e-num" inputmode="numeric" pattern="[0-9]*" maxlength="2" value="${p.number ?? ''}" placeholder="—" aria-label="Dorsal">
-          <input class="tm-e-name" maxlength="80" value="${esc(p.name)}" aria-label="Nombre" required>
-          <div class="tm-e-acts"><button type="button" class="ghost" data-pl-cancel>Cancelar</button><button class="primary">Guardar</button></div>
-        </form></li>`
-      : `<li class="tm-row" data-pl="${p.id}"><span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span>
-          <span class="tm-pname"><span class="tm-pn">${esc(p.name)}</span>${ups(p.id).map(c => `<span class="tm-up ${c.status}" title="${c.status === 'pendiente' ? 'Propuesto como convocable, pendiente de aprobar' : 'Convocable'} en ${esc(teamOf(c.team).name)}">↑ ${esc(teamOf(c.team).short)}${c.status === 'pendiente' ? ' ⏳' : ''}</span>`).join('')}</span>
+    const rows = sq.map(p => `<li class="tm-row ${isOut(p) ? 'is-out' : ''}" data-pl="${p.id}"><span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span>
+          <button type="button" class="tm-pname" data-pl-open title="Ver la ficha de ${esc(p.name)}"><span class="tm-pn">${esc(p.name)}</span>${psBadge(p)}${ups(p.id).map(c => `<span class="tm-up ${c.status}" title="${c.status === 'pendiente' ? 'Propuesto como convocable, pendiente de aprobar' : 'Convocable'} en ${esc(teamOf(c.team).name)}">↑ ${esc(teamOf(c.team).short)}${c.status === 'pendiente' ? ' ⏳' : ''}</span>`).join('')}${playerSub(p)}</button>
           ${s23 ? `<button type="button" class="tm-s23 ${p.sub23 ? 'on' : ''}" data-pl-s23 aria-pressed="${!!p.sub23}" title="${p.sub23 ? 'Es sub-23' : 'Marcar como sub-23'}">S-23</button>` : ''}
-          <button type="button" class="icon-btn" data-pl-edit title="Editar" aria-label="Editar a ${esc(p.name)}">✎</button>
-          <button type="button" class="icon-btn tm-del" data-pl-del title="Quitar de la plantilla" aria-label="Quitar a ${esc(p.name)}">×</button></li>`).join('');
+          <button type="button" class="icon-btn" data-pl-open title="Estado y datos" aria-label="Estado y datos de ${esc(p.name)}">✎</button></li>`).join('');
     return `<div class="tm-head" style="--team:${t.color}">
         ${back ? `<button type="button" class="ghost tm-back" data-team-open="">‹ Equipos</button>` : ''}
         <div class="tm-title"><h2><span class="tm-dot"></span>${esc(t.name)}</h2>
-          <p>${loading ? 'Cargando…' : plural(sq.length, 'jugador', 'jugadores')}${noNum && !loading ? ` · ${noNum} sin dorsal` : ''}${s23 && !loading ? ` · ${sq.filter(p => p.sub23).length} sub-23` : ''}${co.length ? ` · 👤 ${esc(co.join(', '))}` : ''}</p></div>
+          <p>${loading ? 'Cargando…' : plural(sq.length, 'jugador', 'jugadores') + (sq.length ? ' · ' + squadSummary(sq) : '')}${noNum && !loading ? ` · ${noNum} sin dorsal` : ''}${s23 && !loading ? ` · ${sq.filter(p => p.sub23).length} sub-23` : ''}${co.length ? ` · 👤 ${esc(co.join(', '))}` : ''}</p></div>
         <button type="button" class="ghost home-cal-btn" data-tm-week>Ver calendario →</button>
       </div>
       <section class="panel tm-roster" style="--team:${t.color}">
@@ -3337,8 +3367,8 @@
       const f = teamOf(p.team), bad = !ruleOk(p, t.id);
       return `<li class="tm-row cu-row st-${c.status}" data-cu="${c.id}" style="--team:${f.color}">
         <span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span>
-        <span class="tm-pname"><span class="tm-pn">${esc(p.name)}</span><span class="cu-from">${esc(f.name)}</span>
-          ${CU_ST[c.status] ? `<span class="cu-st">${CU_ST[c.status]}</span>` : ''}${bad ? '<span class="cu-st cu-bad" title="Las reglas o el sub-23 han cambiado desde que se añadió">⚠️ Ya no cumple las reglas</span>' : ''}</span>
+        <button type="button" class="tm-pname" data-pl-open data-pl-id="${p.id}"><span class="tm-pn">${esc(p.name)}</span><span class="cu-from">${esc(f.name)}</span>${psBadge(p)}
+          ${CU_ST[c.status] ? `<span class="cu-st">${CU_ST[c.status]}</span>` : ''}${bad ? '<span class="cu-st cu-bad" title="Las reglas o el sub-23 han cambiado desde que se añadió">⚠️ Ya no cumple las reglas</span>' : ''}${playerSub(p)}</button>
         ${coord && c.status === 'pendiente' ? `<button type="button" class="cu-ok" data-cu-set="aprobado" title="Aprobar">✓<span class="hide-sm"> Aprobar</span></button><button type="button" class="cu-no" data-cu-set="rechazado" title="Rechazar">✗</button>` : ''}
         <button type="button" class="icon-btn tm-del" data-cu-del title="Quitar de convocables" aria-label="Quitar a ${esc(p.name)} de convocables">×</button></li>`;
     }).join('');
@@ -3359,7 +3389,7 @@
       const all = squadOf(r.from), ok = all.filter(p => !r.sub23 || p.sub23), free = ok.filter(p => !taken.has(p.id));
       const hidden = isCoord() ? all.length - ok.length : 0;
       return `<div class="pk-group" style="--team:${f.color}"><h4>${esc(f.name)}${r.sub23 ? ' <small>solo sub-23</small>' : ''}</h4>
-        ${free.length ? `<div class="pk-list">${free.map(p => `<label class="pk-item"><input type="checkbox" value="${p.id}" ${sel.has(p.id) ? 'checked' : ''}><span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span><span>${esc(p.name)}</span></label>`).join('')}</div>`
+        ${free.length ? `<div class="pk-list">${free.map(p => `<label class="pk-item"><input type="checkbox" value="${p.id}" ${sel.has(p.id) ? 'checked' : ''}><span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span><span class="pk-name">${esc(p.name)}</span>${psBadge(p)}</label>`).join('')}</div>`
           : `<p class="muted pk-none">${all.length ? 'No queda nadie más por añadir.' : 'Su plantilla está vacía.'}${r.sub23 && !ok.length && all.length ? ' Ninguno está marcado como sub-23.' : ''}</p>`}
         ${hidden ? `<p class="muted pk-none">${plural(hidden, 'jugador no aparece', 'jugadores no aparecen')} por no estar marcado${hidden === 1 ? '' : 's'} como sub-23.</p>` : ''}</div>`;
     }).join('');
@@ -3386,6 +3416,78 @@
       toast(status === 'aprobado' ? 'Convocable aprobado' : 'Convocable rechazado');
       renderTeams(); renderHomeBadge(); if (isHome()) renderHome();
     } catch (e) { toast('No se pudo cambiar: ' + e.message, true); }
+  }
+
+
+  /** Ficha del jugador: datos, estado (disponibilidad) y notas a tener en cuenta */
+  let pdPlayer = null;
+  function openPlayer(p) {
+    pdPlayer = p;
+    const t = teamOf(p.team), edit = canEditPlayer(p);
+    $('#pd-title').textContent = p.name;
+    $('#pd-team').innerHTML = `<span class="tm-dot" style="--team:${t.color}"></span>${esc(t.name)}`;
+    $('#pd-num').value = p.number ?? ''; $('#pd-name').value = p.name;
+    $('#pd-s23-row').hidden = !t.sub23; $('#pd-s23').checked = !!p.sub23;
+    $('#pd-st-note').value = p.status_note || ''; $('#pd-until').value = p.status_until || '';
+    $('#pd-notes').value = p.notes || '';
+    setPdStatus(p.status || '');
+    $$('#player-dialog input, #player-dialog textarea, #pd-st button, #pd-until-pre button').forEach(x => x.disabled = !edit);
+    $('#pd-ro').hidden = edit;
+    $('#pd-save').hidden = !edit; $('#pd-delete').hidden = !edit;
+    $('#pd-since').textContent = p.status && p.status_since ? `Desde ${shortDate(p.status_since)}` : '';
+    $('#player-dialog').showModal();
+    $('#pd-body').scrollTop = 0;
+  }
+  function setPdStatus(st) {
+    $$('#pd-st button').forEach(b => { const on = b.dataset.st === st; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
+    $('#pd-st-more').hidden = !st;
+    $('#pd-st-note-l').textContent = st === 'no_disponible' ? 'Motivo' : 'Detalle';
+    $('#pd-st-note').placeholder = st === 'no_disponible' ? 'Ej.: de viaje, sanción, exámenes…' : st === 'molestias' ? 'Ej.: carga en el gemelo' : 'Ej.: esguince de tobillo';
+    $('#player-dialog').dataset.st = st;
+    markUntilPresets();
+  }
+  function markUntilPresets() {
+    const v = $('#pd-until').value;
+    $$('#pd-until-pre button').forEach(b => b.classList.toggle('on', b.dataset.until === '' ? !v : keyOf(addDays(new Date(), +b.dataset.until)) === v));
+  }
+  async function savePlayer() {
+    const p = pdPlayer; if (!p || !canEditPlayer(p)) return;
+    const name = $('#pd-name').value.trim().replace(/\s+/g, ' '), d = dorsalOf($('#pd-num').value);
+    if (!name) { toast('Escribe el nombre', true); $('#pd-name').focus(); return; }
+    if (!d.ok) { toast('El dorsal tiene que ser un número del 0 al 99', true); $('#pd-num').focus(); return; }
+    const other = d.n != null && squadOf(p.team).find(x => x.number === d.n && x.id !== p.id);
+    if (other) { toast(`El ${d.n} ya lo lleva ${other.name}`, true); return; }
+    const st = $('#player-dialog').dataset.st || null;
+    const row = {
+      number: d.n, name, sub23: teamOf(p.team).sub23 ? $('#pd-s23').checked : !!p.sub23,
+      status: st, status_note: st ? ($('#pd-st-note').value.trim() || null) : null,
+      status_until: st ? ($('#pd-until').value || null) : null,
+      status_since: st ? (st === p.status && p.status_since ? p.status_since : todayKey()) : null,
+      notes: $('#pd-notes').value.trim() || null,
+    };
+    try {
+      await store.players.update(p.id, row);
+      Object.assign(p, row);
+      $('#player-dialog').close();
+      toast(st ? `${name}: ${PST[st].label.toLowerCase()}` : 'Jugador guardado');
+      renderTeams();
+    } catch (e) { toast('No se pudo guardar: ' + playerErr(e), true); }
+  }
+  function bindPlayerDialog() {
+    $('#pd-st').addEventListener('click', e => { const b = e.target.closest('[data-st]'); if (!b || b.disabled) return; setPdStatus(b.dataset.st); if (b.dataset.st && !$('#pd-st-note').value && !coarse()) $('#pd-st-note').focus(); });
+    $('#pd-until-pre').addEventListener('click', e => { const b = e.target.closest('[data-until]'); if (!b) return; $('#pd-until').value = b.dataset.until === '' ? '' : keyOf(addDays(new Date(), +b.dataset.until)); markUntilPresets(); });
+    $('#pd-until').addEventListener('change', markUntilPresets);
+    $('#player-form').addEventListener('submit', e => { e.preventDefault(); savePlayer(); });
+    $('#pd-delete').onclick = async () => {
+      const p = pdPlayer; if (!p) return;
+      const n = (state.callups || []).filter(c => c.player_id === p.id).length;
+      if (!(await askConfirm(`¿Quitar a <b>${esc(p.name)}</b> de la plantilla del ${esc(teamOf(p.team).name)}?${n ? ' También deja de ser convocable de otros equipos.' : ''}`, 'Quitar', true))) return;
+      try {
+        await store.players.remove(p.id);
+        state.players = state.players.filter(x => x.id !== p.id); state.callups = (state.callups || []).filter(c => c.player_id !== p.id);
+        $('#player-dialog').close(); toast('Jugador quitado'); renderTeams();
+      } catch (ex) { toast('No se pudo quitar: ' + ex.message, true); }
+    };
   }
 
   /** Revisa la lista pegada: cuántos se añadirían y qué falla */
@@ -3424,7 +3526,7 @@
       if (t.closest('[data-tm-home]')) { setMode('home'); return; }
       const op = t.closest('[data-team-open]');
       if (op) {
-        state.teamOpen = op.dataset.teamOpen || null; state.plEdit = null; state.bulkOpen = false; state.bulkDraft = ''; state.pickOpen = false; state.pickSel = new Set();
+        state.teamOpen = op.dataset.teamOpen || null; state.bulkOpen = false; state.bulkDraft = ''; state.pickOpen = false; state.pickSel = new Set();
         renderTeams(); el.scrollTop = 0; if (state.teamOpen && !coarse()) $('#tm-name')?.focus({ preventScroll: true }); return;
       }
       // Reglas de convocables (coordinación)
@@ -3453,7 +3555,7 @@
       }
       if (t.closest('[data-tm-copy]')) {
         const ok = callupsOf(team).filter(c => c.status === 'aprobado').map(c => playerById(c.player_id)).filter(Boolean).sort(byDorsal);
-        const text = `*${TEAM[team].name.toUpperCase()}*\n` + squadOf(team).map(p => `${p.number ?? '–'}. ${p.name}`).join('\n')
+        const text = `*${TEAM[team].name.toUpperCase()}*\n` + squadOf(team).map(p => `${p.number ?? '–'}. ${p.name}${PST[p.status] ? ` (${PST[p.status].label.toLowerCase()})` : ''}`).join('\n')
           + (ok.length ? `\n\n_Convocables_\n` + ok.map(p => `${p.number ?? '–'}. ${p.name} (${teamOf(p.team).name})`).join('\n') : '');
         try { await navigator.clipboard.writeText(text); toast('Plantilla copiada'); } catch { toast('No se ha podido copiar', true); }
         return;
@@ -3472,6 +3574,8 @@
         } catch (ex) { toast('No se pudo añadir: ' + (/duplicate key/.test(ex.message) ? 'alguno ya estaba como convocable.' : /row-level security/.test(ex.message) ? 'ese jugador no cumple las reglas de convocables.' : ex.message), true); }
         return;
       }
+      const po = t.closest('[data-pl-open]');
+      if (po) { const p = playerById(po.dataset.plId || po.closest('[data-pl]')?.dataset.pl); if (p) openPlayer(p); return; }
       const cuRow = t.closest('[data-cu]');
       if (cuRow) {
         const c = (state.callups || []).find(x => x.id === cuRow.dataset.cu); if (!c) return;
@@ -3491,14 +3595,6 @@
         try { await store.players.update(p.id, { sub23: !p.sub23 }); p.sub23 = !p.sub23; renderTeams(); }
         catch (ex) { toast('No se pudo cambiar: ' + ex.message, true); }
         return;
-      }
-      if (t.closest('[data-pl-edit]')) { state.plEdit = p.id; renderTeams(); const i = $(`[data-pl-form="${p.id}"] .tm-e-name`); i?.focus(); return; }
-      if (t.closest('[data-pl-cancel]')) { state.plEdit = null; renderTeams(); return; }
-      if (t.closest('[data-pl-del]')) {
-        const n = (state.callups || []).filter(c => c.player_id === p.id).length;
-        if (!(await askConfirm(`¿Quitar a <b>${esc(p.name)}</b> de la plantilla del ${esc(TEAM[p.team].name)}?${n ? ' También deja de ser convocable de otros equipos.' : ''}`, 'Quitar', true))) return;
-        try { await store.players.remove(p.id); state.players = state.players.filter(x => x.id !== p.id); state.callups = (state.callups || []).filter(c => c.player_id !== p.id); toast('Jugador quitado'); renderTeams(); }
-        catch (ex) { toast('No se pudo quitar: ' + ex.message, true); }
       }
     });
     el.addEventListener('change', async e => {
@@ -3527,21 +3623,8 @@
         }
         return;
       }
-      if (f.dataset.plForm) {
-        const id = f.dataset.plForm, name = f.querySelector('.tm-e-name').value.trim().replace(/\s+/g, ' '), d = dorsalOf(f.querySelector('.tm-e-num').value);
-        if (!name) return;
-        if (!d.ok) { toast('El dorsal tiene que ser un número del 0 al 99', true); return; }
-        const other = d.n != null && squadOf(team).find(x => x.number === d.n && x.id !== id);
-        if (other) { toast(`El ${d.n} ya lo lleva ${other.name}`, true); return; }
-        try {
-          await store.players.update(id, { number: d.n, name });
-          const p = playerById(id); if (p) Object.assign(p, { number: d.n, name });
-          state.plEdit = null; renderTeams(); toast('Jugador actualizado');
-        } catch (ex) { toast('No se pudo guardar: ' + playerErr(ex), true); }
-      }
     });
     el.addEventListener('input', e => { if (e.target.id === 'tm-bulk') { state.bulkDraft = e.target.value; checkBulk(state.teamOpen); } });
-    el.addEventListener('keydown', e => { if (e.key === 'Escape' && state.plEdit) { state.plEdit = null; renderTeams(); } });
     el.addEventListener('focusout', () => setTimeout(() => { if (state.teamsStale && !el.contains(document.activeElement)) renderTeams(); }, 0));
     // Aprobar o rechazar desde Inicio
     $('#home').addEventListener('click', e => {
@@ -3849,6 +3932,7 @@
     bindHome();
     bindShare();
     bindTeams();
+    bindPlayerDialog();
     bindShortcuts();
     bindNotifications();
     $('#d-body').addEventListener('click', e => { if (e.target.id === 'd-rem') { const b = state.bookings.find(x => x.id === $('#detail-dialog').dataset.id); $('#detail-dialog').close(); if (b) reminderFromBooking(b); } });
@@ -4073,7 +4157,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027230929';
+  const APP_VERSION = '20261027231554';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

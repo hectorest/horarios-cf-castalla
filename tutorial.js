@@ -261,6 +261,11 @@ window.TUTORIAL_STEPS = [
     body: 'En tu plantilla, en <b>Convocables</b>, pulsa <b>＋ Añadir convocables</b> para tener en cuenta a jugadores del equipo de debajo. La coordinación tiene que aprobarlos; mientras, salen como <b>⏳ Pendiente de aprobar</b>. En los Senior, marca con <b>S-23</b> a los jugadores sub-23.',
   },
   {
+    id: 'estado-jugador', since: 28, target: '#mode-toggle [data-mode="teams"], #user-btn',
+    title: 'Estado de cada jugador',
+    body: 'En la plantilla, toca un jugador para abrir su ficha y ponerle estado: <b>Molestias</b> (convocable, en duda), <b>Lesión leve</b>, <b>Lesión</b>, <b>Lesión grave</b> o <b>No disponible</b> (con el motivo), con la vuelta prevista si la sabes. En <b>A tener en cuenta</b> apunta lo que no cambia, como «el domingo por la mañana no puede». El resumen del equipo cuenta los convocables y las bajas.',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',

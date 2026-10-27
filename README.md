@@ -83,6 +83,18 @@ Pestaña **Equipos** (en el móvil, en el menú del usuario). La coordinación v
 - Se pueden corregir (✎) o quitar (×) y **copiar la plantilla** para pegarla en WhatsApp.
 - Permisos: la coordinación y los entrenadores aprobados del equipo ven y editan su plantilla (tabla `players`, función `private.can_roster`). Nadie más la ve.
 
+### Estado de los jugadores
+
+- Toca un jugador para abrir su ficha: dorsal, nombre, sub-23 (en los Senior), **estado** y **a tener en cuenta**.
+- Estados:
+  - **Disponible**.
+  - **Molestias**: convocable, pero en duda.
+  - **Lesión leve**, **Lesión**, **Lesión grave** y **No disponible** (con el motivo): no convocable.
+- Cada estado admite detalle y **vuelta prevista**, con botones de 1 semana, 2 semanas y 1 mes. Si la fecha pasa, el estado se marca «revisar».
+- **A tener en cuenta** es una nota fija, como «el domingo por la mañana no puede». Se ve debajo del nombre.
+- La plantilla y las tarjetas de equipo cuentan los convocables, los que tienen molestias y las bajas. El estado se ve también en los convocables y al proponerlos, y «Copiar plantilla» lo incluye.
+- Lo cambian la coordinación y el entrenador del equipo del jugador. El entrenador de un equipo superior solo lo consulta.
+
 ### Convocables de equipos inferiores
 
 - Cada entrenador puede proponer como **convocables** a jugadores del equipo de debajo. Los propuestos quedan **⏳ pendientes** hasta que la coordinación los aprueba o rechaza (desde Inicio, «Convocables por aprobar», o dentro del equipo). Si los añade la coordinación, van aprobados.

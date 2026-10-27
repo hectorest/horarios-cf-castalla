@@ -1186,3 +1186,44 @@ input[type="date"]::-webkit-datetime-edit, input[type="time"]::-webkit-datetime-
   .cr-row { grid-template-columns: minmax(0, 1fr); gap: 5px; }
   .hc-item { flex-wrap: wrap; } .hc-acts { margin-left: auto; }
 }
+
+/* ---------- Estado de los jugadores ---------- */
+button.tm-pname { border: 0; background: none; padding: 2px 0; margin: 0; text-align: left; font: inherit; font-weight: 600; color: inherit; cursor: pointer; border-radius: 6px; }
+button.tm-pname:hover .tm-pn { text-decoration: underline; text-underline-offset: 2px; }
+.tm-sub { flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 12px; font-weight: 500; color: var(--muted); white-space: normal; line-height: 1.3; }
+.tm-sub span { min-width: 0; overflow-wrap: anywhere; }
+.tm-row.is-out { background: color-mix(in srgb, var(--err) 5%, var(--panel)); }
+.tm-row.is-out .tm-num { opacity: .45; }
+.tm-row.is-out .tm-pn { color: var(--muted); }
+.ps { font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 99px; white-space: nowrap; border: 1px solid transparent; }
+.ps-ok { color: #166534; background: #dcfce7; border-color: #bbf7d0; }
+.ps-mol { color: #854d0e; background: #fef9c3; border-color: #fde68a; }
+.ps-lev { color: #9a3412; background: #ffedd5; border-color: #fed7aa; }
+.ps-les { color: #b91c1c; background: #fee2e2; border-color: #fecaca; }
+.ps-gra { color: #fff; background: #991b1b; border-color: #991b1b; }
+.ps-no { color: #374151; background: #e5e7eb; border-color: #d1d5db; }
+.tm-card-st { display: flex; gap: 4px; flex-wrap: wrap; }
+.pk-item .pk-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pd-team { margin: 0 0 10px; display: flex; align-items: center; gap: 7px; font-weight: 700; color: var(--muted); font-size: 13px; }
+.pd-id { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 10px; }
+.pd-id .field { min-width: 0; }
+#pd-num { text-align: center; font-weight: 700; }
+.pd-s23 { display: flex; align-items: center; gap: 7px; font-weight: 600; font-size: 14px; margin: 2px 0 12px; }
+.pd-lbl { display: block; font-weight: 600; font-size: 13px; margin-bottom: 6px; }
+.pd-lbl small { font-weight: 500; color: var(--muted); margin-left: 4px; }
+.pd-st { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.pd-st button { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 6px; border-radius: 9px; font-size: 13px; font-weight: 700; border-width: 1px; border-style: solid; }
+.pd-st button::before { content: ''; width: 9px; height: 9px; border-radius: 50%; background: var(--dot); flex: none; }
+.pd-st .ps-ok { --dot: #16a34a; } .pd-st .ps-mol { --dot: #eab308; } .pd-st .ps-lev { --dot: #f97316; }
+.pd-st .ps-les { --dot: #dc2626; } .pd-st .ps-gra { --dot: #7f1d1d; } .pd-st .ps-no { --dot: #6b7280; }
+.pd-st button:not(.on) { background: var(--panel); color: var(--ink); border-color: var(--line); font-weight: 600; }
+.pd-st button.on { box-shadow: 0 0 0 2px var(--panel), 0 0 0 4px var(--dot); }
+.pd-st button.ps-gra.on::before { background: #fff; }
+.pd-hint { margin: 6px 0 0; font-size: 12px; color: var(--muted); }
+.pd-st-more { display: grid; gap: 0; padding: 10px 12px 2px; margin: 4px 0 12px; border-radius: 10px; background: var(--bg, #f3f4f6); border: 1px solid var(--line); }
+.pd-st-more .rq-presets { margin: -4px 0 10px; }
+.pd-ro { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+#player-dialog .dlg-body .field { min-width: 0; }
+@media (max-width: 720px) {
+  .pd-st { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261027230929">
+  <link rel="stylesheet" href="styles.css?v=20261027231554">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -344,6 +344,43 @@
     </form>
   </dialog>
 
+  <dialog id="player-dialog" class="dialog narrow-dlg">
+    <form id="player-form" novalidate>
+      <header class="dlg-head"><h3 id="pd-title">Jugador</h3><button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button></header>
+      <div class="dlg-body" id="pd-body">
+        <p class="pd-team" id="pd-team"></p>
+        <div class="pd-id">
+          <div class="field"><label for="pd-num">Dorsal</label><input id="pd-num" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="—"></div>
+          <div class="field"><label for="pd-name">Nombre y apellidos</label><input id="pd-name" maxlength="80" required></div>
+        </div>
+        <label class="pd-s23" id="pd-s23-row"><input type="checkbox" id="pd-s23"> Sub-23</label>
+        <div class="field"><span class="pd-lbl">Estado <small id="pd-since"></small></span>
+          <div class="pd-st" id="pd-st" role="radiogroup" aria-label="Estado del jugador">
+            <button type="button" role="radio" data-st="" class="ps-ok">Disponible</button>
+            <button type="button" role="radio" data-st="molestias" class="ps-mol">Molestias</button>
+            <button type="button" role="radio" data-st="lesion_leve" class="ps-lev">Lesión leve</button>
+            <button type="button" role="radio" data-st="lesion" class="ps-les">Lesión</button>
+            <button type="button" role="radio" data-st="lesion_grave" class="ps-gra">Lesión grave</button>
+            <button type="button" role="radio" data-st="no_disponible" class="ps-no">No disponible</button>
+          </div>
+          <p class="pd-hint">Con molestias sigue siendo convocable (en duda). Con lesión o no disponible, no.</p>
+        </div>
+        <div id="pd-st-more" class="pd-st-more" hidden>
+          <div class="field"><label for="pd-st-note" id="pd-st-note-l">Detalle</label><input id="pd-st-note" maxlength="200"></div>
+          <div class="field"><label for="pd-until">Vuelta prevista <small>(opcional)</small></label><input type="date" id="pd-until"></div>
+          <div class="rq-presets" id="pd-until-pre"><span>Vuelve:</span><button type="button" data-until="7">en 1 semana</button><button type="button" data-until="14">en 2 semanas</button><button type="button" data-until="30">en 1 mes</button><button type="button" data-until="">sin fecha</button></div>
+        </div>
+        <div class="field"><label for="pd-notes">A tener en cuenta <small>(siempre)</small></label><textarea id="pd-notes" rows="2" maxlength="500" placeholder="Ej.: el domingo por la mañana no puede"></textarea></div>
+        <p class="pd-ro" id="pd-ro" hidden>Es de otro equipo: solo lo pueden cambiar su entrenador y la coordinación.</p>
+      </div>
+      <footer class="dlg-foot">
+        <button type="button" id="pd-delete" class="danger">Quitar de la plantilla</button>
+        <span class="spacer"></span>
+        <button type="submit" id="pd-save" class="primary">Guardar</button>
+      </footer>
+    </form>
+  </dialog>
+
   <dialog id="notif-dialog" class="dialog narrow-dlg">
     <header class="dlg-head"><h3>🔔 Notificaciones</h3><button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button></header>
     <div class="dlg-body" id="nf-body">
@@ -499,8 +536,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261027230929"></script>
-  <script src="tutorial.js?v=20261027230929"></script>
-  <script src="app.js?v=20261027230929"></script>
+  <script src="config.js?v=20261027231554"></script>
+  <script src="tutorial.js?v=20261027231554"></script>
+  <script src="app.js?v=20261027231554"></script>
 </body>
 </html>
