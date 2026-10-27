@@ -13,6 +13,9 @@ window.APP_CONFIG = {
 
   // --- General --------------------------------------------------
   CLUB_NAME: 'Castalla C.F.',
+  // Para el mensaje del horario de los partidos en casa
+  HOME_TOWN: 'Castalla',
+  HOME_VENUE: 'Campo Municipal de Castalla',
   DAY_START: '09:00',
   DAY_END: '23:00',
   DEFAULT_TRAINING_MIN: 90,

@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261027104824">
+  <link rel="stylesheet" href="styles.css?v=20261027204952">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -277,6 +277,7 @@
       <footer class="dlg-foot">
         <button type="button" id="f-delete" class="danger">Eliminar</button>
         <button type="button" id="f-dup" class="ghost">Duplicar</button>
+        <button type="button" id="f-share" class="ghost" title="Compartir el horario confirmado por WhatsApp">📣<span class="hide-sm"> Compartir</span></button>
         <button type="button" id="f-rem" class="ghost" title="Crear un recordatorio ligado a esta reserva">🔔<span class="hide-sm"> Recordatorio</span></button>
         <span class="spacer"></span>
         <button type="button" class="ghost" data-close>Cancelar</button>
@@ -391,6 +392,34 @@
     </div>
   </dialog>
 
+  <dialog id="share-dialog" class="dialog narrow-dlg">
+    <header class="dlg-head"><h3 id="sh-title">📣 Compartir horario</h3><button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button></header>
+    <div class="dlg-body" id="sh-body">
+      <p id="sh-info" class="sh-info"></p>
+      <p id="sh-readonly" class="muted sh-note" hidden>Los datos los rellena la coordinación; puedes copiar o enviar el mensaje cuando estén completos.</p>
+      <label id="sh-confirm-row" class="nf-kind"><input type="checkbox" id="sh-confirm"><span><b>Horario confirmado</b><small>El mensaje es del horario confirmado: márcalo al enviarlo.</small></span></label>
+      <div class="field-row">
+        <div class="field"><label for="sh-matchday">Jornada <small>(opcional)</small></label><input type="number" id="sh-matchday" min="1" max="60" inputmode="numeric" placeholder="—"></div>
+        <div class="field"><label for="sh-meet">Hora de quedada</label><input type="time" id="sh-meet" step="300"></div>
+      </div>
+      <div class="field sh-away"><label for="sh-depart">Hora de salida 🚗</label><input type="time" id="sh-depart" step="300"></div>
+      <div class="field-row sh-away">
+        <div class="field"><label for="sh-town">Localidad</label><input id="sh-town" maxlength="40"></div>
+        <div class="field"><label for="sh-field">Campo</label><input id="sh-field" maxlength="80"></div>
+      </div>
+      <label class="nf-kind sh-away"><input type="checkbox" id="sh-venue-ok"><span><b>He confirmado el campo</b><small>Fuera de casa el campo puede cambiar: compruébalo antes de enviar.</small></span></label>
+      <div class="dlg-sec">Mensaje</div>
+      <pre id="sh-preview" class="sh-preview"></pre>
+      <p id="sh-missing" class="sh-missing" hidden></p>
+    </div>
+    <footer class="dlg-foot">
+      <button type="button" id="sh-save" class="ghost">Guardar</button>
+      <span class="spacer"></span>
+      <button type="button" id="sh-copy" class="ghost">Copiar</button>
+      <button type="button" id="sh-wa" class="primary">WhatsApp</button>
+    </footer>
+  </dialog>
+
   <dialog id="confirm-dialog" class="dialog narrow-dlg">
     <header class="dlg-head"><h3>Confirmar</h3><button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button></header>
     <div class="dlg-body"><p id="c-msg" class="confirm-msg"></p></div>
@@ -462,8 +491,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261027104824"></script>
-  <script src="tutorial.js?v=20261027104824"></script>
-  <script src="app.js?v=20261027104824"></script>
+  <script src="config.js?v=20261027204952"></script>
+  <script src="tutorial.js?v=20261027204952"></script>
+  <script src="app.js?v=20261027204952"></script>
 </body>
 </html>

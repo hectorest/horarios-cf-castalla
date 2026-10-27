@@ -1048,3 +1048,12 @@ input[type="date"]::-webkit-datetime-edit, input[type="time"]::-webkit-datetime-
 }
 .rem > *, .rem-snooze, .wp-other { min-width: 0; }
 .rem-list, .up-list { grid-template-columns: minmax(0, 1fr); } .rem-list > li { min-width: 0; }
+
+/* ---------- Compartir horario de un partido ---------- */
+.sh-info { margin: 0; font-size: 13.5px; }
+.sh-note { margin: 0; font-size: 12.5px; }
+.sh-preview { margin: 0; padding: 12px 14px; background: #e7f6ec; border: 1px solid #b7e1c4; border-radius: 10px; font: 14px/1.5 var(--font); white-space: pre-wrap; overflow-wrap: anywhere; }
+.sh-missing { margin: 0; font-size: 13px; color: var(--pend); background: var(--pend-tint); padding: 8px 10px; border-radius: 8px; }
+.d-rem { display: flex; flex-wrap: wrap; gap: 8px; }
+#share-dialog .dlg-body { display: grid; gap: 10px; }
+#share-dialog input[type=number] { width: 100%; font: inherit; padding: 7px 10px; border: 1px solid var(--line-strong); border-radius: 8px; }

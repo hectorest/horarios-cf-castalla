@@ -91,6 +91,21 @@ Cómo funciona: `sw.js` (service worker solo para push, sin caché) recibe los a
 - **Listado por equipo**: el botón **Partidos** (en el móvil, en el menú de usuario → *Partidos de un equipo*) muestra todos los partidos de la temporada de un equipo, agrupados por mes, con casa/fuera, hora, rival, campo y avisos (por confirmar, OK del rival). El próximo sale resaltado y al tocar uno se abre esa semana con el partido señalado.
 - **Carga por fin de semana**: en la misma ventana, la pestaña *Por fin de semana* (en el móvil, menú → *Partidos del fin de semana*) es una tabla de toda la temporada con los **equipos en columnas** y los **findes en filas** (de jueves a miércoles: el finde más el jueves anterior y el lunes, martes y miércoles siguientes, que salen con su fecha). Cada celda muestra día, hora y rival (relleno = en casa, rayado = fuera; ? por confirmar, ⚑ falta OK del rival) y cada fila lleva el total en casa (más intenso cuantos más partidos en nuestro campo) y fuera. Se abre colocada en el finde actual; al tocar un partido se abre esa semana en el calendario.
 - **Mensaje del finde**: en esa tabla, el botón 💬 de cada fila genera un mensaje para WhatsApp con los partidos del finde, incluidos los del jueves anterior y los del lunes, martes y miércoles siguientes, por equipo y en el orden de `config.js`: «Equipo vs Rival 🏠/✈️» y debajo el día y la hora (fuera del viernes-domingo, con el número del día: «Martes 3 - 20:00»). Los equipos con partidos en la temporada pero sin partido esa semana salen como «vs ??»; las horas sin confirmar llevan «(por confirmar)». El rival sale con su nombre completo, tal como está en el calendario. El texto se puede retocar antes de **Copiar**, **WhatsApp** o **Compartir** (en el móvil).
+- **Compartir el horario confirmado** (WhatsApp): en el detalle de un partido (o en el editor), **📣 Compartir horario** abre una ventana con el mensaje listo:
+
+  ```
+  *HORARIO CONFIRMADO JORNADA 29*
+  🆚 Celtic Elche B
+  🏠 Local            (✈️ Visitante fuera de casa)
+  📍Castalla          (localidad del campo, fuera)
+  📅 Sábado 23
+  ⏰ ⚽️ 10:00          hora del partido
+  ⏰📍9:00             hora de quedada
+  ⏰🚗 8:15            hora de salida (solo fuera)
+  🏟️ Campo Municipal de Castalla
+  ```
+
+  La jornada es opcional (se rellena sola si está en las notas del calendario, «J29»). La coordinación registra la **hora de quedada** (por defecto, una hora antes) y, fuera de casa, la **hora de salida** y el **campo**, que hay que marcar como **confirmado** porque puede cambiar. Sin eso, y sin el horario confirmado, no deja enviar. Se guardan en el partido (`matchday`, `meet_min`, `depart_min`, `venue_confirmed`); si cambia el día o la hora se borran quedada y salida, y si cambia el campo deja de estar confirmado. Los entrenadores pueden abrirlo y enviarlo cuando está completo. El campo y la localidad de casa están en `config.js` (`HOME_VENUE`, `HOME_TOWN`).
 - **Observaciones**: texto libre del partido (por ejemplo, «el entrenador pide jugar el viernes porque el sábado tiene 5 bajas»). Lo escribe el coordinador; todos lo ven en el detalle.
 - **Propuestas de horario**: el coordinador y los entrenadores del equipo pueden proponer alternativas para un partido: día y hora exacta, «por la mañana», «por la tarde» o «a cualquier hora», con su motivo. Junto a cada propuesta se comprueba si el hueco está libre (sin hora exacta, se busca la primera hora libre de la franja; entre semana, a partir de las 16:00). El coordinador la **aplica** (mueve el partido) o la **descarta**. Los partidos con propuestas pendientes llevan la marca **⇄**.
 

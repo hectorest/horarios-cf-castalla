@@ -274,6 +274,16 @@
   const ackSig = b => `${b.day}|${b.start_min}|${b.duration_min || ''}|${b.zone}`;
 
   /** Normaliza una reserva antes de guardarla. */
+  /** Igual que el trigger private.match_share_reset: si cambia día/hora se borran quedada y salida; si cambia el campo, deja de estar confirmado */
+  function shareReset(old, n) {
+    if (n.kind !== 'partido') return n;
+    if (n.day !== old.day || n.start_min !== old.start_min) {
+      if ((n.meet_min ?? null) === (old.meet_min ?? null)) n.meet_min = null;
+      if ((n.depart_min ?? null) === (old.depart_min ?? null)) n.depart_min = null;
+    }
+    if ((n.venue || null) !== (old.venue || null) && !!n.venue_confirmed === !!old.venue_confirmed) n.venue_confirmed = false;
+    return n;
+  }
   function cleanRow(b) {
     const ev = b.kind === 'evento';
     const r = {
@@ -289,6 +299,10 @@
       away: b.kind === 'partido' ? !!b.away : false,
       venue: b.kind === 'partido' && b.away ? ((b.venue || '').trim().slice(0, 120) || null) : null,
       observations: b.kind === 'partido' ? ((b.observations || '').trim().slice(0, 500) || null) : null,
+      matchday: b.kind === 'partido' ? (b.matchday || null) : null,
+      meet_min: b.kind === 'partido' ? (b.meet_min ?? null) : null,
+      depart_min: b.kind === 'partido' && b.away ? (b.depart_min ?? null) : null,
+      venue_confirmed: b.kind === 'partido' && b.away ? !!b.venue_confirmed : false,
     };
     return r;
   }
@@ -382,7 +396,7 @@
       async listMatches(team) { return read().filter(b => b.kind === 'partido' && b.team === team).sort((a, b) => a.day.localeCompare(b.day) || a.start_min - b.start_min).map(b => ({ ...b })); },
       async insert(row) { const r = { ...cleanRow(row), id: uid() }; write([...read(), r]); return r; },
       async insertMany(rows) { const rs = rows.map(r => ({ ...cleanRow(r), id: uid() })); write([...read(), ...rs]); return rs; },
-      async update(id, row) { write(read().map(b => b.id === id ? { ...cleanRow(row), id } : b)); },
+      async update(id, row) { write(read().map(b => b.id === id ? shareReset(b, { ...cleanRow(row), id }) : b)); },
       async remove(id) { write(read().filter(b => b.id !== id)); },
       subscribe(cb) { listeners.push(cb); },
       async applyTemplate(dayKey) {
@@ -1488,6 +1502,7 @@
     $('#f-delete').hidden = isNew;
     $('#f-dup').hidden = isNew;
     $('#f-rem').hidden = isNew || isTpl();
+    $('#f-share').hidden = isNew || isTpl() || draft.kind !== 'partido';
     syncForm();
     if (!dlg().open) dlg().showModal();
     dlg().querySelector('.dlg-body').scrollTop = 0;
@@ -1679,11 +1694,17 @@
       ...(fedWindows(b.team) ? [['Horario federativo', needsRival(b) ? `Fuera (${fedText(b.team)}) · ${RIVAL_LABEL[b.rival_status || 'pendiente']}` : '✓ Dentro']] : []));
     if (b.notes) rows.push(['Notas', b.notes]);
     if (b.kind === 'partido' && b.observations) rows.push(['Observaciones', b.observations]);
+    if (b.kind === 'partido') {
+      if (jornadaOf(b)) rows.push(['Jornada', String(jornadaOf(b))]);
+      if (b.meet_min != null) rows.push(['Quedada', fmt(b.meet_min)]);
+      if (b.away && b.depart_min != null) rows.push(['Salida', fmt(b.depart_min)]);
+      if (b.away && b.venue) rows.push(['Campo', b.venue_confirmed ? '✓ Confirmado' : 'Sin confirmar']);
+    }
     $('#d-body').innerHTML = `<dl class="detail-rows">${rows.map(([a, v]) => `<dt>${esc(a)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>
       ${issues.length ? `<ul class="pv-issues">${issues.map(i => `<li class="${i.level}">${ICON[i.level]} ${esc(i.msg)}${ackButton(i)}</li>`).join('')}</ul>` : ''}
       ${b.kind === 'partido' ? '<div class="field"><span class="lbl">Propuestas de horario</span><div id="d-props" class="props-box"></div></div>' : ''}`;
     if (b.kind === 'partido') renderProposals($('#d-props'), b, false);
-    if (isCoord() && !isTpl()) $('#d-body').insertAdjacentHTML('beforeend', '<div class="d-rem"><button type="button" class="ghost" id="d-rem">🔔 Añadir recordatorio</button></div>');
+    if (!isTpl()) $('#d-body').insertAdjacentHTML('beforeend', `<div class="d-rem">${b.kind === 'partido' ? '<button type="button" class="primary" id="d-share">📣 Compartir horario</button>' : ''}${isCoord() ? '<button type="button" class="ghost" id="d-rem">🔔 Añadir recordatorio</button>' : ''}</div>`);
     $('#detail-dialog').dataset.id = b.id;
     $('#detail-dialog').showModal();
     $('#d-body').scrollTop = 0;
@@ -2908,6 +2929,124 @@
     });
   }
 
+  // ================================================================
+  //  Compartir el horario confirmado de un partido (WhatsApp)
+  // ================================================================
+  const HOME_TOWN = CFG.HOME_TOWN || 'Castalla';
+  const HOME_VENUE = CFG.HOME_VENUE || 'Campo Municipal de Castalla';
+  const hm = m => `${Math.floor(m / 60)}:${pad(m % 60)}`;              // 9:00, 10:00 (sin cero delante)
+  const minOf = v => { if (!v) return null; const [h, m] = v.split(':').map(Number); return Number.isFinite(h) && Number.isFinite(m) ? h * 60 + m : null; };
+  const jornadaOf = b => b.matchday || (+(/(?:^|\s)J(\d{1,2})(?:\s|$)/.exec(b.notes || '') || [])[1] || null);
+  // «Biar · Polideportivo Mpal. de Biar F-11» → localidad y campo
+  const splitVenue = v => { const s = String(v || ''); const i = s.indexOf(' · '); return i > 0 ? { town: s.slice(0, i).trim(), field: s.slice(i + 3).trim() } : { town: '', field: s.trim() }; };
+
+  /** Texto del mensaje con el formato del club */
+  function shareText(b, d) {
+    const day = parseKey(b.day);
+    const L = [`*HORARIO CONFIRMADO${d.matchday ? ` JORNADA ${d.matchday}` : ''}*`, `🆚 ${b.opponent || 'Rival por definir'}`];
+    if (b.away) {
+      L.push('✈️ Visitante');
+      if (d.town) L.push(`📍${d.town}`);
+    } else {
+      L.push('🏠 Local', `📍${HOME_TOWN}`);
+    }
+    L.push(`📅 ${DAYS[dayIndexOf(b.day)]} ${day.getDate()}`);
+    L.push(`⏰ ⚽️ ${hm(b.start_min)}`);
+    if (d.meet != null) L.push(`⏰📍${hm(d.meet)}`);
+    if (b.away && d.depart != null) L.push(`⏰🚗 ${hm(d.depart)}`);
+    L.push(`🏟️ ${b.away ? (d.field || 'Campo por confirmar') : HOME_VENUE}`);
+    return L.join('\n');
+  }
+
+  let shareB = null;
+  function openShare(b) {
+    shareB = b;
+    const coord = isCoord();
+    const v = splitVenue(b.venue);
+    $('#sh-title').textContent = `📣 ${whoOf(b).name} vs ${b.opponent || 'rival'}`;
+    $('#sh-info').innerHTML = `${esc(dayLabel(b.day))} · saque <b>${fmt(b.start_min)}</b> · ${b.away ? '✈️ Fuera' : '🏠 En casa'}`;
+    $('#sh-matchday').value = jornadaOf(b) || '';
+    const meet = b.meet_min ?? Math.max(0, b.start_min - 60);
+    $('#sh-meet').value = fmt(meet);
+    $('#sh-depart').value = b.depart_min != null ? fmt(b.depart_min) : '';
+    $('#sh-town').value = v.town; $('#sh-field').value = v.field;
+    $('#sh-venue-ok').checked = !!b.venue_confirmed;
+    $('#sh-confirm').checked = !!b.confirmed;
+    $$('.sh-away').forEach(x => x.hidden = !b.away);
+    $('#sh-confirm-row').hidden = !!b.confirmed || !coord;
+    $$('#share-dialog input').forEach(i => { i.disabled = !coord; });
+    $('#sh-readonly').hidden = coord;
+    $('#sh-save').hidden = !coord;
+    $('#share-dialog').showModal();
+    $('#sh-body').scrollTop = 0;
+    renderShare();
+  }
+  function shareData() {
+    return {
+      matchday: +$('#sh-matchday').value || null,
+      meet: minOf($('#sh-meet').value),
+      depart: minOf($('#sh-depart').value),
+      town: $('#sh-town').value.trim(), field: $('#sh-field').value.trim(),
+      venueOk: $('#sh-venue-ok').checked,
+      confirmed: shareB?.confirmed || $('#sh-confirm').checked,
+    };
+  }
+  /** Qué falta para poder enviar */
+  function shareMissing(b, d) {
+    const m = [];
+    if (!d.confirmed) m.push(isCoord() ? 'marca el horario como confirmado' : 'el horario aún no está confirmado');
+    if (d.meet == null) m.push('pon la hora de quedada');
+    if (b.away) {
+      if (d.depart == null) m.push('pon la hora de salida');
+      if (!d.field) m.push('escribe el campo');
+      if (!d.venueOk) m.push('confirma el campo');
+    }
+    return m;
+  }
+  function renderShare() {
+    const b = shareB; if (!b) return;
+    const d = shareData();
+    $('#sh-preview').textContent = shareText(b, d);
+    const miss = shareMissing(b, d);
+    $('#sh-missing').hidden = !miss.length;
+    $('#sh-missing').textContent = miss.length ? 'Para enviarlo: ' + miss.join(', ') + '.' : '';
+    $('#sh-wa').disabled = !!miss.length; $('#sh-copy').disabled = !!miss.length;
+  }
+  /** Guarda en el partido lo rellenado (solo coordinación) */
+  async function saveShare(quiet) {
+    const b = shareB; if (!b || !isCoord()) return true;
+    const d = shareData();
+    const venue = b.away ? ([d.town, d.field].filter(Boolean).join(' · ').slice(0, 120) || null) : b.venue;
+    const row = { ...b, matchday: d.matchday, meet_min: d.meet, depart_min: b.away ? d.depart : null, venue, venue_confirmed: b.away ? d.venueOk : false, confirmed: d.confirmed };
+    try {
+      await store.update(b.id, row);
+      Object.assign(b, row);
+      const s = state.bookings.find(x => x.id === b.id); if (s) Object.assign(s, row);
+      if (!quiet) toast('Datos del partido guardados');
+      render();
+      return true;
+    } catch (e) { toast('No se pudo guardar: ' + e.message, true); return false; }
+  }
+  async function sendShare(how) {
+    const b = shareB; if (!b) return;
+    const d = shareData();
+    if (shareMissing(b, d).length) { renderShare(); return; }
+    const text = shareText(b, d);
+    if (!(await saveShare(true))) return;
+    if (how === 'copy') { try { await navigator.clipboard.writeText(text); toast('Mensaje copiado'); } catch { toast('No se ha podido copiar', true); } return; }
+    if (navigator.share && /iPhone|iPad|Android/.test(navigator.userAgent)) { try { await navigator.share({ text }); } catch { } return; }
+    window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
+  }
+  function bindShare() {
+    $('#share-dialog').addEventListener('input', renderShare);
+    $('#share-dialog').addEventListener('change', renderShare);
+    $('#sh-wa').onclick = () => sendShare('wa');
+    $('#sh-copy').onclick = () => sendShare('copy');
+    $('#sh-save').onclick = async () => { if (await saveShare()) $('#share-dialog').close(); };
+    $('#d-body').addEventListener('click', e => { if (e.target.id === 'd-share') { const b = state.bookings.find(x => x.id === $('#detail-dialog').dataset.id); $('#detail-dialog').close(); if (b) openShare(b); } });
+    $('#f-share').onclick = () => { const b = state.bookings.find(x => x.id === editingId); if (!b) return; $('#booking-dialog').close(); openShare(b); };
+  }
+
   async function goToBooking(id, day) {
     $('#matches-dialog').close();
     state.filter = null;
@@ -3192,6 +3331,7 @@
   // ================================================================
   function bind() {
     bindHome();
+    bindShare();
     bindShortcuts();
     bindNotifications();
     $('#d-body').addEventListener('click', e => { if (e.target.id === 'd-rem') { const b = state.bookings.find(x => x.id === $('#detail-dialog').dataset.id); $('#detail-dialog').close(); if (b) reminderFromBooking(b); } });
@@ -3416,7 +3556,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027104824';
+  const APP_VERSION = '20261027204952';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

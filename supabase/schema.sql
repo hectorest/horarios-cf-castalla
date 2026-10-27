@@ -816,6 +816,45 @@ do $$ begin
   perform cron.schedule('notificaciones', '*/15 * * * *', $c$ select private.notif_call('{"mode": "tick"}'::jsonb); $c$);
 end $$;
 
+-- ---------- Partidos: datos para compartir el horario confirmado (WhatsApp) ----------
+-- Jornada, hora de quedada, hora de salida (fuera) y si el campo de fuera está confirmado.
+alter table public.bookings add column if not exists matchday smallint check (matchday between 1 and 60);
+alter table public.bookings add column if not exists meet_min smallint check (meet_min between 0 and 1439);
+alter table public.bookings add column if not exists depart_min smallint check (depart_min between 0 and 1439);
+alter table public.bookings add column if not exists venue_confirmed boolean not null default false;
+comment on column public.bookings.matchday is 'Partidos: número de jornada (opcional), para el mensaje del horario.';
+comment on column public.bookings.meet_min is 'Partidos: hora de quedada (minutos desde las 00:00).';
+comment on column public.bookings.depart_min is 'Partidos fuera: hora de salida (minutos desde las 00:00).';
+comment on column public.bookings.venue_confirmed is 'Partidos fuera: el campo se ha confirmado antes de compartir el horario.';
+
+-- Si cambia el día o la hora del partido, la quedada y la salida dejan de valer; si cambia el campo, deja de estar
+-- confirmado. Solo cuando ese mismo cambio no trae ya los valores nuevos.
+create or replace function private.match_share_reset()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if new.kind = 'partido' then
+    if (new.day is distinct from old.day or new.start_min is distinct from old.start_min) then
+      if new.meet_min is not distinct from old.meet_min then new.meet_min := null; end if;
+      if new.depart_min is not distinct from old.depart_min then new.depart_min := null; end if;
+    end if;
+    if new.venue is distinct from old.venue and new.venue_confirmed is not distinct from old.venue_confirmed then
+      new.venue_confirmed := false;
+    end if;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists match_share_reset on public.bookings;
+create trigger match_share_reset before update on public.bookings
+  for each row execute function private.match_share_reset();
+
+-- Jornada a partir de las notas de los calendarios cargados («… · J7 · …»)
+update public.bookings set matchday = (substring(notes from '(?:^|\s)J(\d{1,2})(?:\s|$)'))::smallint
+where kind = 'partido' and matchday is null and notes ~ '(^|\s)J\d{1,2}(\s|$)';
+
 -- ============================================================
 --  Primer coordinador: crea una invitación de coordinador y regístrate
 --  con el enlace  https://TU-WEB/#invitacion=TOKEN

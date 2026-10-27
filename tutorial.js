@@ -231,6 +231,11 @@ window.TUTORIAL_STEPS = [
     body: 'Cada recordatorio tiene, junto al reloj, el botón de la <b>persona con flecha</b> («No depende de mí»): elige de quién depende ahora (el entrenador del equipo, aunque no esté dado de alta, Club rival, Directivo, Federación, Ayuntamiento…) o escribe otro nombre. En los que ya están en espera, el mismo botón te deja cambiar la persona o volver a hacerlo tuyo.',
   },
   {
+    id: 'compartir-horario', since: 24, target: '#cal-wrap',
+    title: 'Compartir el horario de un partido',
+    body: 'Abre un partido y pulsa <b>📣 Compartir horario</b>: prepara el mensaje para el grupo de WhatsApp (rival, local o visitante, día, hora del partido y de quedada, y el campo). En los de fuera hay que poner también la <b>hora de salida 🚗</b> y <b>confirmar el campo</b> antes de enviarlo. La coordinación rellena esos datos y se guardan en el partido; si cambia el día o la hora, se vuelven a pedir.',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',
