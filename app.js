@@ -2388,6 +2388,7 @@
     const now = new Date();
     const hello = (state.profile?.full_name || '').split(/\s+/)[0];
     const keepForm = el.querySelector('#rem-quick');
+    if (keepForm && !state.remFormOpen && $('#rq-title').value.trim()) state.remFormOpen = true;
     const draft = keepForm ? { title: $('#rq-title').value, team: $('#rq-team').value, due: $('#rq-due').value, alert: $('#rq-alert').value, wait: $('#rq-wait').value, touched: $('#rq-alert').dataset.touched } : null;
     const teamOpts = `<option value="">Todo el club</option>${TEAMS.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}`;
     const upGroups = [['error', 'Conflictos', '⛔'], ['warn', 'Avisos', '⚠️'], ['pending', 'Pendientes', '⏳']];
@@ -2405,8 +2406,9 @@
       </div>
       <div class="home-grid">
         <section class="panel home-rem">
-          <h3>Recordatorios</h3>
-          <form id="rem-quick" class="rem-quick" autocomplete="off">
+          <div class="rem-head"><h3>Recordatorios</h3>
+            <button type="button" class="${state.remFormOpen ? 'ghost' : 'primary'} rem-new-btn" data-rem-form aria-expanded="${!!state.remFormOpen}" aria-controls="rem-quick">${state.remFormOpen ? 'Cerrar' : '＋ Nuevo recordatorio'}</button></div>
+          <form id="rem-quick" class="rem-quick" autocomplete="off" ${state.remFormOpen ? '' : 'hidden'}>
             <input id="rq-title" class="rq-title" maxlength="200" placeholder="¿Qué no se te puede olvidar?" aria-label="Recordatorio" required>
             ${duePresetsHTML('rq-due-pre')}
             <div class="rq-presets" id="rq-presets" hidden><span>Aviso:</span>
@@ -2614,6 +2616,16 @@
       if (pre) { const due = $('#rq-due').value; if (due) { $('#rq-alert').value = autoAlert(due, +pre.dataset.pre); $('#rq-alert').dataset.touched = '1'; markPresets(); } return; }
       const dp = e.target.closest('#rq-due-pre [data-due]');
       if (dp) { setQuickDue(dueFromPreset(dp.dataset.due)); return; }
+      if (e.target.closest('[data-rem-form]')) {
+        state.remFormOpen = !state.remFormOpen;
+        const f = $('#rem-quick'), b = e.target.closest('[data-rem-form]');
+        f.hidden = !state.remFormOpen;
+        b.textContent = state.remFormOpen ? 'Cerrar' : '＋ Nuevo recordatorio';
+        b.className = (state.remFormOpen ? 'ghost' : 'primary') + ' rem-new-btn';
+        b.setAttribute('aria-expanded', String(state.remFormOpen));
+        if (state.remFormOpen) setTimeout(() => $('#rq-title')?.focus(), 30);
+        return;
+      }
       const cl = e.target.closest('[data-claim]');
       if (cl) { const r = (state.reminders || []).find(x => x.id === cl.closest('[data-rem]').dataset.rem); if (r) claimReminder(r); return; }
       const so = e.target.closest('[data-snooze-open]');
@@ -3368,7 +3380,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027104011';
+  const APP_VERSION = '20261027104111';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

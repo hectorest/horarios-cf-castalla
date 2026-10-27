@@ -1021,3 +1021,8 @@ input[type="date"]::-webkit-datetime-edit, input[type="time"]::-webkit-datetime-
 .rq-row .rq-wait { grid-column: span 2; }
 .rq-wait input::placeholder { color: var(--muted); opacity: .8; }
 @media (max-width: 720px) { .rq-row { grid-template-columns: 1fr 1fr; } .rq-row .rq-f:first-child, .rq-row .rq-wait, .rq-row .rq-add { grid-column: 1 / -1; } }
+
+/* Formulario de recordatorio plegable */
+.rem-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.rem-head h3 { margin: 0; }
+.rem-new-btn { padding: 6px 12px; font-size: 13.5px; }

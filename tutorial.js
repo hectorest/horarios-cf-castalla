@@ -203,7 +203,7 @@ window.TUTORIAL_STEPS = [
   {
     id: 'inicio-coordinador', since: 18, roles: ['coordinador'], target: '#mode-toggle [data-mode=home], #user-btn',
     title: 'Tu Inicio: recordatorios y lo que se acerca',
-    body: 'Al entrar verás <b>Inicio</b> (en el móvil, en tu menú). A la izquierda, tus <b>recordatorios</b>: escribe qué hay que hacer, el equipo, la <b>fecha máxima</b> y la <b>fecha de aviso</b> (se rellena sola 2 días antes); desde ese día pasa de pendiente a <b>urgente</b>, y si se pasa la fecha máxima, a <b>vencido</b>. Márcalos con la casilla cuando estén hechos. A la derecha, los <b>conflictos, avisos y pendientes</b> de los próximos 14 días; toca uno para ir al calendario. También puedes crear un recordatorio desde cualquier reserva con <b>🔔 Recordatorio</b>.',
+    body: 'Al entrar verás <b>Inicio</b> (en el móvil, en tu menú). A la izquierda, tus <b>recordatorios</b>: pulsa <b>＋ Nuevo recordatorio</b> y escribe qué hay que hacer, el equipo, la <b>fecha máxima</b> y la <b>fecha de aviso</b> (se rellena sola 2 días antes); desde ese día pasa de pendiente a <b>urgente</b>, y si se pasa la fecha máxima, a <b>vencido</b>. Márcalos con la casilla cuando estén hechos. A la derecha, los <b>conflictos, avisos y pendientes</b> de los próximos 14 días; toca uno para ir al calendario. También puedes crear un recordatorio desde cualquier reserva con <b>🔔 Recordatorio</b>.',
   },
   {
     id: 'recordatorios-rapidos', since: 19, roles: ['coordinador'], target: '#mode-toggle [data-mode=home], #user-btn',
