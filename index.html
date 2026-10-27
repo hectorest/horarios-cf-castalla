@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261027084806">
+  <link rel="stylesheet" href="styles.css?v=20261027090230">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -64,6 +64,7 @@
           <button type="button" role="menuitem" id="m-confirm" hidden>Confirmar los partidos de esta semana</button>
           <button type="button" role="menuitem" id="m-clear" class="danger-item" hidden>Borrar los eventos de esta semana</button>
           <button type="button" role="menuitem" id="m-mode">Ver horario habitual</button>
+          <button type="button" role="menuitem" id="m-shortcuts" hidden>📲 Conectar con Atajos del iPhone</button>
           <button type="button" role="menuitem" id="m-install" hidden>Instalar la app en este dispositivo</button>
           <button type="button" role="menuitem" id="m-help">Ver tutorial</button>
           <button type="button" role="menuitem" id="m-logout">Cerrar sesión</button>
@@ -322,6 +323,7 @@
         <div class="rq-presets" id="rm-alert-pre"><span>Aviso:</span><button type="button" data-pre="0">el mismo día</button><button type="button" data-pre="1">1 día antes</button><button type="button" data-pre="2">2 días antes</button><button type="button" data-pre="7">1 semana antes</button></div>
         <div class="rq-presets rm-snooze" id="rm-snooze"><span>Posponer:</span><button type="button" data-snooze="1">+1 día</button><button type="button" data-snooze="2">+2 días</button><button type="button" data-snooze="3">+3 días</button><button type="button" data-snooze="7">+1 semana</button><button type="button" data-snooze="14">+2 semanas</button></div>
         <div class="field"><label for="rm-notes">Notas</label><textarea id="rm-notes" rows="3" maxlength="1000"></textarea></div>
+        <details id="rm-source" class="rm-source" hidden><summary>📲 Creado desde un Atajo: ver lo que se interpretó</summary><p id="rm-source-text"></p></details>
         <p id="rm-booking" class="rm-booking" hidden></p>
       </div>
       <footer class="dlg-foot">
@@ -331,6 +333,35 @@
         <button type="submit" class="primary">Guardar</button>
       </footer>
     </form>
+  </dialog>
+
+  <dialog id="shortcuts-dialog" class="dialog wide-dlg">
+    <header class="dlg-head"><h3>📲 Conectar con Atajos del iPhone</h3><button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button></header>
+    <div class="dlg-body" id="sc-body">
+      <p class="sc-intro">Crea recordatorios sin abrir la herramienta: comparte una <b>captura de WhatsApp</b> o un <b>texto</b> con el atajo, o díctalo con <b>Siri</b>. Claude lo interpreta (qué hay que hacer, equipo y fecha) y lo guarda en tus recordatorios; te llega una notificación con lo que ha entendido.</p>
+      <div class="dlg-sec">1 · Tu código</div>
+      <div class="sc-create"><input id="sc-label" maxlength="60" aria-label="Nombre del dispositivo"><button type="button" id="sc-create" class="primary">Generar código</button></div>
+      <div id="sc-new"></div>
+      <ul id="sc-list" class="sc-list"></ul>
+      <div class="dlg-sec">2 · Crear el atajo «Recordatorio Castalla» (capturas y textos)</div>
+      <ol class="sc-steps">
+        <li>Abre la app <b>Atajos</b> → <b>+</b> y ponle de nombre <b>Recordatorio Castalla</b>.</li>
+        <li>Toca <b>ⓘ</b> → activa <b>Mostrar en hoja para compartir</b>. En «Recibir», deja solo <b>Imágenes</b> y <b>Texto</b>.</li>
+        <li>Añade la acción <b>Obtener contenido de URL</b> y pega esta dirección:
+          <div class="sc-copy"><code id="sc-url"></code><button type="button" class="ghost" data-copy="sc-url">Copiar</button></div></li>
+        <li>Toca <b>Mostrar más</b>: <b>Método</b> → POST. En <b>Cabeceras</b>, añade una con clave <code>Authorization</code> y valor tu código (<code>Bearer cfc_…</code>). En <b>Cuerpo de la solicitud</b> elige <b>Archivo</b> y como archivo <b>Entrada del atajo</b>.</li>
+        <li>Añade la acción <b>Mostrar notificación</b> con el texto <b>Contenido de la URL</b>.</li>
+      </ol>
+      <p class="muted sc-tip">Para usarlo: en WhatsApp, haz una captura (o mantén pulsado un mensaje → Compartir) → <b>Recordatorio Castalla</b>.</p>
+      <div class="dlg-sec">3 · Por voz con Siri (opcional)</div>
+      <ol class="sc-steps">
+        <li>Duplica el atajo anterior y llámalo, por ejemplo, <b>Apunta en Castalla</b>.</li>
+        <li>Al principio, añade la acción <b>Dictar texto</b> (idioma: Español (España)).</li>
+        <li>En <b>Obtener contenido de URL</b>, cambia el cuerpo a <b>JSON</b> con un campo <code>texto</code> (Texto) = <b>Texto dictado</b>.</li>
+        <li>Di «Oye Siri, <b>Apunta en Castalla</b>» y cuenta lo que no quieres olvidar.</li>
+      </ol>
+      <p class="muted sc-tip">Cada código solo sirve para crear recordatorios a tu nombre; si pierdes el móvil, revócalo aquí. Límite: 60 al día.</p>
+    </div>
   </dialog>
 
   <dialog id="confirm-dialog" class="dialog narrow-dlg">
@@ -404,8 +435,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261027084806"></script>
-  <script src="tutorial.js?v=20261027084806"></script>
-  <script src="app.js?v=20261027084806"></script>
+  <script src="config.js?v=20261027090230"></script>
+  <script src="tutorial.js?v=20261027090230"></script>
+  <script src="app.js?v=20261027090230"></script>
 </body>
 </html>

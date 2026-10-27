@@ -408,6 +408,19 @@
         write(read().map(b => b.kind === 'partido' && !b.confirmed && b.day >= from && b.day <= to ? (n++, { ...b, confirmed: true }) : b));
         return n;
       },
+      shortcuts: {
+        async list() { return (ls.get('planificador-campo-demo-atajos-v1') || []).filter(t => t.user_id === sid); },
+        async create(label) {
+          const hex = () => uid().replace(/[^0-9a-f]/g, '').padEnd(32, '0').slice(0, 32);
+          const token = 'cfc_' + hex() + hex();
+          const a = ls.get('planificador-campo-demo-atajos-v1') || [];
+          a.push({ id: uid(), user_id: sid, label: label || 'iPhone', hint: token.slice(-4), created_at: new Date().toISOString(), last_used_at: null });
+          ls.set('planificador-campo-demo-atajos-v1', a);
+          return token;
+        },
+        async revoke(id) { ls.set('planificador-campo-demo-atajos-v1', (ls.get('planificador-campo-demo-atajos-v1') || []).filter(t => t.id !== id)); },
+        endpoint: null,
+      },
       reminders: {
         async list() { return rems().map(r => ({ ...r })); },
         async insert(r) { const now = new Date().toISOString(); const x = { done: false, done_at: null, notes: null, booking_id: null, team: null, due_date: null, alert_date: null, ...r, id: uid(), created_by: sid, created_at: now, updated_at: now }; writeRems([...rems(), x]); return x; },
@@ -574,8 +587,14 @@
       async confirmMatches(from, to) {
         return chk(await sb.from(T).update({ confirmed: true }).eq('kind', 'partido').eq('confirmed', false).gte('day', from).lte('day', to).select('id')).length;
       },
+      shortcuts: {
+        async list() { return chk(await sb.from('shortcut_tokens').select('id, label, hint, created_at, last_used_at, uses_day, uses_count').order('created_at')); },
+        async create(label) { return chk(await sb.rpc('create_shortcut_token', { p_label: label || 'iPhone' })); },
+        async revoke(id) { chk(await sb.from('shortcut_tokens').delete().eq('id', id)); },
+        endpoint: CFG.SUPABASE_URL.replace(/\/$/, '') + '/functions/v1/atajo-recordatorio',
+      },
       reminders: {
-        async list() { return chk(await sb.from('reminders').select('id, title, team, due_date, alert_date, notes, booking_id, done, done_at, created_by, created_at, updated_at').order('due_date', { nullsFirst: false }).order('created_at')); },
+        async list() { return chk(await sb.from('reminders').select('id, title, team, due_date, alert_date, notes, booking_id, done, done_at, created_by, created_at, updated_at, source, source_text').order('due_date', { nullsFirst: false }).order('created_at')); },
         async insert(r) { return chk(await sb.from('reminders').insert(r).select().single()); },
         async update(id, r) {
           const rows = chk(await sb.from('reminders').update(r).eq('id', id).select('id'));
@@ -922,6 +941,7 @@
     $$('#mode-toggle button').forEach(x => { const on = x.dataset.mode === state.mode; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
     $('#m-mode').textContent = isTpl() ? 'Volver a la semana' : 'Ver horario habitual';
     $('#m-home').hidden = !isCoord() || isHome();
+    $('#m-shortcuts').hidden = !isCoord();
     $('#new-btn').innerHTML = `+<span class="hide-sm"> ${isTpl() ? 'Nuevo entreno habitual' : 'Nueva reserva'}</span>`;
     renderStrip();
     $$('#view-toggle button').forEach(x => x.classList.toggle('on', x.dataset.view === state.view));
@@ -2299,7 +2319,7 @@
       <label class="rem-check" title="${st === 'done' ? 'Marcar como pendiente' : 'Marcar como hecho'}"><input type="checkbox" data-rem-done ${r.done ? 'checked' : ''}><span></span></label>
       <button type="button" class="rem-body" data-rem-edit>
         <span class="rem-title">${esc(r.title)}</span>
-        <span class="rem-meta">${t ? `<span class="mini-chip" style="--c:${t.color}">${esc(t.name)}</span>` : '<span class="mini-chip club">Club</span>'}${when.join(' · ')}${r.booking_id ? ' · <span class="rem-link">📅 reserva</span>' : ''}${r.notes ? ' · <span class="rem-notes">📝</span>' : ''}</span>
+        <span class="rem-meta">${t ? `<span class="mini-chip" style="--c:${t.color}">${esc(t.name)}</span>` : '<span class="mini-chip club">Club</span>'}${when.join(' · ')}${r.source === 'atajo' ? ' · <span class="rem-src" title="Creado desde un Atajo del iPhone">📲</span>' : ''}${r.booking_id ? ' · <span class="rem-link">📅 reserva</span>' : ''}${r.notes ? ' · <span class="rem-notes">📝</span>' : ''}</span>
       </button>
       ${st === 'done' ? '' : `<button type="button" class="rem-snz-btn ${state.snoozeOpen === r.id ? 'on' : ''}" data-snooze-open title="Posponer" aria-label="Posponer" aria-expanded="${state.snoozeOpen === r.id}">⏰</button>`}
       ${st !== 'done' && state.snoozeOpen === r.id ? `<div class="rem-snooze"><span>Posponer</span>${SNOOZE.map(([d, l]) => `<button type="button" data-snooze="${d}">${l}</button>`).join('')}</div>` : ''}
@@ -2431,6 +2451,8 @@
     $('#rm-done').hidden = isNew;
     $('#rm-done').textContent = r.done ? 'Marcar como pendiente' : 'Marcar como hecho';
     const b = r.booking_id && (state.bookings.find(x => x.id === r.booking_id) || r._booking);
+    $('#rm-source').hidden = !(r.source === 'atajo' && r.source_text);
+    $('#rm-source-text').textContent = r.source_text || '';
     $('#rm-booking').hidden = !r.booking_id;
     $('#rm-booking').innerHTML = r.booking_id ? `📅 ${b ? esc(`${whoOf(b).name}${b.opponent ? ' vs ' + b.opponent : ''} · ${shortDate(b.day)} ${fmt(b.start_min)}`) : 'Reserva del calendario'} <button type="button" class="link" id="rm-goto">Ver en el calendario</button>` : '';
     $('#rem-dialog').showModal();
@@ -2573,6 +2595,70 @@
       $('#rem-dialog').close(); await snoozeReminder(r.id, +b.dataset.snooze);
     });
     $('#m-home').onclick = () => { closeUserMenu(); setMode('home'); };
+  }
+
+  // ================================================================
+  //  Atajos del iPhone: códigos personales para crear recordatorios
+  // ================================================================
+  const SHORTCUT_EXAMPLE = 'https://…/functions/v1/atajo-recordatorio';
+  async function openShortcuts() {
+    closeUserMenu();
+    state.newToken = null;
+    $('#sc-label').value = `iPhone de ${(state.profile?.full_name || '').split(/\s+/)[0] || 'coordinación'}`.slice(0, 60);
+    $('#shortcuts-dialog').showModal();
+    $('#sc-body').scrollTop = 0;
+    await loadShortcuts();
+  }
+  async function loadShortcuts() {
+    try { state.shortcuts = await store.shortcuts.list(); }
+    catch (e) { state.shortcuts = []; toast('No se pudieron cargar los códigos: ' + e.message, true); }
+    renderShortcuts();
+  }
+  function renderShortcuts() {
+    const url = store.shortcuts.endpoint || SHORTCUT_EXAMPLE;
+    const list = state.shortcuts || [];
+    const tok = state.newToken;
+    $('#sc-new').innerHTML = tok ? `
+      <div class="sc-token">
+        <b>Tu código nuevo</b> <small>(solo se muestra ahora: cópialo en el atajo)</small>
+        <div class="sc-copy"><code id="sc-token-val">Bearer ${esc(tok)}</code><button type="button" class="primary" data-copy="sc-token-val">Copiar</button></div>
+        <p class="muted">En el atajo, cabecera <b>Authorization</b> con este valor (incluida la palabra «Bearer»).</p>
+      </div>` : '';
+    $('#sc-list').innerHTML = list.length
+      ? list.map(t => `<li><div><b>${esc(t.label)}</b> <span class="muted">· …${esc(t.hint || '')}</span><small>Creado ${shortDate(keyOf(new Date(t.created_at)))}${t.last_used_at ? ` · último uso ${shortDate(keyOf(new Date(t.last_used_at)))}` : ' · sin usar todavía'}</small></div><button type="button" class="danger" data-sc-revoke="${esc(t.id)}">Revocar</button></li>`).join('')
+      : '<li class="muted">Aún no has conectado ningún iPhone.</li>';
+    $('#sc-url').textContent = url;
+  }
+  async function createShortcutToken() {
+    const label = $('#sc-label').value.trim().slice(0, 60) || 'iPhone';
+    try {
+      state.newToken = await store.shortcuts.create(label);
+      toast('Código creado: cópialo en el atajo');
+      await loadShortcuts();
+      $('#sc-new').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    } catch (e) { toast('No se pudo crear: ' + e.message, true); }
+  }
+  async function copyText(text) {
+    try { await navigator.clipboard.writeText(text); toast('Copiado'); }
+    catch { toast('No se ha podido copiar: selecciónalo y cópialo a mano', true); }
+  }
+  function bindShortcuts() {
+    $('#m-shortcuts').onclick = openShortcuts;
+    $('#sc-create').onclick = createShortcutToken;
+    $('#shortcuts-dialog').addEventListener('click', async e => {
+      const cp = e.target.closest('[data-copy]');
+      if (cp) { copyText($('#' + cp.dataset.copy).textContent.trim()); return; }
+      const rv = e.target.closest('[data-sc-revoke]');
+      if (rv) {
+        const t = (state.shortcuts || []).find(x => x.id === rv.dataset.scRevoke);
+        $('#shortcuts-dialog').close();
+        const ok = await askConfirm(`¿Revocar el código «${t?.label || ''}»? El atajo de ese iPhone dejará de funcionar hasta que le pongas un código nuevo.`, 'Revocar');
+        if (ok) { try { await store.shortcuts.revoke(rv.dataset.scRevoke); toast('Código revocado'); } catch (ex) { toast('No se pudo revocar: ' + ex.message, true); } }
+        state.newToken = null;
+        $('#shortcuts-dialog').showModal(); await loadShortcuts();
+      }
+    });
+    $('#shortcuts-dialog').addEventListener('close', () => { state.newToken = null; });
   }
 
   async function goToBooking(id, day) {
@@ -2859,6 +2945,7 @@
   // ================================================================
   function bind() {
     bindHome();
+    bindShortcuts();
     $('#d-body').addEventListener('click', e => { if (e.target.id === 'd-rem') { const b = state.bookings.find(x => x.id === $('#detail-dialog').dataset.id); $('#detail-dialog').close(); if (b) reminderFromBooking(b); } });
     $('#f-rem').onclick = () => { const b = state.bookings.find(x => x.id === editingId); if (!b) return; $('#booking-dialog').close(); reminderFromBooking(b); };
     $('#install-go').onclick = doInstall;
@@ -3081,7 +3168,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027084806';
+  const APP_VERSION = '20261027090230';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

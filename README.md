@@ -47,6 +47,17 @@ Los coordinadores entran en **Inicio** (pestaña junto a *Semana* y *Horario hab
 - **Próximos 14 días**: conflictos, avisos y pendientes del calendario (partidos por confirmar, falta de OK del rival, propuestas, semanas sin publicar el horario habitual, solicitudes de entrenadores). Tocando uno se abre en el calendario.
 - El contador rojo de **Inicio** suma recordatorios vencidos y urgentes y conflictos próximos.
 
+### Recordatorios desde el iPhone (Atajos + Claude)
+
+Los coordinadores pueden crear recordatorios sin abrir la herramienta: comparten una **captura de WhatsApp** o un **texto** con un Atajo de iPhone, o lo **dictan con Siri**. La Edge Function `atajo-recordatorio` (en `supabase/functions/`) lo interpreta con Claude y crea uno o varios recordatorios (uno por tarea), con equipo, fecha máxima y aviso (2 días antes si no se dice otra cosa). El Atajo muestra una notificación con lo que se ha guardado. Los recordatorios del atajo llevan 📲 y guardan el texto interpretado.
+
+- **Conectar**: menú de usuario → *Conectar con Atajos del iPhone* → *Generar código*. El código (`cfc_…`) se muestra una sola vez; en la base de datos solo se guarda su huella (`shortcut_tokens.token_hash`). Se puede revocar en cualquier momento. Máximo 5 por coordinador y 60 usos al día.
+- **Atajo «Recordatorio Castalla»** (hoja de compartir, recibe imágenes y texto): *Obtener contenido de URL* → `https://wwkfaxrmmbptuithqpxn.supabase.co/functions/v1/atajo-recordatorio`, método POST, cabecera `Authorization: Bearer cfc_…`, cuerpo *Archivo* = *Entrada del atajo*; después *Mostrar notificación* con *Contenido de la URL*.
+- **Por voz**: mismo atajo con *Dictar texto* al principio y cuerpo *JSON* `{ "texto": Texto dictado }`.
+- La función acepta también JSON `{ "texto": "…", "imagen": "<base64>" }` o formulario (`texto`, `archivo`). Las fotos HEIC hay que convertirlas a JPEG en el atajo (las capturas ya son PNG).
+- **Configuración**: secreto `ANTHROPIC_API_KEY` en Supabase (*Edge Functions → Secrets*); opcional `ANTHROPIC_MODEL` (por defecto `claude-sonnet-5-5`). Se despliega con `verify_jwt = false` porque la función comprueba el código ella misma. Conviene poner un límite de gasto en la consola de Anthropic.
+- Contexto que recibe Claude: fecha de hoy (Madrid), equipos (con sus nombres habituales) y partidos de las próximas 5 semanas. No se guardan las imágenes.
+
 ## Partidos: confirmación, observaciones y propuestas
 
 - **Por confirmar / confirmado**: un partido por confirmar se ve con borde discontinuo y «Por confirmar», y sale en Incidencias. El coordinador lo marca con **Horario confirmado** en el editor, o confirma todos los de la semana con el botón de Incidencias (o el menú de usuario).

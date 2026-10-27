@@ -211,6 +211,11 @@ window.TUTORIAL_STEPS = [
     body: 'En Inicio, elige la fecha máxima con un botón (<b>Hoy, Mañana, En 3 días, Viernes, 1 semana, 2 semanas</b>): el aviso se pone solo <b>2 días antes</b> (puedes cambiarlo también con botones). Para retrasar un recordatorio, pulsa <b>⏰</b> y elige <b>+1 día, +2, +3, +1 semana o +2 semanas</b>: se mueven la fecha máxima y el aviso a la vez.',
   },
   {
+    id: 'atajos-iphone', since: 20, roles: ['coordinador'], target: '#user-btn',
+    title: 'Recordatorios desde el iPhone',
+    body: 'En tu menú → <b>Conectar con Atajos del iPhone</b> generas un código y sigues los pasos para crear el atajo. Luego, compartes una <b>captura de WhatsApp</b> o un texto con el atajo (o se lo dictas a <b>Siri</b>) y se crean los recordatorios solos, con equipo y fecha. Los que vienen del atajo llevan la marca 📲.',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',

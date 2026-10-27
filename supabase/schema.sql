@@ -589,6 +589,72 @@ do $$ begin
   end if;
 end $$;
 
+-- ---------- Atajos del iPhone: códigos personales para crear recordatorios ----------
+-- Cada coordinador genera un código para su iPhone. Solo se guarda su huella (sha256); el código
+-- se muestra una vez. La función «atajo-recordatorio» (Edge Function) lo comprueba con la clave de servicio.
+create table if not exists public.shortcut_tokens (
+  id            uuid primary key default gen_random_uuid(),
+  user_id       uuid not null default auth.uid() references auth.users(id) on delete cascade,
+  label         text not null default 'iPhone' check (char_length(btrim(label)) between 1 and 60),
+  token_hash    text not null unique check (char_length(token_hash) = 64),
+  hint          text check (char_length(hint) <= 12),            -- últimos caracteres, para reconocerlo
+  created_at    timestamptz not null default now(),
+  last_used_at  timestamptz,
+  uses_day      date,
+  uses_count    integer not null default 0                       -- usos en uses_day (límite diario)
+);
+create index if not exists shortcut_tokens_user_idx on public.shortcut_tokens (user_id);
+alter table public.shortcut_tokens enable row level security;
+comment on table public.shortcut_tokens is 'Códigos personales de los Atajos de iPhone (solo la huella sha256). Los usa la Edge Function atajo-recordatorio.';
+
+drop policy if exists "Ver mis códigos de Atajos" on public.shortcut_tokens;
+create policy "Ver mis códigos de Atajos" on public.shortcut_tokens
+  for select to authenticated using (user_id = (select auth.uid()) and (select private.is_coordinator()));
+drop policy if exists "Revocar mis códigos de Atajos" on public.shortcut_tokens;
+create policy "Revocar mis códigos de Atajos" on public.shortcut_tokens
+  for delete to authenticated using (user_id = (select auth.uid()));
+revoke all on public.shortcut_tokens from anon, authenticated;
+grant select (id, label, hint, created_at, last_used_at, uses_day, uses_count), delete on public.shortcut_tokens to authenticated;
+
+-- Genera un código nuevo para el coordinador que llama y lo devuelve (es la única vez que se ve).
+-- La parte con privilegios vive en private; la pública es solo la puerta (security invoker).
+drop function if exists public.create_shortcut_token(text);
+create or replace function private.create_shortcut_token(p_label text)
+returns text
+language plpgsql security definer
+set search_path = ''
+as $$
+declare
+  v_token text;
+begin
+  if not private.is_coordinator() then
+    raise exception 'Solo los coordinadores pueden conectar Atajos';
+  end if;
+  if (select count(*) from public.shortcut_tokens where user_id = auth.uid()) >= 5 then
+    raise exception 'Ya tienes 5 códigos: revoca alguno antes de crear otro';
+  end if;
+  v_token := 'cfc_' || replace(gen_random_uuid()::text, '-', '') || replace(gen_random_uuid()::text, '-', '');
+  insert into public.shortcut_tokens (user_id, label, token_hash, hint)
+  values (auth.uid(), coalesce(nullif(btrim(p_label), ''), 'iPhone'), encode(sha256(convert_to(v_token, 'UTF8')), 'hex'), right(v_token, 4));
+  return v_token;
+end;
+$$;
+revoke all on function private.create_shortcut_token(text) from public, anon;
+grant execute on function private.create_shortcut_token(text) to authenticated;
+create or replace function public.create_shortcut_token(p_label text default 'iPhone')
+returns text
+language sql security invoker
+set search_path = ''
+as $$ select private.create_shortcut_token(p_label); $$;
+revoke all on function public.create_shortcut_token(text) from public, anon;
+grant execute on function public.create_shortcut_token(text) to authenticated;
+
+-- Origen del recordatorio: creado en la herramienta o desde un Atajo (y el texto que se interpretó)
+alter table public.reminders add column if not exists source text not null default 'app' check (source in ('app', 'atajo'));
+alter table public.reminders add column if not exists source_text text check (char_length(source_text) <= 2000);
+comment on column public.reminders.source is 'app = creado en la herramienta; atajo = creado desde un Atajo del iPhone (interpretado por Claude).';
+comment on column public.reminders.source_text is 'Atajos: texto que se envió o que se leyó en la captura (para revisar qué se interpretó).';
+
 -- ============================================================
 --  Primer coordinador: crea una invitación de coordinador y regístrate
 --  con el enlace  https://TU-WEB/#invitacion=TOKEN
