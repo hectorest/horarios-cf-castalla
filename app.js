@@ -3219,9 +3219,26 @@
     }
     if (list.length === 1) state.teamOpen = list[0].id;
     const open = list.find(t => t.id === state.teamOpen);
-    const sc = el.scrollTop;
+    const sc = el.scrollTop, keep = keepFields(el);
     el.innerHTML = `<div class="home-wrap">${open ? rosterHTML(open, list.length > 1) : teamsGridHTML(list)}</div>`;
+    keep();
     el.scrollTop = sc;
+  }
+
+  /** Al repintar (tiempo real, recarga del calendario…) no se pierde lo que se está escribiendo ni el foco */
+  function keepFields(root) {
+    const key = i => i.id ? '#' + i.id : i.closest('[data-pl-form]') ? `[data-pl-form="${i.closest('[data-pl-form]').dataset.plForm}"] .${i.className.split(' ')[0]}` : null;
+    const saved = [...root.querySelectorAll('input, textarea')].map(i => ({ k: key(i), v: i.value, c: i.checked, t: i.type })).filter(x => x.k && x.t !== 'checkbox' || x.k && x.c);
+    const a = document.activeElement, fk = a && root.contains(a) ? key(a) : null;
+    const sel = fk && 'selectionStart' in a ? [a.selectionStart, a.selectionEnd] : null;
+    return () => {
+      for (const x of saved) {
+        const i = root.querySelector(x.k); if (!i) continue;
+        if (x.t === 'checkbox') i.checked = x.c; else i.value = x.v;
+      }
+      const f = fk && root.querySelector(fk);
+      if (f) { f.focus({ preventScroll: true }); if (sel && f.setSelectionRange) try { f.setSelectionRange(...sel); } catch { } }
+    };
   }
 
   function teamsGridHTML(list) {
@@ -3504,6 +3521,7 @@
         if (other) { toast(`El ${d.n} ya lo lleva ${other.name}`, true); $('#tm-num').select(); return; }
         if (await addPlayers(team, [{ number: d.n, name, sub23: !!$('#tm-s23')?.checked }])) {
           state.bulkDraft = $('#tm-bulk')?.value || '';
+          $('#tm-num').value = ''; $('#tm-name').value = ''; if ($('#tm-s23')) $('#tm-s23').checked = false;
           renderTeams(); toast(`${name} añadido`);
           const n = $('#tm-num'); if (n && !coarse()) n.focus(); else $('#tm-name')?.focus({ preventScroll: true });
         }
@@ -4055,7 +4073,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027225204';
+  const APP_VERSION = '20261027230929';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;
