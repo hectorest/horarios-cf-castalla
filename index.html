@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261028085020">
+  <link rel="stylesheet" href="styles.css?v=20261028085810">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -258,11 +258,19 @@
         </div>
 
         <div class="field full match-only week-only" id="f-comm-wrap" hidden>
-          <label class="switch conf-switch" title="Márcalo cuando el horario se haya comunicado a jugadores y familias">
-            <input type="checkbox" id="f-comm">
-            <span class="track"><span class="thumb"></span></span>
-            Horario comunicado
-          </label>
+          <span class="lbl">Horario comunicado</span>
+          <div class="comm-switches">
+            <label class="switch conf-switch" title="Mensaje semanal con todos los partidos del finde">
+              <input type="checkbox" id="f-comm-board">
+              <span class="track"><span class="thumb"></span></span>
+              A la directiva
+            </label>
+            <label class="switch conf-switch" title="Mensaje detallado al grupo de padres, jugadores y entrenadores del equipo">
+              <input type="checkbox" id="f-comm">
+              <span class="track"><span class="thumb"></span></span>
+              Al grupo del equipo
+            </label>
+          </div>
           <p class="fed-hint" id="f-comm-hint"></p>
         </div>
 
@@ -313,9 +321,9 @@
   <dialog id="msg-dialog" class="dialog narrow-dlg">
     <header class="dlg-head"><h3 id="msg-title">Mensaje</h3><button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button></header>
     <div class="dlg-body">
-      <p class="msg-hint">Partidos del finde, del jueves anterior y del lunes, martes y miércoles siguientes. Puedes retocar el texto antes de copiarlo.</p>
+      <p class="msg-hint">Mensaje para la <b>directiva</b> con todos los partidos del finde (del jueves anterior al miércoles siguiente). Puedes retocar el texto antes de copiarlo.</p>
       <textarea id="msg-text" class="msg-text" rows="16" spellcheck="false"></textarea>
-      <label class="msg-comm" id="msg-comm-row" hidden><input type="checkbox" id="msg-comm" checked><span>Al enviarlo o copiarlo, marcar como comunicados los <b id="msg-comm-n"></b> que aún no lo están.</span></label>
+      <label class="msg-comm" id="msg-comm-row" hidden><input type="checkbox" id="msg-comm" checked><span>Al enviarlo o copiarlo, marcar como comunicados <b>a la directiva</b> los <b id="msg-comm-n"></b> que aún no lo están.</span></label>
     </div>
     <footer class="dlg-foot">
       <button type="button" id="msg-wa" class="ghost">WhatsApp</button>
@@ -546,8 +554,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261028085020"></script>
-  <script src="tutorial.js?v=20261028085020"></script>
-  <script src="app.js?v=20261028085020"></script>
+  <script src="config.js?v=20261028085810"></script>
+  <script src="tutorial.js?v=20261028085810"></script>
+  <script src="app.js?v=20261028085810"></script>
 </body>
 </html>

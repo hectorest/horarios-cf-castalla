@@ -76,15 +76,17 @@ Cómo funciona: `sw.js` (service worker solo para push, sin caché) recibe los a
 
 ## Comunicar los horarios de los partidos
 
-Cada semana la coordinación comunica los horarios confirmados. El partido pasa de **confirmado** a **comunicado**:
+Cada semana la coordinación comunica los horarios confirmados por **dos canales**, y la web controla cada uno por separado:
 
-- **Avisos:** un partido confirmado sin comunicar sale como pendiente en Inicio, en el calendario y en el resumen diario durante la semana del partido. A 2 días o menos pasa a aviso.
-- **Formas de marcarlo como comunicado:**
-  - Enviar o copiar el mensaje del fin de semana (*Partidos → Por fin de semana → 💬*). El número sobre el 💬 indica cuántos faltan. La casilla del mensaje marca todos los confirmados que incluye.
-  - Usar **📣 Compartir horario** en el partido.
-  - Pulsar **✓ Ya está comunicado** en la ficha del partido, o activar el interruptor «Horario comunicado» al editarlo.
-- **Cambios después de comunicarlo:** si cambia el día, la hora o el campo de fuera, avisa con «el horario cambió después de comunicarlo; vuelve a comunicarlo».
-- En los listados de partidos se ve 📣 *Comunicado* o *Sin comunicar*.
+| Canal | Mensaje | Dónde se envía |
+|---|---|---|
+| **Directiva** | Todos los partidos del finde en un solo mensaje | *Partidos → Por fin de semana → 💬* (el número indica cuántos faltan) |
+| **Grupo del equipo** (padres, jugadores y entrenadores; uno por equipo) | Mensaje detallado: rival, día, hora, quedada, salida y campo | **📣 Compartir horario** en el partido |
+
+- **Avisos:** un partido confirmado sin comunicar sale como pendiente en Inicio, en el calendario y en el resumen diario durante la semana del partido, indicando a quién falta («sin comunicar a la directiva y al grupo del equipo»). A 2 días o menos pasa a aviso.
+- **Marcado:** cada canal se marca solo al enviar o copiar su mensaje. También se puede marcar a mano en la ficha del partido (**✓ Ya comunicado a…**) o con los interruptores «A la directiva» y «Al grupo del equipo» al editarlo.
+- **Cambios después de comunicarlo:** si cambia el día, la hora o el campo de fuera, avisa con «el horario cambió después de comunicarlo; vuelve a comunicarlo a …».
+- En los listados de partidos se ve 📣 *Directiva* y 📣 *Grupo*, o lo que falta.
 
 ## Hora de quedada por equipo
 

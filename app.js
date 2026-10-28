@@ -61,8 +61,16 @@
   const fedText = team => (fedWindows(team) || []).map(x => `${DAYS_SHORT[x.day].toLowerCase()} ${x.from}–${x.to}`).join(', ');
   // Comunicación del horario confirmado: firma de lo que se comunicó; si cambia, hay que volver a comunicarlo
   const commSig = b => [b.day, b.start_min, b.away ? 1 : 0, b.away ? (b.venue || '') : ''].join('|');
+  // Dos canales: «board» = directiva (mensaje semanal con todos los partidos), «group» = grupo del equipo
+  // (padres, jugadores y entrenadores; mensaje detallado de «📣 Compartir horario»)
+  const COMM = {
+    board: { at: 'board_communicated_at', sig: 'board_communicated_sig', label: 'Directiva', to: 'a la directiva' },
+    group: { at: 'communicated_at', sig: 'communicated_sig', label: 'Grupo del equipo', to: 'al grupo del equipo' },
+  };
   /** null (sin confirmar) · 'pending' (confirmado, sin comunicar) · 'changed' (cambió tras comunicarlo) · 'done' */
-  const commState = b => b.kind !== 'partido' || !b.confirmed ? null : !b.communicated_at ? 'pending' : b.communicated_sig !== commSig(b) ? 'changed' : 'done';
+  const commState = (b, ch = 'group') => b.kind !== 'partido' || !b.confirmed ? null : !b[COMM[ch].at] ? 'pending' : b[COMM[ch].sig] !== commSig(b) ? 'changed' : 'done';
+  const commTodo = (b, ch) => ['pending', 'changed'].includes(commState(b, ch));
+  const joinY = a => a.length > 1 ? a.slice(0, -1).join(', ') + ' y ' + a[a.length - 1] : a[0] || '';
   const COMM_DAYS = 7, COMM_URGENT = 2;
   /** Minutos antes del saque para quedar en el campo: ajuste de la coordinación (team_settings) o config.js > match.meet */
   const meetBefore = team => (state.teamSettings || []).find(x => x.team === team)?.meet_before_min ?? TEAM[team]?.match?.meet ?? 60;
@@ -321,6 +329,8 @@
       venue_map_url: b.kind === 'partido' && b.away ? (b.venue_map_url || null) : null,
       communicated_at: b.kind === 'partido' ? (b.communicated_at || null) : null,
       communicated_sig: b.kind === 'partido' ? (b.communicated_sig || null) : null,
+      board_communicated_at: b.kind === 'partido' ? (b.board_communicated_at || null) : null,
+      board_communicated_sig: b.kind === 'partido' ? (b.board_communicated_sig || null) : null,
     };
     return r;
   }
@@ -1047,10 +1057,14 @@
       const nm = `${teamOf(b.team).name}${b.opponent ? ' vs ' + b.opponent : ''}`;
       const push = msg => { const it = { level: 'pending', msg, ids: [b.id], day: b.day, at: b.start_min, team: b.team }; full.all.push(it); if (!full.byId.has(b.id)) full.byId.set(b.id, []); full.byId.get(b.id).push(it); };
       if (!b.confirmed && !b.away && b.day >= today) push(`${nm}: horario por confirmar`);
-      const cs = commState(b), dleft = Math.round((parseKey(b.day) - parseKey(today)) / 864e5);
-      if (b.day >= today && (cs === 'changed' || (cs === 'pending' && dleft <= COMM_DAYS))) {
-        const lvl = cs === 'changed' || dleft <= COMM_URGENT ? 'warn' : 'pending';
-        const it = { level: lvl, kind: 'comm', msg: cs === 'changed' ? `${nm}: el horario cambió después de comunicarlo; vuelve a comunicarlo` : `${nm}: horario confirmado sin comunicar`, ids: [b.id], day: b.day, at: b.start_min, team: b.team };
+      const dleft = Math.round((parseKey(b.day) - parseKey(today)) / 864e5);
+      const chg = Object.keys(COMM).filter(ch => commState(b, ch) === 'changed');
+      const pend = Object.keys(COMM).filter(ch => commState(b, ch) === 'pending');
+      if (b.day >= today && (chg.length || (pend.length && dleft <= COMM_DAYS))) {
+        const lvl = chg.length || dleft <= COMM_URGENT ? 'warn' : 'pending';
+        const msg = chg.length ? `${nm}: el horario cambió después de comunicarlo; vuelve a comunicarlo ${joinY([...chg, ...pend].map(ch => COMM[ch].to))}`
+          : `${nm}: horario confirmado sin comunicar ${joinY(pend.map(ch => COMM[ch].to))}`;
+        const it = { level: lvl, kind: 'comm', msg, ids: [b.id], day: b.day, at: b.start_min, team: b.team };
         full.all.push(it); if (!full.byId.has(b.id)) full.byId.set(b.id, []); full.byId.get(b.id).push(it);
       }
       if (needsRival(b) && b.day >= today) {
@@ -1575,7 +1589,7 @@
     $('#f-opp').value = draft.opponent || '';
     $('#f-notes').value = draft.notes || '';
     $('#f-confirmed').checked = !!draft.confirmed;
-    $('#f-comm').checked = commState(draft) === 'done'; delete $('#f-comm').dataset.touched;
+    for (const [id, ch] of [['#f-comm', 'group'], ['#f-comm-board', 'board']]) { $(id).checked = commState(draft, ch) === 'done'; delete $(id).dataset.touched; }
     renderCommField();
     const away = draft.kind === 'partido' && !!draft.away;
     $$('#f-where button').forEach(x => x.classList.toggle('on', (x.dataset.v === 'fuera') === away));
@@ -1599,9 +1613,11 @@
     draft.notes = $('#f-notes').value.trim();
     draft.title = $('#f-ev-title').value.trim();
     draft.confirmed = $('#f-confirmed').checked;
-    if ($('#f-comm').dataset.touched) {
-      if ($('#f-comm').checked && draft.confirmed) { if (commState(draft) !== 'done') { draft.communicated_at = new Date().toISOString(); draft.communicated_sig = commSig(draft); } }
-      else { draft.communicated_at = null; draft.communicated_sig = null; }
+    for (const [id, ch] of [['#f-comm', 'group'], ['#f-comm-board', 'board']]) {
+      if (!$(id).dataset.touched) continue;
+      const f = COMM[ch];
+      if ($(id).checked && draft.confirmed) { if (commState(draft, ch) !== 'done') { draft[f.at] = new Date().toISOString(); draft[f.sig] = commSig(draft); } }
+      else { draft[f.at] = null; draft[f.sig] = null; }
     }
     renderCommField();
     draft.venue = $('#f-venue').value.trim();
@@ -1858,7 +1874,8 @@
       if (b.opponent) rows.push(['Rival', b.opponent]);
       for (const s of t.segs) rows.push([s.label, `${fmt(s.from)} – ${fmt(s.to)}`]);
     }
-    if (b.kind === 'partido') rows.splice(1, 0, ['Dónde', b.away ? `Fuera${b.venue ? ' · ' + b.venue : ''}` : 'En casa'], ['Horario', b.confirmed ? '✓ Confirmado' + ({ pending: ' · sin comunicar', changed: ' · cambió tras comunicarlo', done: ` · 📣 comunicado el ${shortDate(keyOf(new Date(b.communicated_at)))}` })[commState(b)] : 'Por confirmar'],
+    if (b.kind === 'partido') rows.splice(1, 0, ['Dónde', b.away ? `Fuera${b.venue ? ' · ' + b.venue : ''}` : 'En casa'], ['Horario', b.confirmed ? '✓ Confirmado' : 'Por confirmar'],
+      ...(b.confirmed ? Object.entries(COMM).map(([ch, f]) => [f.label, ({ pending: 'Sin comunicar', changed: '⚠️ Cambió después de comunicarlo', done: `📣 Comunicado el ${shortDate(keyOf(new Date(b[f.at])))}` })[commState(b, ch)]]) : []),
       ...(fedWindows(b.team) ? [['Horario federativo', needsRival(b) ? `Fuera (${fedText(b.team)}) · ${RIVAL_LABEL[b.rival_status || 'pendiente']}` : '✓ Dentro']] : []));
     if (b.notes) rows.push(['Notas', b.notes]);
     if (b.kind === 'partido' && b.observations) rows.push(['Observaciones', b.observations]);
@@ -1872,7 +1889,7 @@
       ${issues.length ? `<ul class="pv-issues">${issues.map(i => `<li class="${i.level}">${ICON[i.level]} ${esc(i.msg)}${ackButton(i)}</li>`).join('')}</ul>` : ''}
       ${b.kind === 'partido' ? '<div class="field"><span class="lbl">Propuestas de horario</span><div id="d-props" class="props-box"></div></div>' : ''}`;
     if (b.kind === 'partido') renderProposals($('#d-props'), b, false);
-    if (!isTpl()) $('#d-body').insertAdjacentHTML('beforeend', `<div class="d-rem">${b.kind === 'partido' ? '<button type="button" class="primary" id="d-share">📣 Compartir horario</button>' : ''}${isCoord() && ['pending', 'changed'].includes(commState(b)) ? '<button type="button" class="ghost" id="d-comm">✓ Ya está comunicado</button>' : ''}${isCoord() ? '<button type="button" class="ghost" id="d-rem">🔔 Añadir recordatorio</button>' : ''}</div>`);
+    if (!isTpl()) $('#d-body').insertAdjacentHTML('beforeend', `<div class="d-rem">${b.kind === 'partido' ? '<button type="button" class="primary" id="d-share">📣 Compartir horario</button>' : ''}${isCoord() ? Object.entries(COMM).filter(([ch]) => commTodo(b, ch)).map(([ch, f]) => `<button type="button" class="ghost" data-d-comm="${ch}">✓ Ya comunicado ${f.to}</button>`).join('') : ''}${isCoord() ? '<button type="button" class="ghost" id="d-rem">🔔 Añadir recordatorio</button>' : ''}</div>`);
     $('#detail-dialog').dataset.id = b.id;
     $('#detail-dialog').showModal();
     $('#d-body').scrollTop = 0;
@@ -2277,10 +2294,11 @@
   function mxRow(b, { showTeam = false, next = false } = {}) {
     const today = keyOf(new Date()), w = whoOf(b);
     const tags = [];
-    const cs = commState(b);
-    if (cs === 'done') tags.push('<span class="mx-tag ok">📣 Comunicado</span>');
-    else if (cs === 'changed' && b.day >= todayKey()) tags.push('<span class="mx-tag warn">Cambió tras comunicarlo</span>');
-    else if (cs === 'pending' && b.day >= todayKey()) tags.push('<span class="mx-tag warn">Sin comunicar</span>');
+    for (const [ch, f] of Object.entries(COMM)) {
+      const cs = commState(b, ch), nm = ch === 'board' ? 'Directiva' : 'Grupo';
+      if (cs === 'done') tags.push(`<span class="mx-tag ok" title="Comunicado ${f.to}">📣 ${nm}</span>`);
+      else if (cs && b.day >= todayKey()) tags.push(`<span class="mx-tag warn" title="${cs === 'changed' ? 'Cambió después de comunicarlo ' + f.to : 'Sin comunicar ' + f.to}">${nm}: ${cs === 'changed' ? 'volver a comunicar' : 'sin comunicar'}</span>`);
+    }
     if (!b.confirmed && !b.away) tags.push('<span class="mx-tag warn">Por confirmar</span>');
     else if (!b.confirmed && b.away) tags.push('<span class="mx-tag">Hora sin confirmar</span>');
     if (needsRival(b)) tags.push(`<span class="mx-tag ${b.rival_status === 'rechazado' ? 'err' : b.rival_status === 'aprobado' ? '' : 'warn'}">⚑ ${b.rival_status === 'aprobado' ? 'OK del rival' : b.rival_status === 'rechazado' ? 'Rechazado' : 'Falta OK del rival'}</span>`);
@@ -2373,9 +2391,10 @@
     const maxHome = Math.max(1, ...weeks.map(k => (wk.get(k) || []).filter(b => !b.away).length));
     const head = `<tr><th class="mx-g-wk">Fin de semana</th><th class="mx-g-tot" title="Partidos en casa">Casa</th><th class="mx-g-tot" title="Partidos fuera">Fuera</th>${teams.map(t => `<th class="mx-g-team" style="--team:${t.color}" title="${esc(t.name)}">${esc(t.short || t.name)}</th>`).join('')}</tr>`;
     const cell = b => {
-      const cs = commState(b);
-      const tag = (b.confirmed ? '' : '?') + (needsRival(b) ? '⚑' : '') + (cs === 'done' ? '📣' : cs === 'changed' ? '⚠️' : '');
-      const tip = `${whoOf(b).name} · ${DAYS[dayIndexOf(b.day)]} ${fmt(b.start_min)} · ${b.away ? 'fuera' : 'en casa'} · vs ${b.opponent || 'rival por definir'}${b.away && b.venue ? ' · ' + b.venue : ''}${b.confirmed ? ({ pending: ' · sin comunicar', changed: ' · cambió tras comunicarlo', done: ' · comunicado' })[cs] : ' · por confirmar'}`;
+      const cb = commState(b, 'board'), cg = commState(b, 'group');
+      const tag = (b.confirmed ? '' : '?') + (needsRival(b) ? '⚑' : '') + (cb === 'changed' || cg === 'changed' ? '⚠️' : cb === 'done' && cg === 'done' ? '📣' : '');
+      const st = (cs, f) => ({ pending: `sin comunicar ${f.to}`, changed: `cambió tras comunicarlo ${f.to}`, done: `comunicado ${f.to}` })[cs];
+      const tip = `${whoOf(b).name} · ${DAYS[dayIndexOf(b.day)]} ${fmt(b.start_min)} · ${b.away ? 'fuera' : 'en casa'} · vs ${b.opponent || 'rival por definir'}${b.away && b.venue ? ' · ' + b.venue : ''}${b.confirmed ? ` · ${st(cb, COMM.board)} · ${st(cg, COMM.group)}` : ' · por confirmar'}`;
       return `<button type="button" class="mx-cell ${b.away ? 'away' : 'home'}" data-id="${esc(b.id)}" data-day="${b.day}" title="${esc(tip)}">
         <b>${cellDay(b.day)} ${fmt(b.start_min)}${tag ? `<i>${tag}</i>` : ''}</b><span>${esc(b.opponent || '—')}</span></button>`;
     };
@@ -2386,7 +2405,7 @@
       const yr = fri.getFullYear() !== new Date().getFullYear() ? ` <small>${fri.getFullYear()}</small>` : '';
       const heat = h ? 0.12 + 0.55 * h / maxHome : 0;
       return `<tr class="${k < nowWk ? 'past' : ''} ${k === nowWk ? 'now' : ''} ${ms.length ? '' : 'empty'}" data-wk="${k}">
-        <th class="mx-g-wk"><div class="mx-wk-cell"><span>${lbl}${yr}${k === nowWk ? '<small class="mx-now">este finde</small>' : ''}</span><button type="button" class="mx-msg" data-msg="${k}" title="Mensaje con los partidos de este finde" aria-label="Mensaje de los partidos del ${lbl}">💬${(() => { const n = ms.filter(b => ['pending', 'changed'].includes(commState(b)) && b.day >= todayKey()).length; return n ? `<span class="mx-msg-n" title="${n} confirmado${n > 1 ? 's' : ''} sin comunicar">${n}</span>` : ''; })()}</button></div></th>
+        <th class="mx-g-wk"><div class="mx-wk-cell"><span>${lbl}${yr}${k === nowWk ? '<small class="mx-now">este finde</small>' : ''}</span><button type="button" class="mx-msg" data-msg="${k}" title="Mensaje para la directiva con los partidos de este finde" aria-label="Mensaje para la directiva de los partidos del ${lbl}">💬${(() => { const n = ms.filter(b => commTodo(b, 'board') && b.day >= todayKey()).length; return n ? `<span class="mx-msg-n" title="${n} confirmado${n > 1 ? 's' : ''} sin comunicar a la directiva">${n}</span>` : ''; })()}</button></div></th>
         <td class="mx-g-tot home" style="--heat:${heat.toFixed(2)}">${h || ''}</td><td class="mx-g-tot away">${f || ''}</td>
         ${teams.map(t => `<td class="mx-g-c" style="--team:${t.color}">${ms.filter(b => b.team === t.id).map(cell).join('')}</td>`).join('')}</tr>`;
     }).join('');
@@ -2400,26 +2419,25 @@
   // ---------- Mensaje de los partidos de un finde (para WhatsApp) ----------
   // Nombre del rival tal como está en el calendario (sin acortar)
   const rivalName = n => (n && String(n).trim()) || '??';
-  /** Marca partidos como comunicados (mensaje semanal, compartir horario o a mano) */
-  async function markCommunicated(list, quiet) {
-    const now = new Date().toISOString();
-    const todo = list.filter(b => b.kind === 'partido' && b.confirmed && commState(b) !== 'done');
+  /** Marca partidos como comunicados a la directiva (mensaje semanal) o al grupo del equipo (compartir horario) */
+  async function markCommunicated(list, ch, quiet) {
+    const now = new Date().toISOString(), f = COMM[ch];
+    const todo = list.filter(b => b.kind === 'partido' && b.confirmed && commState(b, ch) !== 'done');
     for (const b of todo) {
-      const row = { ...b, communicated_at: now, communicated_sig: commSig(b) };
+      const row = { ...b, [f.at]: now, [f.sig]: commSig(b) };
       await store.update(b.id, row);
       Object.assign(b, row);
       for (const arr of [state.bookings, state.mxAll || []]) { const x = arr.find(y => y.id === b.id); if (x && x !== b) Object.assign(x, row); }
     }
-    if (todo.length) { if (!quiet) toast(`${plural(todo.length, 'partido marcado', 'partidos marcados')} como comunicado${todo.length === 1 ? '' : 's'}`); render(); if (isCoord()) loadHome(); }
+    if (todo.length) { if (!quiet) toast(`${plural(todo.length, 'partido marcado', 'partidos marcados')} como comunicado${todo.length === 1 ? '' : 's'} ${f.to}`); render(); if (isCoord()) loadHome(); }
     return todo.length;
   }
   function renderCommField() {
     const w = $('#f-comm-wrap'); if (!w) return;
     w.hidden = !draft || draft.kind !== 'partido' || !$('#f-confirmed').checked;
-    const cs = draft && commState(draft);
-    $('#f-comm-hint').textContent = cs === 'done' ? `Comunicado el ${shortDate(keyOf(new Date(draft.communicated_at)))}.`
-      : cs === 'changed' ? 'El horario cambió después de comunicarlo: hay que volver a comunicarlo.'
-      : 'Se marca solo al enviar el mensaje del finde o «📣 Compartir horario».';
+    if (!draft) return;
+    const txt = ch => { const cs = commState(draft, ch), f = COMM[ch]; return cs === 'done' ? `${f.label}: comunicado el ${shortDate(keyOf(new Date(draft[f.at])))}.` : cs === 'changed' ? `${f.label}: cambió después de comunicarlo, hay que volver a hacerlo.` : ''; };
+    $('#f-comm-hint').textContent = [txt('board'), txt('group')].filter(Boolean).join(' ') || 'Se marcan solos: la directiva al enviar el mensaje del finde y el grupo al usar «📣 Compartir horario».';
   }
   function weekMessage(monKey) {
     const [from, to] = findeRange(monKey);
@@ -2441,10 +2459,10 @@
   }
   function openWeekMessage(monKey) {
     const fri = addDays(parseKey(monKey), 4), sun = addDays(parseKey(monKey), 6);
-    $('#msg-title').textContent = `Mensaje · ${fri.getDate()}–${sun.getDate()} ${MONTHS[sun.getMonth()]}`;
+    $('#msg-title').textContent = `Directiva · ${fri.getDate()}–${sun.getDate()} ${MONTHS[sun.getMonth()]}`;
     $('#msg-text').value = weekMessage(monKey);
     const [from, to] = findeRange(monKey);
-    msgMatches = (state.mxAll || []).filter(b => b.day >= from && b.day <= to && TEAM[b.team] && ['pending', 'changed'].includes(commState(b)));
+    msgMatches = (state.mxAll || []).filter(b => b.day >= from && b.day <= to && TEAM[b.team] && commTodo(b, 'board'));
     $('#msg-comm-row').hidden = !isCoord() || !msgMatches.length;
     $('#msg-comm').checked = true;
     $('#msg-comm-n').textContent = plural(msgMatches.length, 'partido confirmado', 'partidos confirmados');
@@ -2456,7 +2474,7 @@
   /** Tras enviar o copiar el mensaje del finde, los confirmados quedan comunicados */
   async function weekMessageSent() {
     if (!isCoord() || !$('#msg-comm').checked || !msgMatches.length) return;
-    try { await markCommunicated(msgMatches); msgMatches = []; $('#msg-comm-row').hidden = true; if ($('#matches-dialog').open && state.mxTab === 'weekend') loadWeekend(); }
+    try { await markCommunicated(msgMatches, 'board'); msgMatches = []; $('#msg-comm-row').hidden = true; if ($('#matches-dialog').open && state.mxTab === 'weekend') loadWeekend(); }
     catch (e) { toast('No se pudieron marcar como comunicados: ' + e.message, true); }
   }
   async function copyWeekMessage() {
@@ -3176,7 +3194,7 @@
     const coord = isCoord();
     const v = splitVenue(b.venue);
     $('#sh-title').textContent = `📣 ${whoOf(b).name} vs ${b.opponent || 'rival'}`;
-    $('#sh-info').innerHTML = `${esc(dayLabel(b.day))} · saque <b>${fmt(b.start_min)}</b> · ${b.away ? '✈️ Fuera' : '🏠 En casa'}`;
+    $('#sh-info').innerHTML = `${esc(dayLabel(b.day))} · saque <b>${fmt(b.start_min)}</b> · ${b.away ? '✈️ Fuera' : '🏠 En casa'}<br><small>Mensaje detallado para el grupo del equipo (padres, jugadores y entrenadores).</small>`;
     $('#sh-matchday').value = jornadaOf(b) || '';
     const meet = b.meet_min ?? Math.max(0, b.start_min - meetBefore(b.team));
     $('#sh-meet-l').innerHTML = `Hora de quedada <small>(${durTxt(meetBefore(b.team))} antes)</small>`;
@@ -3249,7 +3267,7 @@
     if (shareMissing(b, d).length) { renderShare(); return; }
     const text = shareText(b, d);
     if (!(await saveShare(true))) return;
-    if (isCoord()) markCommunicated([b], true).catch(() => { });
+    if (isCoord()) markCommunicated([b], 'group', true).catch(() => { });
     if (how === 'copy') { try { await navigator.clipboard.writeText(text); toast('Mensaje copiado'); } catch { toast('No se ha podido copiar', true); } return; }
     if (navigator.share && /iPhone|iPad|Android/.test(navigator.userAgent)) { try { await navigator.share({ text }); } catch { } return; }
     window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
@@ -3753,11 +3771,11 @@
     $('#sh-copy').onclick = () => sendShare('copy');
     $('#sh-save').onclick = async () => { if (await saveShare()) $('#share-dialog').close(); };
     $('#d-body').addEventListener('click', async e => {
-      if (e.target.id !== 'd-comm') return;
+      const ch = e.target.dataset?.dComm; if (!ch) return;
       const b = state.bookings.find(x => x.id === $('#detail-dialog').dataset.id); if (!b) return;
-      try { await markCommunicated([b]); $('#detail-dialog').close(); openDetail(b); } catch (ex) { toast('No se pudo marcar: ' + ex.message, true); }
+      try { await markCommunicated([b], ch); $('#detail-dialog').close(); openDetail(b); } catch (ex) { toast('No se pudo marcar: ' + ex.message, true); }
     });
-    $('#f-comm').addEventListener('change', e => { e.target.dataset.touched = '1'; });
+    $$('#f-comm, #f-comm-board').forEach(x => x.addEventListener('change', e => { e.target.dataset.touched = '1'; }));
     $('#d-body').addEventListener('click', e => { if (e.target.id === 'd-share') { const b = state.bookings.find(x => x.id === $('#detail-dialog').dataset.id); $('#detail-dialog').close(); if (b) openShare(b); } });
     $('#f-share').onclick = () => { const b = state.bookings.find(x => x.id === editingId); if (!b) return; $('#booking-dialog').close(); openShare(b); };
   }
@@ -4273,7 +4291,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261028085020';
+  const APP_VERSION = '20261028085810';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

@@ -273,12 +273,17 @@ window.TUTORIAL_STEPS = [
   {
     id: 'comunicar-horario', since: 30, roles: ['coordinador'], target: '#matches-btn, #user-btn',
     title: 'Comunicar los horarios cada semana',
-    body: 'Después de <b>confirmar</b> un partido hay que <b>comunicarlo</b>. La semana del partido aparece en Inicio como «horario confirmado sin comunicar» (aviso fuerte a 2 días). Queda comunicado al enviar o copiar el mensaje del finde (<b>Partidos → Por fin de semana → 💬</b>, el número indica cuántos faltan), al usar <b>📣 Compartir horario</b> o con <b>✓ Ya está comunicado</b>. Si luego cambia el día, la hora o el campo, te avisa para volver a comunicarlo.',
+    body: 'Después de <b>confirmar</b> un partido hay que <b>comunicarlo</b>. La semana del partido aparece en Inicio como «horario confirmado sin comunicar» (aviso fuerte a 2 días). Se comunica a la directiva con el mensaje del finde (<b>Partidos → Por fin de semana → 💬</b>, el número indica cuántos faltan) y al grupo del equipo con <b>📣 Compartir horario</b>; también se puede marcar a mano en la ficha. Si luego cambia el día, la hora o el campo, te avisa para volver a comunicarlo.',
   },
   {
     id: 'quedada-equipo', since: 30, roles: ['coordinador'], target: '#mode-toggle [data-mode="teams"], #user-btn',
     title: 'Hora de quedada por equipo',
     body: 'En <b>Equipos → Hora de quedada</b> decides cuánto antes del partido queda cada equipo en el campo (p. ej., 1 h 15 min el Senior y 1 h el Cadete). Se usa para proponer la hora de quedada al compartir el horario.',
+  },
+  {
+    id: 'comunicar-dos-canales', since: 31, roles: ['coordinador'], target: '#matches-btn, #user-btn',
+    title: 'Directiva y grupos de cada equipo',
+    body: 'El horario confirmado se comunica por dos vías, y cada una tiene su aviso: a la <b>directiva</b>, con el mensaje semanal que incluye todos los partidos (<b>Partidos → Por fin de semana → 💬</b>), y al <b>grupo del equipo</b> (padres, jugadores y entrenadores), con el mensaje detallado de <b>📣 Compartir horario</b>. En la ficha del partido ves cómo está cada una y puedes marcarlas a mano.',
   },
   {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',

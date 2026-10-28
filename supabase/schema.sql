@@ -829,12 +829,17 @@ comment on column public.bookings.venue_confirmed is 'Partidos fuera: el campo s
 alter table public.bookings add column if not exists venue_map_url text check (venue_map_url ~ '^https://' and char_length(venue_map_url) <= 400);
 comment on column public.bookings.venue_map_url is 'Partidos fuera: enlace de Google Maps del campo (para el mensaje del horario).';
 
--- Comunicación del horario confirmado: la coordinación lo comunica cada semana (mensaje del finde, compartir horario
--- o a mano). La firma guarda día|hora|fuera|campo; si cambia, la web avisa de que hay que volver a comunicarlo.
+-- Comunicación del horario confirmado, por dos canales: a la directiva (mensaje semanal con todos los partidos) y al
+-- grupo del equipo (mensaje detallado de «Compartir horario»). La firma guarda día|hora|fuera|campo; si cambia, la web
+-- avisa de que hay que volver a comunicarlo.
 alter table public.bookings add column if not exists communicated_at timestamptz;
 alter table public.bookings add column if not exists communicated_sig text check (char_length(communicated_sig) <= 200);
-comment on column public.bookings.communicated_at is 'Partidos: cuándo comunicó la coordinación el horario confirmado (mensaje semanal, compartir horario o a mano).';
-comment on column public.bookings.communicated_sig is 'Partidos: firma día|hora|fuera|campo al comunicarlo; si cambia, hay que volver a comunicarlo.';
+alter table public.bookings add column if not exists board_communicated_at timestamptz;
+alter table public.bookings add column if not exists board_communicated_sig text check (char_length(board_communicated_sig) <= 200);
+comment on column public.bookings.communicated_at is 'Partidos: cuándo se comunicó el horario confirmado al grupo del equipo (padres, jugadores y entrenadores).';
+comment on column public.bookings.communicated_sig is 'Partidos: firma día|hora|fuera|campo al comunicarlo al grupo; si cambia, hay que volver a comunicarlo.';
+comment on column public.bookings.board_communicated_at is 'Partidos: cuándo se comunicó el horario confirmado a la directiva (mensaje semanal del finde).';
+comment on column public.bookings.board_communicated_sig is 'Partidos: firma día|hora|fuera|campo al comunicarlo a la directiva.';
 
 -- Si cambia el día o la hora del partido, la quedada y la salida dejan de valer; si cambia el campo, deja de estar
 -- confirmado. Solo cuando ese mismo cambio no trae ya los valores nuevos.
