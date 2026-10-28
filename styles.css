@@ -1227,3 +1227,13 @@ button.tm-pname:hover .tm-pn { text-decoration: underline; text-underline-offset
 @media (max-width: 720px) {
   .pd-st { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
+
+/* ---------- Horario comunicado ---------- */
+.mx-tag.ok { background: var(--pitch-tint); color: var(--pitch-dark); }
+.mx-msg { position: relative; }
+.mx-msg-n { position: absolute; top: -7px; right: -7px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 99px; background: var(--warn, #d97706); color: #fff; font-size: 10px; font-weight: 800; line-height: 16px; text-align: center; }
+.msg-comm { display: flex; align-items: flex-start; gap: 8px; margin-top: 10px; padding: 9px 11px; border-radius: 9px; background: var(--pitch-tint); font-size: 13px; line-height: 1.35; }
+.msg-comm input { margin-top: 2px; flex: none; }
+#f-comm-wrap .fed-hint { margin: 4px 0 0; }
+.ts-meet, .cr-add { padding: 5px 9px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; font-size: 13.5px; height: auto; }
+.ts-meet { min-width: 150px; }

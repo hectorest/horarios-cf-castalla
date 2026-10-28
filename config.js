@@ -51,11 +51,13 @@ window.APP_CONFIG = {
     { team: 'alevin-a',   from: 'alevin-b' },
   ],
 
+  // match.meet: minutos antes del saque para la quedada (por defecto 60). Con Supabase manda lo que ajuste
+  // la coordinación en Equipos → Hora de quedada (tabla team_settings).
   TEAMS: [
     { id: 'senior-a',   name: 'Senior A',        short: 'SEN A', color: '#b42318', fed: 'senior', upFlag: { label: 'Sub-23', short: 'S-23' },
-      match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
+      match: { meet: 75, warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
     { id: 'senior-b',   name: 'Senior B',        short: 'SEN B', color: '#c2410c', fed: 'senior', upFlag: { label: 'Sub-23', short: 'S-23' },
-      match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
+      match: { meet: 75, warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
     { id: 'veteranos',  name: 'Veteranos',       short: 'VET',   color: '#1f2937',
       match: { warmup: 30, half: 45, halves: 2, break: 15, margin: 15, format: 'F11' } },
     { id: 'juvenil',    name: 'Juvenil',         short: 'JUV',   color: '#6d28d9', fed: 'senior',

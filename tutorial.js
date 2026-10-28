@@ -271,6 +271,16 @@ window.TUTORIAL_STEPS = [
     body: 'Algunos equipos tienen una condición para que sus jugadores puedan ser convocables arriba: <b>Sub-23</b> en los Senior (Senior B → Senior A), <b>15 cumplidos</b> en el Cadete (→ Juvenil) y <b>2º año</b> en el Infantil A (→ Cadete). Márcala en la plantilla con el botón de cada jugador o en su ficha; solo los marcados aparecen al proponer convocables.',
   },
   {
+    id: 'comunicar-horario', since: 30, roles: ['coordinador'], target: '#matches-btn, #user-btn',
+    title: 'Comunicar los horarios cada semana',
+    body: 'Después de <b>confirmar</b> un partido hay que <b>comunicarlo</b>. La semana del partido aparece en Inicio como «horario confirmado sin comunicar» (aviso fuerte a 2 días). Queda comunicado al enviar o copiar el mensaje del finde (<b>Partidos → Por fin de semana → 💬</b>, el número indica cuántos faltan), al usar <b>📣 Compartir horario</b> o con <b>✓ Ya está comunicado</b>. Si luego cambia el día, la hora o el campo, te avisa para volver a comunicarlo.',
+  },
+  {
+    id: 'quedada-equipo', since: 30, roles: ['coordinador'], target: '#mode-toggle [data-mode="teams"], #user-btn',
+    title: 'Hora de quedada por equipo',
+    body: 'En <b>Equipos → Hora de quedada</b> decides cuánto antes del partido queda cada equipo en el campo (p. ej., 1 h 15 min el Senior y 1 h el Cadete). Se usa para proponer la hora de quedada al compartir el horario.',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',

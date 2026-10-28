@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261027232111">
+  <link rel="stylesheet" href="styles.css?v=20261028085020">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -257,6 +257,15 @@
           </label>
         </div>
 
+        <div class="field full match-only week-only" id="f-comm-wrap" hidden>
+          <label class="switch conf-switch" title="Márcalo cuando el horario se haya comunicado a jugadores y familias">
+            <input type="checkbox" id="f-comm">
+            <span class="track"><span class="thumb"></span></span>
+            Horario comunicado
+          </label>
+          <p class="fed-hint" id="f-comm-hint"></p>
+        </div>
+
         <div class="field full match-only week-only rival-field" id="f-rival-wrap">
           <span class="lbl">Horario federativo y aprobación del rival</span>
           <p class="fed-hint" id="f-fed"></p>
@@ -306,6 +315,7 @@
     <div class="dlg-body">
       <p class="msg-hint">Partidos del finde, del jueves anterior y del lunes, martes y miércoles siguientes. Puedes retocar el texto antes de copiarlo.</p>
       <textarea id="msg-text" class="msg-text" rows="16" spellcheck="false"></textarea>
+      <label class="msg-comm" id="msg-comm-row" hidden><input type="checkbox" id="msg-comm" checked><span>Al enviarlo o copiarlo, marcar como comunicados los <b id="msg-comm-n"></b> que aún no lo están.</span></label>
     </div>
     <footer class="dlg-foot">
       <button type="button" id="msg-wa" class="ghost">WhatsApp</button>
@@ -441,7 +451,7 @@
       <label id="sh-confirm-row" class="nf-kind"><input type="checkbox" id="sh-confirm"><span><b>Horario confirmado</b><small>El mensaje es del horario confirmado: márcalo al enviarlo.</small></span></label>
       <div class="field-row">
         <div class="field"><label for="sh-matchday">Jornada <small>(opcional)</small></label><input type="number" id="sh-matchday" min="1" max="60" inputmode="numeric" placeholder="—"></div>
-        <div class="field"><label for="sh-meet">Hora de quedada</label><input type="time" id="sh-meet" step="300"></div>
+        <div class="field"><label for="sh-meet" id="sh-meet-l">Hora de quedada</label><input type="time" id="sh-meet" step="300"></div>
       </div>
       <div class="field sh-away"><label for="sh-depart">Hora de salida 🚗</label><input type="time" id="sh-depart" step="300"></div>
       <div class="field-row sh-away">
@@ -536,8 +546,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261027232111"></script>
-  <script src="tutorial.js?v=20261027232111"></script>
-  <script src="app.js?v=20261027232111"></script>
+  <script src="config.js?v=20261028085020"></script>
+  <script src="tutorial.js?v=20261028085020"></script>
+  <script src="app.js?v=20261028085020"></script>
 </body>
 </html>

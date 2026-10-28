@@ -74,6 +74,22 @@ Tocar un aviso abre la herramienta en Inicio.
 
 Cómo funciona: `sw.js` (service worker solo para push, sin caché) recibe los avisos; los dispositivos se guardan en `push_subscriptions` y las preferencias en `notify_settings`. La Edge Function `notificaciones` (`supabase/functions/notificaciones`, Web Push propio con VAPID y cifrado aes128gcm, sin dependencias) envía los avisos. Una tarea programada (`pg_cron`, cada 15 min) la llama con un secreto guardado en Vault, y un trigger en `profiles` avisa de las altas. Las claves VAPID se generan solas la primera vez y se guardan en Vault. Los conflictos y cambios salen de `issue_snapshot`, una foto que guarda la herramienta cada vez que un coordinador abre Inicio (mismo motor que el calendario).
 
+## Comunicar los horarios de los partidos
+
+Cada semana la coordinación comunica los horarios confirmados. El partido pasa de **confirmado** a **comunicado**:
+
+- **Avisos:** un partido confirmado sin comunicar sale como pendiente en Inicio, en el calendario y en el resumen diario durante la semana del partido. A 2 días o menos pasa a aviso.
+- **Formas de marcarlo como comunicado:**
+  - Enviar o copiar el mensaje del fin de semana (*Partidos → Por fin de semana → 💬*). El número sobre el 💬 indica cuántos faltan. La casilla del mensaje marca todos los confirmados que incluye.
+  - Usar **📣 Compartir horario** en el partido.
+  - Pulsar **✓ Ya está comunicado** en la ficha del partido, o activar el interruptor «Horario comunicado» al editarlo.
+- **Cambios después de comunicarlo:** si cambia el día, la hora o el campo de fuera, avisa con «el horario cambió después de comunicarlo; vuelve a comunicarlo».
+- En los listados de partidos se ve 📣 *Comunicado* o *Sin comunicar*.
+
+## Hora de quedada por equipo
+
+En **Equipos → Hora de quedada** la coordinación decide cuánto antes del saque queda cada equipo en el campo: inicialmente 1 h 15 min los Senior y 1 h el resto. Se usa para proponer la hora de quedada en «📣 Compartir horario», y en cada partido se puede cambiar.
+
 ## Equipos y plantillas
 
 Pestaña **Equipos** (en el móvil, en el menú del usuario). La coordinación ve todos los equipos con su número de jugadores y sus entrenadores; cada entrenador ve **Plantilla** con solo sus equipos.

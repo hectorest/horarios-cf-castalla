@@ -59,6 +59,18 @@
     return w.some(x => x.day === wd && start >= toMin(x.from) && start <= toMin(x.to));
   };
   const fedText = team => (fedWindows(team) || []).map(x => `${DAYS_SHORT[x.day].toLowerCase()} ${x.from}–${x.to}`).join(', ');
+  // Comunicación del horario confirmado: firma de lo que se comunicó; si cambia, hay que volver a comunicarlo
+  const commSig = b => [b.day, b.start_min, b.away ? 1 : 0, b.away ? (b.venue || '') : ''].join('|');
+  /** null (sin confirmar) · 'pending' (confirmado, sin comunicar) · 'changed' (cambió tras comunicarlo) · 'done' */
+  const commState = b => b.kind !== 'partido' || !b.confirmed ? null : !b.communicated_at ? 'pending' : b.communicated_sig !== commSig(b) ? 'changed' : 'done';
+  const COMM_DAYS = 7, COMM_URGENT = 2;
+  /** Minutos antes del saque para quedar en el campo: ajuste de la coordinación (team_settings) o config.js > match.meet */
+  const meetBefore = team => (state.teamSettings || []).find(x => x.team === team)?.meet_before_min ?? TEAM[team]?.match?.meet ?? 60;
+  const durTxt = m => m % 60 ? (m >= 60 ? `${Math.floor(m / 60)} h ${m % 60} min` : `${m} min`) : `${m / 60} h`;
+  async function loadTeamSettings() {
+    try { state.teamSettings = await store.teamSettings.list(); } catch { state.teamSettings = state.teamSettings || []; }
+    if (isTeams()) renderTeams();
+  }   // se avisa la semana del partido; a 2 días, aviso fuerte
   const needsRival = b => b.kind === 'partido' && !b.away && !inFedWindow(b.team, b.day, b.start_min);
   const RIVAL_LABEL = { pendiente: 'pendiente de aprobación del rival', aprobado: 'aprobado por el rival', rechazado: 'rechazado por el rival' };
   const teamOf = id => TEAM[id] || { id, name: id || '¿?', short: id || '¿?', color: '#64748b', match: null };
@@ -307,6 +319,8 @@
       depart_min: b.kind === 'partido' && b.away ? (b.depart_min ?? null) : null,
       venue_confirmed: b.kind === 'partido' && b.away ? !!b.venue_confirmed : false,
       venue_map_url: b.kind === 'partido' && b.away ? (b.venue_map_url || null) : null,
+      communicated_at: b.kind === 'partido' ? (b.communicated_at || null) : null,
+      communicated_sig: b.kind === 'partido' ? (b.communicated_sig || null) : null,
     };
     return r;
   }
@@ -414,7 +428,7 @@
     const CRKEY = 'planificador-campo-demo-callup-rules-v2', CUKEY = 'planificador-campo-demo-callups-v2';
     const cRules = () => ls.get(CRKEY) || (CFG.CALLUPS || []).map(r => ({ team: r.team, from: r.from, sub23: !!r.sub23 }));
     const cups = () => ls.get(CUKEY) || [];
-    const cuListeners = [], crListeners = [];
+    const cuListeners = [], crListeners = [], tsListeners = [];
     const writeCups = a => { ls.set(CUKEY, a); cuListeners.forEach(cb => setTimeout(cb, 0)); };
     const writeRules = a => { ls.set(CRKEY, a); crListeners.forEach(cb => setTimeout(cb, 0)); };
     const canSeeLower = p => cRules().some(r => r.from === p.team && (!r.sub23 || p.sub23) && canRoster(r.team));
@@ -533,6 +547,15 @@
         },
         async remove(id) { writeCups(cups().filter(c => c.id !== id)); },
         subscribe(cb) { cuListeners.push(cb); },
+      },
+      teamSettings: {
+        async list() { return ls.get('planificador-campo-demo-team-settings-v1') || []; },
+        async set(team, patch) {
+          if (!isCoordDemo()) throw new Error('Solo la coordinación cambia los ajustes de equipo.');
+          const a = (ls.get('planificador-campo-demo-team-settings-v1') || []).filter(x => x.team !== team);
+          a.push({ team, ...patch }); ls.set('planificador-campo-demo-team-settings-v1', a); tsListeners.forEach(cb => setTimeout(cb, 0));
+        },
+        subscribe(cb) { tsListeners.push(cb); },
       },
       callupRules: {
         async list() { return cRules().map(r => ({ ...r })); },
@@ -751,6 +774,13 @@
         async remove(id) { chk(await sb.from('player_callups').delete().eq('id', id)); },
         subscribe(cb) {
           sb.channel('callups-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'player_callups' }, debounce(cb)).subscribe();
+        },
+      },
+      teamSettings: {
+        async list() { return chk(await sb.from('team_settings').select('team, meet_before_min')); },
+        async set(team, patch) { chk(await sb.from('team_settings').upsert({ team, ...patch, updated_at: new Date().toISOString() }).select('team')); },
+        subscribe(cb) {
+          sb.channel('team-settings-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'team_settings' }, debounce(cb)).subscribe();
         },
       },
       callupRules: {
@@ -1017,6 +1047,12 @@
       const nm = `${teamOf(b.team).name}${b.opponent ? ' vs ' + b.opponent : ''}`;
       const push = msg => { const it = { level: 'pending', msg, ids: [b.id], day: b.day, at: b.start_min, team: b.team }; full.all.push(it); if (!full.byId.has(b.id)) full.byId.set(b.id, []); full.byId.get(b.id).push(it); };
       if (!b.confirmed && !b.away && b.day >= today) push(`${nm}: horario por confirmar`);
+      const cs = commState(b), dleft = Math.round((parseKey(b.day) - parseKey(today)) / 864e5);
+      if (b.day >= today && (cs === 'changed' || (cs === 'pending' && dleft <= COMM_DAYS))) {
+        const lvl = cs === 'changed' || dleft <= COMM_URGENT ? 'warn' : 'pending';
+        const it = { level: lvl, kind: 'comm', msg: cs === 'changed' ? `${nm}: el horario cambió después de comunicarlo; vuelve a comunicarlo` : `${nm}: horario confirmado sin comunicar`, ids: [b.id], day: b.day, at: b.start_min, team: b.team };
+        full.all.push(it); if (!full.byId.has(b.id)) full.byId.set(b.id, []); full.byId.get(b.id).push(it);
+      }
       if (needsRival(b) && b.day >= today) {
         const fed = fedText(b.team);
         if (b.rival_status === 'rechazado') {
@@ -1539,6 +1575,8 @@
     $('#f-opp').value = draft.opponent || '';
     $('#f-notes').value = draft.notes || '';
     $('#f-confirmed').checked = !!draft.confirmed;
+    $('#f-comm').checked = commState(draft) === 'done'; delete $('#f-comm').dataset.touched;
+    renderCommField();
     const away = draft.kind === 'partido' && !!draft.away;
     $$('#f-where button').forEach(x => x.classList.toggle('on', (x.dataset.v === 'fuera') === away));
     $$('.away-only', dlg()).forEach(x => x.hidden = !away);
@@ -1561,6 +1599,11 @@
     draft.notes = $('#f-notes').value.trim();
     draft.title = $('#f-ev-title').value.trim();
     draft.confirmed = $('#f-confirmed').checked;
+    if ($('#f-comm').dataset.touched) {
+      if ($('#f-comm').checked && draft.confirmed) { if (commState(draft) !== 'done') { draft.communicated_at = new Date().toISOString(); draft.communicated_sig = commSig(draft); } }
+      else { draft.communicated_at = null; draft.communicated_sig = null; }
+    }
+    renderCommField();
     draft.venue = $('#f-venue').value.trim();
     draft.observations = $('#f-obs').value.trim();
   }
@@ -1815,7 +1858,7 @@
       if (b.opponent) rows.push(['Rival', b.opponent]);
       for (const s of t.segs) rows.push([s.label, `${fmt(s.from)} – ${fmt(s.to)}`]);
     }
-    if (b.kind === 'partido') rows.splice(1, 0, ['Dónde', b.away ? `Fuera${b.venue ? ' · ' + b.venue : ''}` : 'En casa'], ['Horario', b.confirmed ? '✓ Confirmado' : 'Por confirmar'],
+    if (b.kind === 'partido') rows.splice(1, 0, ['Dónde', b.away ? `Fuera${b.venue ? ' · ' + b.venue : ''}` : 'En casa'], ['Horario', b.confirmed ? '✓ Confirmado' + ({ pending: ' · sin comunicar', changed: ' · cambió tras comunicarlo', done: ` · 📣 comunicado el ${shortDate(keyOf(new Date(b.communicated_at)))}` })[commState(b)] : 'Por confirmar'],
       ...(fedWindows(b.team) ? [['Horario federativo', needsRival(b) ? `Fuera (${fedText(b.team)}) · ${RIVAL_LABEL[b.rival_status || 'pendiente']}` : '✓ Dentro']] : []));
     if (b.notes) rows.push(['Notas', b.notes]);
     if (b.kind === 'partido' && b.observations) rows.push(['Observaciones', b.observations]);
@@ -1829,7 +1872,7 @@
       ${issues.length ? `<ul class="pv-issues">${issues.map(i => `<li class="${i.level}">${ICON[i.level]} ${esc(i.msg)}${ackButton(i)}</li>`).join('')}</ul>` : ''}
       ${b.kind === 'partido' ? '<div class="field"><span class="lbl">Propuestas de horario</span><div id="d-props" class="props-box"></div></div>' : ''}`;
     if (b.kind === 'partido') renderProposals($('#d-props'), b, false);
-    if (!isTpl()) $('#d-body').insertAdjacentHTML('beforeend', `<div class="d-rem">${b.kind === 'partido' ? '<button type="button" class="primary" id="d-share">📣 Compartir horario</button>' : ''}${isCoord() ? '<button type="button" class="ghost" id="d-rem">🔔 Añadir recordatorio</button>' : ''}</div>`);
+    if (!isTpl()) $('#d-body').insertAdjacentHTML('beforeend', `<div class="d-rem">${b.kind === 'partido' ? '<button type="button" class="primary" id="d-share">📣 Compartir horario</button>' : ''}${isCoord() && ['pending', 'changed'].includes(commState(b)) ? '<button type="button" class="ghost" id="d-comm">✓ Ya está comunicado</button>' : ''}${isCoord() ? '<button type="button" class="ghost" id="d-rem">🔔 Añadir recordatorio</button>' : ''}</div>`);
     $('#detail-dialog').dataset.id = b.id;
     $('#detail-dialog').showModal();
     $('#d-body').scrollTop = 0;
@@ -2025,6 +2068,7 @@
     if (isCoord() && /#inicio/.test(location.hash)) { state.mode = 'home'; try { history.replaceState(null, '', location.pathname + location.search); } catch { } }
     if (!isCoord() && isHome()) state.mode = 'week';
     render();
+    loadTeamSettings();
     await load();
     if (first) {
       const wrap = $('#cal-wrap');
@@ -2233,6 +2277,10 @@
   function mxRow(b, { showTeam = false, next = false } = {}) {
     const today = keyOf(new Date()), w = whoOf(b);
     const tags = [];
+    const cs = commState(b);
+    if (cs === 'done') tags.push('<span class="mx-tag ok">📣 Comunicado</span>');
+    else if (cs === 'changed' && b.day >= todayKey()) tags.push('<span class="mx-tag warn">Cambió tras comunicarlo</span>');
+    else if (cs === 'pending' && b.day >= todayKey()) tags.push('<span class="mx-tag warn">Sin comunicar</span>');
     if (!b.confirmed && !b.away) tags.push('<span class="mx-tag warn">Por confirmar</span>');
     else if (!b.confirmed && b.away) tags.push('<span class="mx-tag">Hora sin confirmar</span>');
     if (needsRival(b)) tags.push(`<span class="mx-tag ${b.rival_status === 'rechazado' ? 'err' : b.rival_status === 'aprobado' ? '' : 'warn'}">⚑ ${b.rival_status === 'aprobado' ? 'OK del rival' : b.rival_status === 'rechazado' ? 'Rechazado' : 'Falta OK del rival'}</span>`);
@@ -2325,8 +2373,9 @@
     const maxHome = Math.max(1, ...weeks.map(k => (wk.get(k) || []).filter(b => !b.away).length));
     const head = `<tr><th class="mx-g-wk">Fin de semana</th><th class="mx-g-tot" title="Partidos en casa">Casa</th><th class="mx-g-tot" title="Partidos fuera">Fuera</th>${teams.map(t => `<th class="mx-g-team" style="--team:${t.color}" title="${esc(t.name)}">${esc(t.short || t.name)}</th>`).join('')}</tr>`;
     const cell = b => {
-      const tag = (b.confirmed ? '' : '?') + (needsRival(b) ? '⚑' : '');
-      const tip = `${whoOf(b).name} · ${DAYS[dayIndexOf(b.day)]} ${fmt(b.start_min)} · ${b.away ? 'fuera' : 'en casa'} · vs ${b.opponent || 'rival por definir'}${b.away && b.venue ? ' · ' + b.venue : ''}${b.confirmed ? '' : ' · por confirmar'}`;
+      const cs = commState(b);
+      const tag = (b.confirmed ? '' : '?') + (needsRival(b) ? '⚑' : '') + (cs === 'done' ? '📣' : cs === 'changed' ? '⚠️' : '');
+      const tip = `${whoOf(b).name} · ${DAYS[dayIndexOf(b.day)]} ${fmt(b.start_min)} · ${b.away ? 'fuera' : 'en casa'} · vs ${b.opponent || 'rival por definir'}${b.away && b.venue ? ' · ' + b.venue : ''}${b.confirmed ? ({ pending: ' · sin comunicar', changed: ' · cambió tras comunicarlo', done: ' · comunicado' })[cs] : ' · por confirmar'}`;
       return `<button type="button" class="mx-cell ${b.away ? 'away' : 'home'}" data-id="${esc(b.id)}" data-day="${b.day}" title="${esc(tip)}">
         <b>${cellDay(b.day)} ${fmt(b.start_min)}${tag ? `<i>${tag}</i>` : ''}</b><span>${esc(b.opponent || '—')}</span></button>`;
     };
@@ -2337,7 +2386,7 @@
       const yr = fri.getFullYear() !== new Date().getFullYear() ? ` <small>${fri.getFullYear()}</small>` : '';
       const heat = h ? 0.12 + 0.55 * h / maxHome : 0;
       return `<tr class="${k < nowWk ? 'past' : ''} ${k === nowWk ? 'now' : ''} ${ms.length ? '' : 'empty'}" data-wk="${k}">
-        <th class="mx-g-wk"><div class="mx-wk-cell"><span>${lbl}${yr}${k === nowWk ? '<small class="mx-now">este finde</small>' : ''}</span><button type="button" class="mx-msg" data-msg="${k}" title="Mensaje con los partidos de este finde" aria-label="Mensaje de los partidos del ${lbl}">💬</button></div></th>
+        <th class="mx-g-wk"><div class="mx-wk-cell"><span>${lbl}${yr}${k === nowWk ? '<small class="mx-now">este finde</small>' : ''}</span><button type="button" class="mx-msg" data-msg="${k}" title="Mensaje con los partidos de este finde" aria-label="Mensaje de los partidos del ${lbl}">💬${(() => { const n = ms.filter(b => ['pending', 'changed'].includes(commState(b)) && b.day >= todayKey()).length; return n ? `<span class="mx-msg-n" title="${n} confirmado${n > 1 ? 's' : ''} sin comunicar">${n}</span>` : ''; })()}</button></div></th>
         <td class="mx-g-tot home" style="--heat:${heat.toFixed(2)}">${h || ''}</td><td class="mx-g-tot away">${f || ''}</td>
         ${teams.map(t => `<td class="mx-g-c" style="--team:${t.color}">${ms.filter(b => b.team === t.id).map(cell).join('')}</td>`).join('')}</tr>`;
     }).join('');
@@ -2351,6 +2400,27 @@
   // ---------- Mensaje de los partidos de un finde (para WhatsApp) ----------
   // Nombre del rival tal como está en el calendario (sin acortar)
   const rivalName = n => (n && String(n).trim()) || '??';
+  /** Marca partidos como comunicados (mensaje semanal, compartir horario o a mano) */
+  async function markCommunicated(list, quiet) {
+    const now = new Date().toISOString();
+    const todo = list.filter(b => b.kind === 'partido' && b.confirmed && commState(b) !== 'done');
+    for (const b of todo) {
+      const row = { ...b, communicated_at: now, communicated_sig: commSig(b) };
+      await store.update(b.id, row);
+      Object.assign(b, row);
+      for (const arr of [state.bookings, state.mxAll || []]) { const x = arr.find(y => y.id === b.id); if (x && x !== b) Object.assign(x, row); }
+    }
+    if (todo.length) { if (!quiet) toast(`${plural(todo.length, 'partido marcado', 'partidos marcados')} como comunicado${todo.length === 1 ? '' : 's'}`); render(); if (isCoord()) loadHome(); }
+    return todo.length;
+  }
+  function renderCommField() {
+    const w = $('#f-comm-wrap'); if (!w) return;
+    w.hidden = !draft || draft.kind !== 'partido' || !$('#f-confirmed').checked;
+    const cs = draft && commState(draft);
+    $('#f-comm-hint').textContent = cs === 'done' ? `Comunicado el ${shortDate(keyOf(new Date(draft.communicated_at)))}.`
+      : cs === 'changed' ? 'El horario cambió después de comunicarlo: hay que volver a comunicarlo.'
+      : 'Se marca solo al enviar el mensaje del finde o «📣 Compartir horario».';
+  }
   function weekMessage(monKey) {
     const [from, to] = findeRange(monKey);
     const all = state.mxAll || [];
@@ -2373,14 +2443,27 @@
     const fri = addDays(parseKey(monKey), 4), sun = addDays(parseKey(monKey), 6);
     $('#msg-title').textContent = `Mensaje · ${fri.getDate()}–${sun.getDate()} ${MONTHS[sun.getMonth()]}`;
     $('#msg-text').value = weekMessage(monKey);
+    const [from, to] = findeRange(monKey);
+    msgMatches = (state.mxAll || []).filter(b => b.day >= from && b.day <= to && TEAM[b.team] && ['pending', 'changed'].includes(commState(b)));
+    $('#msg-comm-row').hidden = !isCoord() || !msgMatches.length;
+    $('#msg-comm').checked = true;
+    $('#msg-comm-n').textContent = plural(msgMatches.length, 'partido confirmado', 'partidos confirmados');
     $('#msg-share').hidden = !navigator.share;
     $('#msg-dialog').showModal();
     $('#msg-text').scrollTop = 0;
   }
+  let msgMatches = [];
+  /** Tras enviar o copiar el mensaje del finde, los confirmados quedan comunicados */
+  async function weekMessageSent() {
+    if (!isCoord() || !$('#msg-comm').checked || !msgMatches.length) return;
+    try { await markCommunicated(msgMatches); msgMatches = []; $('#msg-comm-row').hidden = true; if ($('#matches-dialog').open && state.mxTab === 'weekend') loadWeekend(); }
+    catch (e) { toast('No se pudieron marcar como comunicados: ' + e.message, true); }
+  }
   async function copyWeekMessage() {
     const txt = $('#msg-text').value;
     try { await navigator.clipboard.writeText(txt); toast('Mensaje copiado'); }
-    catch { const ta = $('#msg-text'); ta.focus(); ta.select(); try { document.execCommand('copy'); toast('Mensaje copiado'); } catch { toast('No se ha podido copiar: selecciónalo y cópialo a mano', true); } }
+    catch { const ta = $('#msg-text'); ta.focus(); ta.select(); try { document.execCommand('copy'); toast('Mensaje copiado'); } catch { toast('No se ha podido copiar: selecciónalo y cópialo a mano', true); return; } }
+    weekMessageSent();
   }
 
   // ================================================================
@@ -3095,7 +3178,8 @@
     $('#sh-title').textContent = `📣 ${whoOf(b).name} vs ${b.opponent || 'rival'}`;
     $('#sh-info').innerHTML = `${esc(dayLabel(b.day))} · saque <b>${fmt(b.start_min)}</b> · ${b.away ? '✈️ Fuera' : '🏠 En casa'}`;
     $('#sh-matchday').value = jornadaOf(b) || '';
-    const meet = b.meet_min ?? Math.max(0, b.start_min - 60);
+    const meet = b.meet_min ?? Math.max(0, b.start_min - meetBefore(b.team));
+    $('#sh-meet-l').innerHTML = `Hora de quedada <small>(${durTxt(meetBefore(b.team))} antes)</small>`;
     $('#sh-meet').value = fmt(meet);
     $('#sh-depart').value = b.depart_min != null ? fmt(b.depart_min) : '';
     $('#sh-town').value = v.town; $('#sh-field').value = v.field;
@@ -3165,6 +3249,7 @@
     if (shareMissing(b, d).length) { renderShare(); return; }
     const text = shareText(b, d);
     if (!(await saveShare(true))) return;
+    if (isCoord()) markCommunicated([b], true).catch(() => { });
     if (how === 'copy') { try { await navigator.clipboard.writeText(text); toast('Mensaje copiado'); } catch { toast('No se ha podido copiar', true); } return; }
     if (navigator.share && /iPhone|iPad|Android/.test(navigator.userAgent)) { try { await navigator.share({ text }); } catch { } return; }
     window.open('https://wa.me/?text=' + encodeURIComponent(text), '_blank', 'noopener');
@@ -3299,7 +3384,20 @@
       <button type="button" class="ghost home-cal-btn" data-tm-week>Ver calendario →</button></div>
       ${pend ? `<div class="tm-pend-note">⏳ Tienes ${plural(pend, 'convocable', 'convocables')} por aprobar. Entra en el equipo o apruébalos desde <button type="button" class="link" data-tm-home>Inicio</button>.</div>` : ''}
       <div class="tm-grid">${cards}</div>
-      ${isCoord() ? rulesHTML() : ''}`;
+      ${isCoord() ? meetHTML() + rulesHTML() : ''}`;
+  }
+
+  /** Hora de quedada por equipo (solo coordinación) */
+  function meetHTML() {
+    const opts = [30, 45, 60, 75, 90, 105, 120];
+    const rows = MATCH_TEAMS().map(t => {
+      const v = meetBefore(t.id), list = opts.includes(v) ? opts : [...opts, v].sort((a, b) => a - b);
+      return `<li class="cr-row" style="--team:${t.color}"><span class="cr-team">${esc(t.name)}</span>
+        <span class="cr-chips"><select class="ts-meet" data-ts-meet="${t.id}" aria-label="Quedada del ${esc(t.name)}">${list.map(m => `<option value="${m}" ${m === v ? 'selected' : ''}>${durTxt(m)} antes</option>`).join('')}</select></span></li>`;
+    }).join('');
+    return `<details class="panel cr-panel" ${state.meetOpen ? 'open' : ''} data-panel="meet"><summary><h3>Hora de quedada <small>cuánto antes del partido se queda en el campo</small></h3></summary>
+      <p class="cr-help">Se usa para proponer la hora de quedada al compartir el horario de un partido (se puede cambiar en cada partido).</p>
+      <ul class="cr-list">${rows}</ul></details>`;
   }
 
   /** Editor de reglas de convocables (solo coordinación) */
@@ -3603,12 +3701,21 @@
     el.addEventListener('change', async e => {
       const t = e.target;
       if (t.closest('.pk-item')) { const s = state.pickSel || (state.pickSel = new Set()); t.checked ? s.add(t.value) : s.delete(t.value); const b = $('[data-cu-add]'); if (b) { const n = s.size; b.disabled = !n; b.textContent = isCoord() ? (n ? `Añadir ${n}` : 'Añadir') : (n ? `Proponer ${n} a la coordinación` : 'Proponer'); } return; }
+      if (t.dataset.tsMeet) {
+        const team = t.dataset.tsMeet, v = +t.value;
+        try {
+          await store.teamSettings.set(team, { meet_before_min: v });
+          state.teamSettings = [...(state.teamSettings || []).filter(x => x.team !== team), { team, meet_before_min: v }];
+          toast(`${teamOf(team).name}: quedada ${durTxt(v)} antes`);
+        } catch (ex) { toast('No se pudo guardar: ' + ex.message, true); }
+        return;
+      }
       if (t.dataset.crAdd && t.value) {
         try { await store.callupRules.set({ team: t.dataset.crAdd, from: t.value, sub23: false }); state.callupRules = [...(state.callupRules || []), { team: t.dataset.crAdd, from: t.value, sub23: false }]; t.blur(); renderTeams(); }
         catch (ex) { toast('No se pudo añadir la regla: ' + ex.message, true); }
       }
     });
-    el.addEventListener('toggle', e => { if (e.target.classList?.contains('cr-panel')) state.rulesOpen = e.target.open; }, true);
+    el.addEventListener('toggle', e => { if (e.target.classList?.contains('cr-panel')) state[e.target.dataset.panel === 'meet' ? 'meetOpen' : 'rulesOpen'] = e.target.open; }, true);
     el.addEventListener('submit', async e => {
       e.preventDefault();
       const f = e.target, team = state.teamOpen;
@@ -3645,6 +3752,12 @@
     $('#sh-map-paste').onclick = async () => { try { const t = (await navigator.clipboard.readText()).trim(); const u = (t.match(/https:\/\/\S+/) || [])[0]; if (!u) { toast('No hay ningún enlace copiado', true); return; } $('#sh-map').value = u; renderShare(); toast('Enlace pegado'); } catch { $('#sh-map').focus(); toast('Mantén pulsada la casilla y elige Pegar', true); } };
     $('#sh-copy').onclick = () => sendShare('copy');
     $('#sh-save').onclick = async () => { if (await saveShare()) $('#share-dialog').close(); };
+    $('#d-body').addEventListener('click', async e => {
+      if (e.target.id !== 'd-comm') return;
+      const b = state.bookings.find(x => x.id === $('#detail-dialog').dataset.id); if (!b) return;
+      try { await markCommunicated([b]); $('#detail-dialog').close(); openDetail(b); } catch (ex) { toast('No se pudo marcar: ' + ex.message, true); }
+    });
+    $('#f-comm').addEventListener('change', e => { e.target.dataset.touched = '1'; });
     $('#d-body').addEventListener('click', e => { if (e.target.id === 'd-share') { const b = state.bookings.find(x => x.id === $('#detail-dialog').dataset.id); $('#detail-dialog').close(); if (b) openShare(b); } });
     $('#f-share').onclick = () => { const b = state.bookings.find(x => x.id === editingId); if (!b) return; $('#booking-dialog').close(); openShare(b); };
   }
@@ -3973,8 +4086,8 @@
     $('#mx-tabs').onclick = e => { const t = e.target.closest('button')?.dataset.mx; if (t) setMatchesTab(t); };
     $('#m-weekend').onclick = () => openMatches('weekend');
     $('#msg-copy').onclick = copyWeekMessage;
-    $('#msg-share').onclick = async () => { try { await navigator.share({ text: $('#msg-text').value }); } catch { } };
-    $('#msg-wa').onclick = () => window.open('https://wa.me/?text=' + encodeURIComponent($('#msg-text').value), '_blank', 'noopener');
+    $('#msg-share').onclick = async () => { try { await navigator.share({ text: $('#msg-text').value }); weekMessageSent(); } catch { } };
+    $('#msg-wa').onclick = () => { window.open('https://wa.me/?text=' + encodeURIComponent($('#msg-text').value), '_blank', 'noopener'); weekMessageSent(); };
     $('#mx-body').onclick = e => { const m = e.target.closest('[data-msg]'); if (m) { openWeekMessage(m.dataset.msg); return; } const r = e.target.closest('.mx-row, .mx-grid .mx-cell'); if (r) goToBooking(r.dataset.id, r.dataset.day); };
     $('#people-btn').onclick = () => openPeople();
     $('#m-copy').onclick = () => { closeUserMenu(); copyPrevWeek(); };
@@ -4160,7 +4273,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261027232111';
+  const APP_VERSION = '20261028085020';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;
@@ -4272,6 +4385,7 @@
     store.players.subscribe(squadsChanged);
     store.callups.subscribe(squadsChanged);
     store.callupRules.subscribe(squadsChanged);
+    store.teamSettings.subscribe(() => { if (appOpen) loadTeamSettings(); });
     store.template.subscribe(() => { if (!drag && appOpen) load(); });
     store.proposals.subscribe(() => { if (!drag && appOpen) load(); });
     store.acks.subscribe(() => { if (!drag && appOpen) load(); });

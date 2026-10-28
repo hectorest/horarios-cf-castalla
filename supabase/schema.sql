@@ -829,6 +829,13 @@ comment on column public.bookings.venue_confirmed is 'Partidos fuera: el campo s
 alter table public.bookings add column if not exists venue_map_url text check (venue_map_url ~ '^https://' and char_length(venue_map_url) <= 400);
 comment on column public.bookings.venue_map_url is 'Partidos fuera: enlace de Google Maps del campo (para el mensaje del horario).';
 
+-- Comunicación del horario confirmado: la coordinación lo comunica cada semana (mensaje del finde, compartir horario
+-- o a mano). La firma guarda día|hora|fuera|campo; si cambia, la web avisa de que hay que volver a comunicarlo.
+alter table public.bookings add column if not exists communicated_at timestamptz;
+alter table public.bookings add column if not exists communicated_sig text check (char_length(communicated_sig) <= 200);
+comment on column public.bookings.communicated_at is 'Partidos: cuándo comunicó la coordinación el horario confirmado (mensaje semanal, compartir horario o a mano).';
+comment on column public.bookings.communicated_sig is 'Partidos: firma día|hora|fuera|campo al comunicarlo; si cambia, hay que volver a comunicarlo.';
+
 -- Si cambia el día o la hora del partido, la quedada y la salida dejan de valer; si cambia el campo, deja de estar
 -- confirmado. Solo cuando ese mismo cambio no trae ya los valores nuevos.
 create or replace function private.match_share_reset()
@@ -1071,5 +1078,35 @@ grant update (status, resolved_at, resolved_by) on public.player_callups to auth
 do $$ begin
   if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'player_callups') then
     alter publication supabase_realtime add table public.player_callups;
+  end if;
+end $$;
+
+-- ---------- Ajustes de cada equipo (los cambia la coordinación en Equipos) ----------
+create table if not exists public.team_settings (
+  team             text primary key check (char_length(team) between 1 and 40),
+  meet_before_min  smallint check (meet_before_min between 0 and 240),
+  updated_at       timestamptz not null default now(),
+  updated_by       uuid default auth.uid() references auth.users(id) on delete set null
+);
+create index if not exists team_settings_updated_by_idx on public.team_settings (updated_by);
+alter table public.team_settings enable row level security;
+comment on table public.team_settings is 'Ajustes de cada equipo que cambia la coordinación (p. ej. cuánto antes del partido se queda en el campo).';
+comment on column public.team_settings.meet_before_min is 'Minutos antes del saque para la hora de quedada (si falta, la de config.js > match.meet o 60).';
+drop policy if exists "Aprobados ven los ajustes de equipo" on public.team_settings;
+create policy "Aprobados ven los ajustes de equipo" on public.team_settings
+  for select to authenticated using ((select private.is_approved()));
+drop policy if exists "Coordinadores crean ajustes de equipo" on public.team_settings;
+create policy "Coordinadores crean ajustes de equipo" on public.team_settings
+  for insert to authenticated with check ((select private.is_coordinator()));
+drop policy if exists "Coordinadores cambian ajustes de equipo" on public.team_settings;
+create policy "Coordinadores cambian ajustes de equipo" on public.team_settings
+  for update to authenticated using ((select private.is_coordinator())) with check ((select private.is_coordinator()));
+revoke all on public.team_settings from anon, authenticated;
+grant select, insert, update on public.team_settings to authenticated;
+insert into public.team_settings (team, meet_before_min) values ('senior-a', 75), ('senior-b', 75)
+on conflict (team) do nothing;
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'team_settings') then
+    alter publication supabase_realtime add table public.team_settings;
   end if;
 end $$;
