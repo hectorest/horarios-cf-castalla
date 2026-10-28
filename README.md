@@ -33,6 +33,18 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
 
 > «He olvidado mi contraseña» envía un correo. Con el correo integrado de Supabase solo llega a direcciones de tu organización de Supabase. Para que llegue a cualquier entrenador, configura un SMTP propio en *Authentication > Emails > SMTP Settings* (por ejemplo, una cuenta de Gmail del club o Resend).
 
+## Varios coordinadores
+
+- **Alta de un coordinador:** *Entrenadores → Invitar*, elige **Coordinador**, marca los **equipos a su cargo** y envíale el enlace. Para cambiar el rol o los equipos de alguien que ya tiene acceso, ve a *Con acceso*. Ahí cada coordinador puede marcar también sus propios equipos.
+- **Permisos:** todos los coordinadores pueden editar todo el club.
+- **Tareas de cada uno:** las de sus equipos.
+  - En Inicio salen los recordatorios, avisos, conflictos, convocables por aprobar y horarios por comunicar de sus equipos.
+  - También lo que no es de ningún equipo, como los recordatorios «Todo el club», las solicitudes de acceso o publicar la semana.
+  - «Ver todo el club» muestra el resto.
+- **Confirmar y comunicar:** «Confirmar los partidos de la semana» solo confirma los de sus equipos. El mensaje a la directiva sale con «Solo mis equipos» marcado; se puede desmarcar para incluir todo el club.
+- **Notificaciones del móvil:** el resumen diario de cada coordinador incluye solo sus equipos.
+- **Sin equipos marcados,** el coordinador se ocupa de todo el club, como hasta ahora.
+
 ## Inicio de la coordinación: recordatorios y próximos días
 
 Los coordinadores entran en **Inicio** (pestaña junto a *Semana* y *Horario habitual*; en el móvil, menú de usuario → *Inicio*). Si el enlace lleva una semana (`#semana=…`), se abre el calendario.

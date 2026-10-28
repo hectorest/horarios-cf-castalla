@@ -286,6 +286,11 @@ window.TUTORIAL_STEPS = [
     body: 'El horario confirmado se comunica por dos vías, y cada una tiene su aviso: a la <b>directiva</b>, con el mensaje semanal que incluye todos los partidos (<b>Partidos → Por fin de semana → 💬</b>), y al <b>grupo del equipo</b> (padres, jugadores y entrenadores), con el mensaje detallado de <b>📣 Compartir horario</b>. En la ficha del partido ves cómo está cada una y puedes marcarlas a mano.',
   },
   {
+    id: 'coordinadores-equipos', since: 32, roles: ['coordinador'], target: '#people-btn, #user-btn',
+    title: 'Varios coordinadores, cada uno con sus equipos',
+    body: 'En <b>Entrenadores → Con acceso</b> marca los <b>equipos a tu cargo</b> (y los de cada coordinador). Inicio, los avisos, «Confirmar partidos de la semana», el mensaje a la directiva y las notificaciones del móvil se centran en esos equipos; lo que no es de ningún equipo os llega a todos. Con «Ver todo el club» ves lo de los demás. Sin equipos marcados, te ocupas de todo. Para dar de alta a otro coordinador: <b>Invitar → Coordinador</b>, marca sus equipos y envíale el enlace.',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',

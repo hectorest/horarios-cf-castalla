@@ -5,8 +5,7 @@
 //  - mode "test"   (coordinador): notificación de prueba a sus dispositivos.
 //  - mode "preview"(coordinador): le envía ahora su resumen de hoy.
 // Las claves VAPID y el secreto de la tarea viven en Vault (public.notif_config, solo clave de servicio).
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 import { generateVapidKeys, sendPush } from "./webpush.js";
 
 const TZ = "Europe/Madrid";
@@ -80,12 +79,16 @@ async function sendToUser(sb: Sb, vapid: any, userId: string, msgs: Msg[]) {
 }
 
 /** Resumen del día para un coordinador según sus preferencias */
-async function buildDigest(sb: Sb, kinds: Record<string, boolean>, today: string): Promise<Msg[]> {
+async function buildDigest(sb: Sb, kinds: Record<string, boolean>, today: string, teams: string[] | null = null): Promise<Msg[]> {
   const out: Msg[] = [];
   const k = { recordatorios: true, conflictos: true, resumen: true, ...(kinds || {}) };
+  // Cada coordinador recibe lo de sus equipos (y lo que no es de ningún equipo); sin equipos asignados, todo el club
+  const mine = (t: string | null | undefined) => !teams || !t || teams.includes(t);
+  const mineItem = (x: any) => { const ts: string[] = Array.isArray(x.teams) ? x.teams : (x.team ? [x.team] : []); return !ts.length || ts.some(mine); };
 
   if (k.recordatorios) {
-    const { data: rems } = await sb.from("reminders").select("title, team, due_date, alert_date, waiting_on").eq("done", false);
+    const { data: remsAll } = await sb.from("reminders").select("title, team, due_date, alert_date, waiting_on").eq("done", false);
+    const rems = (remsAll || []).filter((r) => mine(r.team));
     const tn = (r: any) => (r.team ? ` (${TEAM_NAME[r.team] || r.team})` : "") + (r.waiting_on ? ` · ⏳ ${r.waiting_on}` : "");
     const overdue = (rems || []).filter((r) => r.due_date && r.due_date < today).sort((a, b) => a.due_date.localeCompare(b.due_date));
     const dueToday = (rems || []).filter((r) => r.due_date === today);
@@ -106,7 +109,7 @@ async function buildDigest(sb: Sb, kinds: Record<string, boolean>, today: string
   }
 
   const { data: snap } = await sb.from("issue_snapshot").select("computed_at, items").eq("id", 1).maybeSingle();
-  const items: any[] = Array.isArray(snap?.items) ? snap!.items : [];
+  const items: any[] = (Array.isArray(snap?.items) ? snap!.items : []).filter(mineItem);
   const age = snap?.computed_at ? daysBetween(new Date(snap.computed_at).toISOString().slice(0, 10), today) : null;
 
   if (k.conflictos) {
@@ -119,11 +122,20 @@ async function buildDigest(sb: Sb, kinds: Record<string, boolean>, today: string
         url: "./#inicio", tag: "conflictos",
       });
     }
+    // Horarios confirmados sin comunicar (a la directiva o al grupo del equipo) en los próximos días
+    const comm = items.filter((x) => x.kind === "comm" && x.day >= today && x.day <= addDays(today, 7));
+    if (comm.length) {
+      out.push({
+        title: `📣 ${comm.length} horario${comm.length > 1 ? "s" : ""} por comunicar`,
+        body: lines(comm.map((x) => `${shortDate(x.day)}${x.at ? " " + hhmm(x.at) : ""} · ${x.msg}`), 4),
+        url: "./#inicio", tag: "comunicar",
+      });
+    }
   }
 
   if (k.resumen) {
     const { data: bk } = await sb.from("bookings").select("team, kind, start_min, opponent, away, title, confirmed").eq("day", today).order("start_min");
-    const list = bk || [];
+    const list = (bk || []).filter((b) => mine(b.team));
     const matches = list.filter((b) => b.kind === "partido");
     const events = list.filter((b) => b.kind === "evento");
     const trainings = list.filter((b) => b.kind === "entreno").length;
@@ -159,10 +171,10 @@ Deno.serve(async (req) => {
         if (s.last_digest_on && s.last_digest_on >= today) continue;
         const t = timeToMin(s.notify_time);
         if (minutes < t || minutes - t > CATCH_UP_MIN) continue;
-        const { data: prof } = await sb.from("profiles").select("role, status").eq("id", s.user_id).maybeSingle();
+        const { data: prof } = await sb.from("profiles").select("role, status, teams").eq("id", s.user_id).maybeSingle();
         if (prof?.role !== "coordinador" || prof?.status !== "aprobado") continue;
         await sb.from("notify_settings").update({ last_digest_on: today }).eq("user_id", s.user_id);
-        const msgs = await buildDigest(sb, s.kinds, today);
+        const msgs = await buildDigest(sb, s.kinds, today, prof.teams?.length ? prof.teams : null);
         const r = await sendToUser(sb, vapid, s.user_id, msgs);
         users++; sent += r.sent;
       }
@@ -198,7 +210,7 @@ Deno.serve(async (req) => {
   const jwt = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
   const { data: u } = await sb.auth.getUser(jwt);
   if (!u?.user) return json({ error: "Inicia sesión" }, 401);
-  const { data: prof } = await sb.from("profiles").select("role, status").eq("id", u.user.id).maybeSingle();
+  const { data: prof } = await sb.from("profiles").select("role, status, teams").eq("id", u.user.id).maybeSingle();
   if (prof?.role !== "coordinador" || prof?.status !== "aprobado") return json({ error: "Solo para coordinadores" }, 403);
 
   if (mode === "config") return json({ publicKey: vapid.publicKey });
@@ -208,7 +220,7 @@ Deno.serve(async (req) => {
   }
   if (mode === "preview") {
     const { data: s } = await sb.from("notify_settings").select("kinds").eq("user_id", u.user.id).maybeSingle();
-    const msgs = await buildDigest(sb, s?.kinds || {}, today);
+    const msgs = await buildDigest(sb, s?.kinds || {}, today, prof.teams?.length ? prof.teams : null);
     if (!msgs.length) msgs.push({ title: "👌 Todo en orden", body: "Hoy no hay recordatorios urgentes, conflictos ni actividad que avisar.", url: "./#inicio", tag: "resumen" });
     const r = await sendToUser(sb, vapid, u.user.id, msgs);
     return json({ ok: true, messages: msgs.length, ...r });

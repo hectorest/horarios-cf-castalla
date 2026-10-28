@@ -482,9 +482,9 @@
         return true;
       },
       async weekGenerated(mondayK) { return weeks().includes(mondayK); },
-      async confirmMatches(from, to) {
+      async confirmMatches(from, to, teams) {
         let n = 0;
-        write(read().map(b => b.kind === 'partido' && !b.confirmed && b.day >= from && b.day <= to ? (n++, { ...b, confirmed: true }) : b));
+        write(read().map(b => b.kind === 'partido' && !b.confirmed && b.day >= from && b.day <= to && (!teams || teams.includes(b.team)) ? (n++, { ...b, confirmed: true }) : b));
         return n;
       },
       notify: {
@@ -726,8 +726,10 @@
         const rows = chk(await sb.from('generated_weeks').select('week_start').eq('week_start', mondayK));
         return rows.length > 0;
       },
-      async confirmMatches(from, to) {
-        return chk(await sb.from(T).update({ confirmed: true }).eq('kind', 'partido').eq('confirmed', false).gte('day', from).lte('day', to).select('id')).length;
+      async confirmMatches(from, to, teams) {
+        let q = sb.from(T).update({ confirmed: true }).eq('kind', 'partido').eq('confirmed', false).gte('day', from).lte('day', to);
+        if (teams) q = q.in('team', teams);
+        return chk(await q.select('id')).length;
       },
       notify: {
         async getSettings() { return chk(await sb.from('notify_settings').select('notify_time, kinds, enabled').maybeSingle()); },
@@ -973,6 +975,7 @@
     upcoming: [],           // incidencias de los próximos días (Inicio)
     homeLoading: false,
     issueScope: 'mine',
+    homeScope: 'mine',      // Inicio del coordinador: sus equipos o todo el club
     minorOpen: false,     // grupo «reparto del campo en entrenamientos» desplegado  // entrenadores: 'mine' | 'all'
     edit: true,
     view: window.innerWidth < 820 ? 'day' : 'week',
@@ -985,7 +988,11 @@
   const isCoord = () => state.role === 'coordinador';
   const isCoach = () => state.role === 'entrenador';
   /** Equipos del entrenador (null si no aplica el filtro) */
-  const myTeams = () => isCoach() && state.profile?.teams?.length ? state.profile.teams : null;
+  // Equipos propios: los del entrenador o, en un coordinador, los que tiene a su cargo (sin equipos = todo el club)
+  const myTeams = () => state.role && state.profile?.teams?.length ? state.profile.teams : null;
+  /** ¿Le toca a este coordinador? (sin equipos asignados, todo; reservas sin equipo, a todos) */
+  const myResp = (team, scope = state.homeScope) => !myTeams() || scope === 'all' || !team || myTeams().includes(team);
+  const myRespAny = (teams, scope) => !teams?.length ? true : teams.some(t => myResp(t, scope));
   const isMine = team => !!myTeams()?.includes(team);
   // Horario habitual: se dibuja sobre la semana visible como una semana tipo
   const isTpl = () => state.mode === 'template';
@@ -1421,12 +1428,12 @@
     if (minorG) html += `<li class="ig-head g4 ig-toggle" data-minor tabindex="0" aria-expanded="${state.minorOpen ? 'true' : 'false'}">${state.minorOpen ? '▾' : '▸'} ${minorG.title} <span>${minorG.items.length}</span></li>`
       + (state.minorOpen ? minorG.items.map(([it, n]) => item(it, n)).join('') : '');
     $('#issues').innerHTML = html;
-    const unconf = state.bookings.filter(b => b.kind === 'partido' && !b.confirmed && b.day >= keyOf(new Date())).length;
+    const unconf = state.bookings.filter(b => b.kind === 'partido' && !b.confirmed && b.day >= keyOf(new Date()) && myResp(b.team, state.issueScope)).length;
     const cb = $('#confirm-week');
     cb.hidden = !(isEditor() && !isTpl() && unconf);
     cb.textContent = `Confirmar los ${unconf} partido${unconf > 1 ? 's' : ''} de la semana`;
     $('#m-confirm').hidden = !(isCoord() && !isTpl() && unconf);
-    const scoped = !!(isCoach() && state.profile?.teams?.length);
+    const scoped = !!myTeams();
     $('#issues-title').textContent = scoped && state.issueScope === 'mine' ? 'Tus incidencias' : 'Incidencias';
     const sc = $('#issue-scope');
     sc.hidden = !scoped;
@@ -1847,10 +1854,11 @@
 
   async function confirmWeekMatches() {
     closeUserMenu();
-    const n = state.bookings.filter(b => b.kind === 'partido' && !b.confirmed && b.day >= keyOf(new Date())).length;
+    const only = myTeams() && state.issueScope !== 'all' ? myTeams() : null;
+    const n = state.bookings.filter(b => b.kind === 'partido' && !b.confirmed && b.day >= keyOf(new Date()) && (!only || only.includes(b.team))).length;
     if (!n) return;
-    if (!(await askConfirm(`Se marcarán como confirmados los ${n} partidos pendientes de esta semana.`, 'Confirmar partidos'))) return;
-    try { await store.confirmMatches(keyOf(new Date()) > keyOf(state.weekStart) ? keyOf(new Date()) : keyOf(state.weekStart), keyOf(addDays(state.weekStart, 6))); toast('Partidos confirmados'); await load(); }
+    if (!(await askConfirm(`Se marcarán como confirmados los ${n} partidos pendientes de esta semana${only ? ' de tus equipos' : ''}.`, 'Confirmar partidos'))) return;
+    try { await store.confirmMatches(keyOf(new Date()) > keyOf(state.weekStart) ? keyOf(new Date()) : keyOf(state.weekStart), keyOf(addDays(state.weekStart, 6)), only); toast('Partidos confirmados'); await load(); }
     catch (e) { toast('No se pudo confirmar: ' + e.message, true); }
   }
 
@@ -2405,7 +2413,7 @@
       const yr = fri.getFullYear() !== new Date().getFullYear() ? ` <small>${fri.getFullYear()}</small>` : '';
       const heat = h ? 0.12 + 0.55 * h / maxHome : 0;
       return `<tr class="${k < nowWk ? 'past' : ''} ${k === nowWk ? 'now' : ''} ${ms.length ? '' : 'empty'}" data-wk="${k}">
-        <th class="mx-g-wk"><div class="mx-wk-cell"><span>${lbl}${yr}${k === nowWk ? '<small class="mx-now">este finde</small>' : ''}</span><button type="button" class="mx-msg" data-msg="${k}" title="Mensaje para la directiva con los partidos de este finde" aria-label="Mensaje para la directiva de los partidos del ${lbl}">💬${(() => { const n = ms.filter(b => commTodo(b, 'board') && b.day >= todayKey()).length; return n ? `<span class="mx-msg-n" title="${n} confirmado${n > 1 ? 's' : ''} sin comunicar a la directiva">${n}</span>` : ''; })()}</button></div></th>
+        <th class="mx-g-wk"><div class="mx-wk-cell"><span>${lbl}${yr}${k === nowWk ? '<small class="mx-now">este finde</small>' : ''}</span><button type="button" class="mx-msg" data-msg="${k}" title="Mensaje para la directiva con los partidos de este finde" aria-label="Mensaje para la directiva de los partidos del ${lbl}">💬${(() => { const n = ms.filter(b => commTodo(b, 'board') && b.day >= todayKey() && myResp(b.team, 'mine')).length; return n ? `<span class="mx-msg-n" title="${n} confirmado${n > 1 ? 's' : ''} sin comunicar a la directiva">${n}</span>` : ''; })()}</button></div></th>
         <td class="mx-g-tot home" style="--heat:${heat.toFixed(2)}">${h || ''}</td><td class="mx-g-tot away">${f || ''}</td>
         ${teams.map(t => `<td class="mx-g-c" style="--team:${t.color}">${ms.filter(b => b.team === t.id).map(cell).join('')}</td>`).join('')}</tr>`;
     }).join('');
@@ -2439,13 +2447,13 @@
     const txt = ch => { const cs = commState(draft, ch), f = COMM[ch]; return cs === 'done' ? `${f.label}: comunicado el ${shortDate(keyOf(new Date(draft[f.at])))}.` : cs === 'changed' ? `${f.label}: cambió después de comunicarlo, hay que volver a hacerlo.` : ''; };
     $('#f-comm-hint').textContent = [txt('board'), txt('group')].filter(Boolean).join(' ') || 'Se marcan solos: la directiva al enviar el mensaje del finde y el grupo al usar «📣 Compartir horario».';
   }
-  function weekMessage(monKey) {
+  function weekMessage(monKey, only) {
     const [from, to] = findeRange(monKey);
     const all = state.mxAll || [];
     const ms = all.filter(b => b.day >= from && b.day <= to && TEAM[b.team]);
     const playing = new Set(all.map(b => b.team));   // equipos con partidos en la temporada
     const blocks = [];
-    for (const t of MATCH_TEAMS()) {
+    for (const t of MATCH_TEAMS().filter(t => !only || only.includes(t.id))) {
       if (!playing.has(t.id)) continue;
       const own = ms.filter(b => b.team === t.id).sort((a, b) => a.day.localeCompare(b.day) || a.start_min - b.start_min);
       if (!own.length) { blocks.push(`${t.name} vs ??`); continue; }
@@ -2457,18 +2465,27 @@
     }
     return blocks.join('\n\n');
   }
+  let msgWeek = null;
+  const msgOnly = () => myTeams() && $('#msg-mine').checked ? myTeams() : null;
   function openWeekMessage(monKey) {
-    const fri = addDays(parseKey(monKey), 4), sun = addDays(parseKey(monKey), 6);
-    $('#msg-title').textContent = `Directiva · ${fri.getDate()}–${sun.getDate()} ${MONTHS[sun.getMonth()]}`;
-    $('#msg-text').value = weekMessage(monKey);
-    const [from, to] = findeRange(monKey);
-    msgMatches = (state.mxAll || []).filter(b => b.day >= from && b.day <= to && TEAM[b.team] && commTodo(b, 'board'));
-    $('#msg-comm-row').hidden = !isCoord() || !msgMatches.length;
-    $('#msg-comm').checked = true;
-    $('#msg-comm-n').textContent = plural(msgMatches.length, 'partido confirmado', 'partidos confirmados');
+    msgWeek = monKey;
+    $('#msg-mine-row').hidden = !myTeams();
+    $('#msg-mine').checked = true;
+    fillWeekMessage();
     $('#msg-share').hidden = !navigator.share;
     $('#msg-dialog').showModal();
     $('#msg-text').scrollTop = 0;
+  }
+  function fillWeekMessage() {
+    const monKey = msgWeek, only = msgOnly();
+    const fri = addDays(parseKey(monKey), 4), sun = addDays(parseKey(monKey), 6);
+    $('#msg-title').textContent = `Directiva · ${fri.getDate()}–${sun.getDate()} ${MONTHS[sun.getMonth()]}`;
+    $('#msg-text').value = weekMessage(monKey, only);
+    const [from, to] = findeRange(monKey);
+    msgMatches = (state.mxAll || []).filter(b => b.day >= from && b.day <= to && TEAM[b.team] && commTodo(b, 'board') && (!only || only.includes(b.team)));
+    $('#msg-comm-row').hidden = !isCoord() || !msgMatches.length;
+    $('#msg-comm').checked = true;
+    $('#msg-comm-n').textContent = plural(msgMatches.length, 'partido confirmado', 'partidos confirmados');
   }
   let msgMatches = [];
   /** Tras enviar o copiar el mensaje del finde, los confirmados quedan comunicados */
@@ -2557,10 +2574,14 @@
     if (isHome()) renderHome();
   }
 
+  // Inicio de cada coordinador: solo lo de sus equipos (y lo que no es de ningún equipo), salvo «Ver todo el club»
+  const homeRems = () => (state.reminders || []).filter(r => myResp(r.team));
+  const homeUp = () => (state.upcoming || []).filter(x => myRespAny(x.teams));
+  const homePendingCallups = () => pendingCallups().filter(c => myResp(c.team));
   function homeAlertCount() {
-    const r = (state.reminders || []).filter(x => remStatus(x) === 'overdue' || (remStatus(x) === 'urgent' && !x.waiting_on)).length;
-    const c = (state.upcoming || []).filter(x => x.level === 'error').length;
-    return r + c + pendingCallups().length;
+    const r = homeRems().filter(x => remStatus(x) === 'overdue' || (remStatus(x) === 'urgent' && !x.waiting_on)).length;
+    const c = homeUp().filter(x => x.level === 'error').length;
+    return r + c + homePendingCallups().length;
   }
   function renderHomeBadge() {
     const n = homeAlertCount();
@@ -2594,7 +2615,8 @@
       for (const it of full.all) {
         if (!['error', 'warn', 'pending', 'change'].includes(it.level) || it.minor) continue;
         if (!it.day || it.day < today || it.day > limit) continue;
-        out.push({ ...it, bookingId: it.ids.find(id => byId.has(id)) || null });
+        const teams = [...new Set([...it.ids.map(id => byId.get(id)?.team), it.team].filter(Boolean))];
+        out.push({ ...it, teams, bookingId: it.ids.find(id => byId.has(id)) || null });
       }
       if (template.length && !gen && to >= today) {
         out.push({ level: 'pending', kind: 'publish', day: from < today ? today : from, at: 0, ids: [], week: from,
@@ -2655,8 +2677,8 @@
   function renderHome() {
     const el = $('#home');
     if (!el || !isCoord()) return;
-    const rems = state.reminders || [];
-    const up = state.upcoming || [];
+    const rems = homeRems();
+    const up = homeUp();
     const by = k => rems.filter(r => remGroup(r) === k).sort((a, b) => (a.due_date || '9999').localeCompare(b.due_date || '9999') || (a.alert_date || '9999').localeCompare(b.alert_date || '9999'));
     const done = rems.filter(r => r.done).sort((a, b) => String(b.done_at || '').localeCompare(String(a.done_at || ''))).slice(0, 15);
     const n = { overdue: by('overdue').length, urgent: by('urgent').length, waiting: by('waiting').length, pending: by('pending').length };
@@ -2670,7 +2692,8 @@
     const upGroups = [['error', 'Conflictos', '⛔'], ['warn', 'Avisos', '⚠️'], ['pending', 'Pendientes', '⏳']];
     el.innerHTML = `<div class="home-wrap">
       <div class="home-head">
-        <div class="home-hello"><h2>${hello ? `Hola, ${esc(hello)}` : 'Inicio'}</h2><p>${DAYS[dayIndexOf(keyOf(now))]} ${now.getDate()} de ${MONTHS_LONG[now.getMonth()].toLowerCase()}</p></div>
+        <div class="home-hello"><h2>${hello ? `Hola, ${esc(hello)}` : 'Inicio'}</h2><p>${DAYS[dayIndexOf(keyOf(now))]} ${now.getDate()} de ${MONTHS_LONG[now.getMonth()].toLowerCase()}</p>
+          ${myTeams() ? `<p class="home-scope">${state.homeScope === 'all' ? 'Todo el club' : `Tus equipos: ${esc(myTeams().map(t => teamOf(t).short).join(', '))}`} · <button type="button" class="link" data-home-scope>${state.homeScope === 'all' ? 'Ver solo los míos' : 'Ver todo el club'}</button></p>` : ''}</div>
         <div class="home-stats">
           <button type="button" class="hs hs-err ${n.overdue ? '' : 'zero'}" data-jump="rem-overdue"><b>${n.overdue}</b><span>Vencidos</span></button>
           <button type="button" class="hs hs-urg ${n.urgent ? '' : 'zero'}" data-jump="rem-urgent"><b>${n.urgent}</b><span>Urgentes</span></button>
@@ -2921,6 +2944,7 @@
       const jump = e.target.closest('[data-jump]');
       if (jump) { const t = $('#' + jump.dataset.jump) || (jump.dataset.jump === 'up-pending' && $('#up-pending-w')); t?.scrollIntoView({ behavior: 'smooth', block: 'start' }); if (t?.tagName === 'DETAILS') t.open = true; return; }
       if (e.target.closest('[data-home-go]')) { setMode('week'); return; }
+      if (e.target.closest('[data-home-scope]')) { state.homeScope = state.homeScope === 'all' ? 'mine' : 'all'; renderHome(); renderHomeBadge(); return; }
       const up = e.target.closest('.up-item');
       if (up) {
         if (up.dataset.up === 'people') { openPeople('pendiente'); return; }
@@ -3023,7 +3047,7 @@
   // Foto de incidencias para el resumen diario de las notificaciones (la calcula la herramienta con su motor)
   let lastSnap = '';
   async function saveSnapshot(all) {
-    const items = all.filter(x => x.kind !== 'people').map(x => ({ level: x.level, msg: x.msg, day: x.day, at: x.at || 0, team: x.team || null }));
+    const items = all.filter(x => x.kind !== 'people').map(x => ({ level: x.level, kind: x.kind || null, msg: x.msg, day: x.day, at: x.at || 0, team: x.team || null, teams: x.teams || [] }));
     const sig = JSON.stringify(items);
     if (sig === lastSnap) return;
     try { await store.notify.saveSnapshot(items); lastSnap = sig; } catch (e) { console.warn('foto de incidencias', e); }
@@ -3519,7 +3543,7 @@
 
   /** Inicio: convocables que esperan aprobación (solo coordinación) */
   function homeCallupsHTML() {
-    const pend = pendingCallups().map(c => ({ c, p: playerById(c.player_id) })).filter(x => x.p);
+    const pend = homePendingCallups().map(c => ({ c, p: playerById(c.player_id) })).filter(x => x.p);
     if (!pend.length) return '';
     return `<div class="up-group up-callups" id="up-callups"><h4>Convocables por aprobar <span class="count">${pend.length}</span></h4><ul class="up-list">${pend.map(({ c, p }) => {
       const to = teamOf(c.team), f = teamOf(p.team), who = personName(c.created_by);
@@ -3822,9 +3846,13 @@
         <div class="p-head"><span class="avatar">${esc(initials(p.full_name || p.email))}</span>
           <div class="p-who"><b>${esc(p.full_name || '(sin nombre)')}</b><span>${esc(p.email || '')}</span></div>
           <span class="p-date">${tab === 'pendiente' ? 'Solicitado' : 'Desde'} ${fmtDate(tab === 'pendiente' ? p.created_at : (p.reviewed_at || p.created_at))}</span></div>
-        ${p.role === 'coordinador' && tab === 'aprobado' ? '<p class="p-note">Coordinador: ve todas las incidencias y puede editar el calendario.</p>' : `
-        <div class="p-teams"><span class="lbl">${tab === 'pendiente' ? 'Equipos que pide' + (changed ? ' (modificados)' : '') : 'Equipos'}</span>
-          <div class="team-pick small">${TEAMS.map(t => `<button type="button" class="chip ${teams.includes(t.id) ? 'on' : ''}" data-pt-team="${t.id}" style="--c:${t.color}" aria-pressed="${teams.includes(t.id)}" ${self ? 'disabled' : ''}><span class="dot"></span>${esc(t.short)}</button>`).join('')}</div></div>`}
+        ${(() => {
+          const coordRow = p.role === 'coordinador' && tab === 'aprobado';
+          const lbl = coordRow ? 'Equipos a su cargo' : tab === 'pendiente' ? 'Equipos que pide' + (changed ? ' (modificados)' : '') : 'Equipos';
+          return `<div class="p-teams"><span class="lbl">${lbl}</span>
+          <div class="team-pick small">${TEAMS.map(t => `<button type="button" class="chip ${teams.includes(t.id) ? 'on' : ''}" data-pt-team="${t.id}" style="--c:${t.color}" aria-pressed="${teams.includes(t.id)}" ${self && !coordRow ? 'disabled' : ''}><span class="dot"></span>${esc(t.short)}</button>`).join('')}</div>
+          ${coordRow ? `<p class="p-note">Coordinador: puede editar todo el club. ${teams.length ? 'Sus avisos, confirmaciones y comunicaciones son los de estos equipos.' : 'Sin equipos marcados, se ocupa de todo el club.'}</p>` : ''}</div>`;
+        })()}
         <div class="p-actions">${actions}</div>
       </article>`;
     }).join('') : `<p class="people-empty">${empty}</p>`;
@@ -3842,7 +3870,7 @@
   function inviteMessage(i) {
     const teams = (i.teams || []).map(t => teamOf(t).name);
     const who = i.label && !/coordinador/i.test(i.label) ? ` ${i.label.split(/\s+/)[0]}` : '';
-    const what = i.role === 'coordinador' ? 'como coordinador' : teams.length ? `como entrenador de ${teams.join(', ')}` : 'como entrenador';
+    const what = i.role === 'coordinador' ? `como coordinador${teams.length ? ' de ' + teams.join(', ') : ''}` : teams.length ? `como entrenador de ${teams.join(', ')}` : 'como entrenador';
     return `Hola${who}. Te invito al planificador del campo del ${CFG.CLUB_NAME || 'club'} ${what}. Crea tu cuenta desde este enlace: ${inviteLink(i.token)}`;
   }
 
@@ -3858,7 +3886,7 @@
           <div class="field"><span class="lbl">Rol</span>
             <div class="segmented small" id="inv-role"><button type="button" data-v="entrenador" class="${coord ? '' : 'on'}">Entrenador</button><button type="button" data-v="coordinador" class="${coord ? 'on' : ''}">Coordinador</button></div></div>
         </div>
-        ${coord ? '' : `<div class="field"><span class="lbl">Equipos</span>
+        ${`<div class="field"><span class="lbl">${coord ? 'Equipos a su cargo <small>(sin marcar = todo el club)</small>' : 'Equipos'}</span>
           <div class="team-pick small">${TEAMS.map(t => `<button type="button" class="chip ${d.teams.includes(t.id) ? 'on' : ''}" data-inv-team="${t.id}" style="--c:${t.color}" aria-pressed="${d.teams.includes(t.id)}"><span class="dot"></span>${esc(t.short)}</button>`).join('')}</div></div>`}
         <div class="inv-row">
           <div class="field"><label for="inv-uses">Lo pueden usar</label>
@@ -3935,7 +3963,7 @@
       if (d.role === 'entrenador' && !d.teams.length && !(await askConfirm('No has marcado ningún equipo. Podrá ver el calendario, pero no tendrá incidencias propias.', 'Crear igualmente'))) return;
       const btn = e.target.querySelector('button[type=submit]'); btn.disabled = true;
       try {
-        const inv = await store.invites.create({ label: d.label, role: d.role, teams: d.role === 'coordinador' ? [] : d.teams, max_uses: d.max_uses, days: d.days });
+        const inv = await store.invites.create({ label: d.label, role: d.role, teams: d.teams, max_uses: d.max_uses, days: d.days });
         state.invites.unshift(inv); state.newInviteId = inv.id;
         state.inviteDraft = { label: '', role: 'entrenador', teams: [], max_uses: 1, days: 7 };
         renderInvites();
@@ -3949,6 +3977,7 @@
     try {
       await store.people.update(id, patch);
       Object.assign(state.people.find(p => p.id === id) || {}, patch);
+      if (id === state.user?.id && state.profile) { Object.assign(state.profile, patch); render(); if (isCoord()) loadHome(); }
       renderPeople(); renderUser();
       if (okMsg) toast(okMsg);
     } catch (e) { toast('No se pudo guardar: ' + e.message, true); loadPeople(); }
@@ -4104,6 +4133,7 @@
     $('#mx-tabs').onclick = e => { const t = e.target.closest('button')?.dataset.mx; if (t) setMatchesTab(t); };
     $('#m-weekend').onclick = () => openMatches('weekend');
     $('#msg-copy').onclick = copyWeekMessage;
+    $('#msg-mine').onchange = fillWeekMessage;
     $('#msg-share').onclick = async () => { try { await navigator.share({ text: $('#msg-text').value }); weekMessageSent(); } catch { } };
     $('#msg-wa').onclick = () => { window.open('https://wa.me/?text=' + encodeURIComponent($('#msg-text').value), '_blank', 'noopener'); weekMessageSent(); };
     $('#mx-body').onclick = e => { const m = e.target.closest('[data-msg]'); if (m) { openWeekMessage(m.dataset.msg); return; } const r = e.target.closest('.mx-row, .mx-grid .mx-cell'); if (r) goToBooking(r.dataset.id, r.dataset.day); };
@@ -4291,7 +4321,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261028085810';
+  const APP_VERSION = '20261028091557';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

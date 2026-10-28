@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261028085810">
+  <link rel="stylesheet" href="styles.css?v=20261028091557">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -322,6 +322,7 @@
     <header class="dlg-head"><h3 id="msg-title">Mensaje</h3><button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button></header>
     <div class="dlg-body">
       <p class="msg-hint">Mensaje para la <b>directiva</b> con todos los partidos del finde (del jueves anterior al miércoles siguiente). Puedes retocar el texto antes de copiarlo.</p>
+      <label class="msg-mine" id="msg-mine-row" hidden><input type="checkbox" id="msg-mine" checked> Solo mis equipos</label>
       <textarea id="msg-text" class="msg-text" rows="16" spellcheck="false"></textarea>
       <label class="msg-comm" id="msg-comm-row" hidden><input type="checkbox" id="msg-comm" checked><span>Al enviarlo o copiarlo, marcar como comunicados <b>a la directiva</b> los <b id="msg-comm-n"></b> que aún no lo están.</span></label>
     </div>
@@ -554,8 +555,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261028085810"></script>
-  <script src="tutorial.js?v=20261028085810"></script>
-  <script src="app.js?v=20261028085810"></script>
+  <script src="config.js?v=20261028091557"></script>
+  <script src="tutorial.js?v=20261028091557"></script>
+  <script src="app.js?v=20261028091557"></script>
 </body>
 </html>
