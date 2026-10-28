@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261028092439">
+  <link rel="stylesheet" href="styles.css?v=20261028102022">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -79,15 +79,15 @@
   <div id="banner" class="banner" hidden><span id="banner-text"></span><button type="button" id="banner-close" class="banner-close" aria-label="Ocultar aviso">×</button></div>
 
   <div class="toolbar">
+    <div class="segmented mode-toggle hide-mobile" id="mode-toggle" role="group" aria-label="Qué ver">
+      <button type="button" data-mode="home" class="home-only-coord" hidden>Inicio <span class="home-count pill-count" hidden></span></button>
+      <button type="button" data-mode="week" class="on">Semana</button>
+      <button type="button" data-mode="template">Horario habitual</button>
+      <button type="button" data-mode="teams" hidden>Equipos</button>
+    </div>
     <button type="button" id="legend-btn" class="ghost legend-btn" aria-expanded="false" aria-controls="legend"><span class="legend-btn-dot" id="legend-btn-dot"></span><span id="legend-btn-text">Equipos</span> ▾</button>
     <div id="legend" class="legend" aria-label="Filtrar por equipo"></div>
     <div class="toolbar-actions">
-      <div class="segmented mode-toggle hide-mobile" id="mode-toggle" role="group" aria-label="Qué ver">
-        <button type="button" data-mode="home" class="home-only-coord" hidden>Inicio <span class="home-count pill-count" hidden></span></button>
-        <button type="button" data-mode="week" class="on">Semana</button>
-        <button type="button" data-mode="template">Horario habitual</button>
-        <button type="button" data-mode="teams" hidden>Equipos</button>
-      </div>
       <div class="coord-only" hidden>
         <label class="switch" title="Desactívalo para consultar sin riesgo de mover nada">
           <input type="checkbox" id="edit-toggle" checked>
@@ -554,8 +554,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261028092439"></script>
-  <script src="tutorial.js?v=20261028092439"></script>
-  <script src="app.js?v=20261028092439"></script>
+  <script src="config.js?v=20261028102022"></script>
+  <script src="tutorial.js?v=20261028102022"></script>
+  <script src="app.js?v=20261028102022"></script>
 </body>
 </html>

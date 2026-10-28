@@ -407,7 +407,7 @@ button.danger-solid { background: var(--err); border-color: var(--err); color: #
   @page { size: A4 landscape; margin: 8mm; }
   html, body { height: auto; overflow: visible; }
   body { display: block; background: #fff; }
-  .toolbar-actions, .side, .side-backdrop, .day-tabs, .top-right, .week-nav button, .banner, .now-line { display: none !important; }
+  .toolbar-actions, .mode-toggle, .side, .side-backdrop, .day-tabs, .top-right, .week-nav button, .banner, .now-line { display: none !important; }
   .topbar { background: #fff; color: #000; padding: 0 0 6px; }
   .brand-crest { height: 40px; filter: none; }
   .topbar { border-bottom: 0; }
@@ -569,6 +569,7 @@ a.btn.wa:hover { background: #17834a; }
 .week-strip.tpl { background: #fdf6dd; color: #4a3500; border-bottom-color: #f0dfa6; }
 body.tpl-mode .week-nav .icon-btn, body.tpl-mode #today-btn { display: none; }
 body.tpl-mode .cal-wrap { box-shadow: 0 0 0 2px var(--gold), var(--shadow); }
+.mode-toggle { flex: none; align-self: flex-start; }
 .mode-toggle button { font-size: 13px; }
 .hab-note { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; background: var(--bg); font-size: 12.5px; }
 .hab-note > span { flex: 1; }
