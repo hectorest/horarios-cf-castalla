@@ -41,7 +41,7 @@ En **Con acceso** el coordinador cambia los equipos, nombra a otro coordinador o
   - En Inicio salen los recordatorios, avisos, conflictos, convocables por aprobar y horarios por comunicar de sus equipos.
   - También lo que no es de ningún equipo, como los recordatorios «Todo el club», las solicitudes de acceso o publicar la semana.
   - «Ver todo el club» muestra el resto.
-- **Confirmar y comunicar:** «Confirmar los partidos de la semana» solo confirma los de sus equipos. El mensaje a la directiva sale con «Solo mis equipos» marcado; se puede desmarcar para incluir todo el club.
+- **Confirmar y comunicar:** «Confirmar los partidos de la semana» solo confirma los de sus equipos. El mensaje a la directiva incluye siempre todos los partidos del club, lo envíe quien lo envíe.
 - **Notificaciones del móvil:** el resumen diario de cada coordinador incluye solo sus equipos.
 - **Sin equipos marcados,** el coordinador se ocupa de todo el club, como hasta ahora.
 

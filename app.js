@@ -2413,7 +2413,7 @@
       const yr = fri.getFullYear() !== new Date().getFullYear() ? ` <small>${fri.getFullYear()}</small>` : '';
       const heat = h ? 0.12 + 0.55 * h / maxHome : 0;
       return `<tr class="${k < nowWk ? 'past' : ''} ${k === nowWk ? 'now' : ''} ${ms.length ? '' : 'empty'}" data-wk="${k}">
-        <th class="mx-g-wk"><div class="mx-wk-cell"><span>${lbl}${yr}${k === nowWk ? '<small class="mx-now">este finde</small>' : ''}</span><button type="button" class="mx-msg" data-msg="${k}" title="Mensaje para la directiva con los partidos de este finde" aria-label="Mensaje para la directiva de los partidos del ${lbl}">💬${(() => { const n = ms.filter(b => commTodo(b, 'board') && b.day >= todayKey() && myResp(b.team, 'mine')).length; return n ? `<span class="mx-msg-n" title="${n} confirmado${n > 1 ? 's' : ''} sin comunicar a la directiva">${n}</span>` : ''; })()}</button></div></th>
+        <th class="mx-g-wk"><div class="mx-wk-cell"><span>${lbl}${yr}${k === nowWk ? '<small class="mx-now">este finde</small>' : ''}</span><button type="button" class="mx-msg" data-msg="${k}" title="Mensaje para la directiva con los partidos de este finde" aria-label="Mensaje para la directiva de los partidos del ${lbl}">💬${(() => { const n = ms.filter(b => commTodo(b, 'board') && b.day >= todayKey()).length; return n ? `<span class="mx-msg-n" title="${n} confirmado${n > 1 ? 's' : ''} sin comunicar a la directiva">${n}</span>` : ''; })()}</button></div></th>
         <td class="mx-g-tot home" style="--heat:${heat.toFixed(2)}">${h || ''}</td><td class="mx-g-tot away">${f || ''}</td>
         ${teams.map(t => `<td class="mx-g-c" style="--team:${t.color}">${ms.filter(b => b.team === t.id).map(cell).join('')}</td>`).join('')}</tr>`;
     }).join('');
@@ -2466,18 +2466,15 @@
     return blocks.join('\n\n');
   }
   let msgWeek = null;
-  const msgOnly = () => myTeams() && $('#msg-mine').checked ? myTeams() : null;
   function openWeekMessage(monKey) {
     msgWeek = monKey;
-    $('#msg-mine-row').hidden = !myTeams();
-    $('#msg-mine').checked = true;
     fillWeekMessage();
     $('#msg-share').hidden = !navigator.share;
     $('#msg-dialog').showModal();
     $('#msg-text').scrollTop = 0;
   }
   function fillWeekMessage() {
-    const monKey = msgWeek, only = msgOnly();
+    const monKey = msgWeek, only = null;   // a la directiva van siempre todos los partidos del club
     const fri = addDays(parseKey(monKey), 4), sun = addDays(parseKey(monKey), 6);
     $('#msg-title').textContent = `Directiva · ${fri.getDate()}–${sun.getDate()} ${MONTHS[sun.getMonth()]}`;
     $('#msg-text').value = weekMessage(monKey, only);
@@ -4133,7 +4130,6 @@
     $('#mx-tabs').onclick = e => { const t = e.target.closest('button')?.dataset.mx; if (t) setMatchesTab(t); };
     $('#m-weekend').onclick = () => openMatches('weekend');
     $('#msg-copy').onclick = copyWeekMessage;
-    $('#msg-mine').onchange = fillWeekMessage;
     $('#msg-share').onclick = async () => { try { await navigator.share({ text: $('#msg-text').value }); weekMessageSent(); } catch { } };
     $('#msg-wa').onclick = () => { window.open('https://wa.me/?text=' + encodeURIComponent($('#msg-text').value), '_blank', 'noopener'); weekMessageSent(); };
     $('#mx-body').onclick = e => { const m = e.target.closest('[data-msg]'); if (m) { openWeekMessage(m.dataset.msg); return; } const r = e.target.closest('.mx-row, .mx-grid .mx-cell'); if (r) goToBooking(r.dataset.id, r.dataset.day); };
@@ -4321,7 +4317,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261028091557';
+  const APP_VERSION = '20261028092439';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

@@ -288,7 +288,7 @@ window.TUTORIAL_STEPS = [
   {
     id: 'coordinadores-equipos', since: 32, roles: ['coordinador'], target: '#people-btn, #user-btn',
     title: 'Varios coordinadores, cada uno con sus equipos',
-    body: 'En <b>Entrenadores → Con acceso</b> marca los <b>equipos a tu cargo</b> (y los de cada coordinador). Inicio, los avisos, «Confirmar partidos de la semana», el mensaje a la directiva y las notificaciones del móvil se centran en esos equipos; lo que no es de ningún equipo os llega a todos. Con «Ver todo el club» ves lo de los demás. Sin equipos marcados, te ocupas de todo. Para dar de alta a otro coordinador: <b>Invitar → Coordinador</b>, marca sus equipos y envíale el enlace.',
+    body: 'En <b>Entrenadores → Con acceso</b> marca los <b>equipos a tu cargo</b> (y los de cada coordinador). Inicio, los avisos, «Confirmar partidos de la semana» y las notificaciones del móvil se centran en esos equipos (el mensaje a la directiva lleva siempre todos los partidos); lo que no es de ningún equipo os llega a todos. Con «Ver todo el club» ves lo de los demás. Sin equipos marcados, te ocupas de todo. Para dar de alta a otro coordinador: <b>Invitar → Coordinador</b>, marca sus equipos y envíale el enlace.',
   },
   {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',

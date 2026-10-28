@@ -1238,5 +1238,4 @@ button.tm-pname:hover .tm-pn { text-decoration: underline; text-underline-offset
 .ts-meet, .cr-add { padding: 5px 9px; border: 1px solid var(--line-strong); border-radius: 8px; background: #fff; font-size: 13.5px; height: auto; }
 .ts-meet { min-width: 150px; }
 .comm-switches { display: flex; gap: 8px 22px; flex-wrap: wrap; }
-.msg-mine { display: flex; align-items: center; gap: 7px; margin: 0 0 8px; font-size: 13.5px; font-weight: 600; }
 .home-scope { margin-top: 2px !important; font-size: 12.5px !important; }
