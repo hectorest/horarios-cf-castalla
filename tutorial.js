@@ -291,6 +291,11 @@ window.TUTORIAL_STEPS = [
     body: 'En <b>Entrenadores → Con acceso</b> marca los <b>equipos a tu cargo</b> (y los de cada coordinador). Inicio, los avisos, «Confirmar partidos de la semana» y las notificaciones del móvil se centran en esos equipos (el mensaje a la directiva lleva siempre todos los partidos); lo que no es de ningún equipo os llega a todos. Con «Ver todo el club» ves lo de los demás. Sin equipos marcados, te ocupas de todo. Para dar de alta a otro coordinador: <b>Invitar → Coordinador</b>, marca sus equipos y envíale el enlace.',
   },
   {
+    id: 'recordatorio-hora', since: 33, roles: ['coordinador'], target: '#mode-toggle [data-mode="home"], #user-btn',
+    title: 'Recordatorios con hora',
+    body: 'Al crear o editar un recordatorio, pon una <b>🔔 hora</b> y te llegará una notificación al móvil ese día (el de aviso o, si no hay, el de la fecha máxima) a esa hora. Si solo pones la hora, es para hoy (o mañana si ya ha pasado). Si lo pospones, vuelve a avisarte en la nueva fecha. Necesitas tener activadas las notificaciones (menú → 🔔 Notificaciones). Desde el Atajo del iPhone también vale: «recuérdamelo el viernes a las 18:00».',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',

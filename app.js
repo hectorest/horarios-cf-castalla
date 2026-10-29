@@ -753,7 +753,7 @@
         endpoint: CFG.SUPABASE_URL.replace(/\/$/, '') + '/functions/v1/atajo-recordatorio',
       },
       reminders: {
-        async list() { return chk(await sb.from('reminders').select('id, title, team, due_date, alert_date, notes, booking_id, done, done_at, created_by, created_at, updated_at, source, source_text, waiting_on, waiting_since').order('due_date', { nullsFirst: false }).order('created_at')); },
+        async list() { return chk(await sb.from('reminders').select('id, title, team, due_date, alert_date, notes, booking_id, done, done_at, created_by, created_at, updated_at, source, source_text, waiting_on, waiting_since, alert_time, alert_sent_sig').order('due_date', { nullsFirst: false }).order('created_at')); },
         async insert(r) { return chk(await sb.from('reminders').insert(r).select().single()); },
         async update(id, r) {
           const rows = chk(await sb.from('reminders').update(r).eq('id', id).select('id'));
@@ -2651,6 +2651,10 @@
     if (r.due_date) when.push(`<span class="rem-due">Hasta ${shortDate(r.due_date)} <b>(${relDays(r.due_date)})</b></span>`);
     if (r.alert_date && st === 'pending') when.push(`<span>aviso ${shortDate(r.alert_date)}</span>`);
     if (!r.due_date && !r.alert_date) when.push('<span>Sin fecha</span>');
+    if (r.alert_time && st !== 'done') {
+      const d = r.alert_date || r.due_date, sent = r.alert_sent_sig === `${d}|${hhmm5(r.alert_time)}`;
+      if (d) when.push(`<span class="rem-bell${sent ? ' sent' : ''}" title="${sent ? 'Notificación enviada' : 'Te llegará una notificación'}">🔔 ${d === todayKey() ? 'hoy' : shortDate(d)} ${hhmm5(r.alert_time)}${sent ? ' ✓' : ''}</span>`);
+    }
     if (st === 'done' && r.done_at) when.push(`<span>hecho ${shortDate(keyOf(new Date(r.done_at)))}</span>`);
     const wait = r.waiting_on && st !== 'done'
       ? `<span class="rem-wait">⏳ En espera de <b>${esc(r.waiting_on)}</b>${r.waiting_since ? ` · ${r.waiting_since === todayKey() ? 'desde hoy' : 'desde ' + relDays(r.waiting_since).replace('hace ', 'hace ')}` : ''}</span>` : '';
@@ -2684,7 +2688,7 @@
     const hello = (state.profile?.full_name || '').split(/\s+/)[0];
     const keepForm = el.querySelector('#rem-quick');
     if (keepForm && !state.remFormOpen && $('#rq-title').value.trim()) state.remFormOpen = true;
-    const draft = keepForm ? { title: $('#rq-title').value, team: $('#rq-team').value, due: $('#rq-due').value, alert: $('#rq-alert').value, wait: $('#rq-wait').value, touched: $('#rq-alert').dataset.touched } : null;
+    const draft = keepForm ? { title: $('#rq-title').value, team: $('#rq-team').value, due: $('#rq-due').value, alert: $('#rq-alert').value, time: $('#rq-time').value, wait: $('#rq-wait').value, touched: $('#rq-alert').dataset.touched } : null;
     const teamOpts = `<option value="">Todo el club</option>${TEAMS.map(t => `<option value="${t.id}">${esc(t.name)}</option>`).join('')}`;
     const upGroups = [['error', 'Conflictos', '⛔'], ['warn', 'Avisos', '⚠️'], ['pending', 'Pendientes', '⏳']];
     el.innerHTML = `<div class="home-wrap">
@@ -2715,6 +2719,7 @@
               <label class="rq-f"><span>Equipo</span><select id="rq-team">${teamOpts}</select></label>
               <label class="rq-f"><span>Fecha máxima</span><input type="date" id="rq-due"></label>
               <label class="rq-f"><span>Aviso <small>(pasa a urgente)</small></span><input type="date" id="rq-alert"></label>
+              <label class="rq-f rq-time"><span>🔔 Hora <small>(notificación)</small></span><input type="time" id="rq-time" step="300"></label>
               <label class="rq-f rq-wait"><span>En espera de <small>(opcional)</small></span><input id="rq-wait" maxlength="80" list="wait-people" placeholder="Nadie: depende de mí" autocomplete="off"></label>
               <button type="submit" class="primary rq-add">Añadir</button>
             </div>
@@ -2742,7 +2747,7 @@
       </div>
     </div>`;
     if (draft) {
-      $('#rq-title').value = draft.title; $('#rq-team').value = draft.team; $('#rq-due').value = draft.due; $('#rq-alert').value = draft.alert; $('#rq-wait').value = draft.wait || '';
+      $('#rq-title').value = draft.title; $('#rq-team').value = draft.team; $('#rq-due').value = draft.due; $('#rq-alert').value = draft.alert; $('#rq-time').value = draft.time || ''; $('#rq-wait').value = draft.wait || '';
       if (draft.touched) $('#rq-alert').dataset.touched = '1';
       $('#rq-presets').hidden = !draft.due;
     }
@@ -2768,18 +2773,26 @@
     return a;
   }
 
+  /** Hora de aviso: si no hay fechas, hoy (o mañana si esa hora ya pasó) pasa a ser la fecha de aviso */
+  function timedAlert(due, alert, time) {
+    if (!time || alert || due) return alert;
+    const now = new Date(), nowMin = now.getHours() * 60 + now.getMinutes();
+    return toMin(time) > nowMin ? todayKey() : keyOf(addDays(now, 1));
+  }
+  const hhmm5 = t => t ? String(t).slice(0, 5) : '';
   async function quickAddReminder() {
     const title = $('#rq-title').value.trim();
     if (!title) { $('#rq-title').focus(); return; }
     const due = $('#rq-due').value || null;
-    let alert = $('#rq-alert').value || null;
+    const time = $('#rq-time').value || null;
+    let alert = timedAlert(due, $('#rq-alert').value || null, time);
     if (due && alert && alert > due) { toast('El aviso tiene que ser antes de la fecha máxima', true); $('#rq-alert').focus(); return; }
     try {
       const wait = $('#rq-wait').value.trim().slice(0, 80) || null;
-      await store.reminders.insert({ title: title.slice(0, 200), team: $('#rq-team').value || null, due_date: due, alert_date: alert, waiting_on: wait, waiting_since: wait ? todayKey() : null });
-      $('#rq-title').value = ''; $('#rq-wait').value = ''; $('#rq-due').value = ''; $('#rq-alert').value = ''; delete $('#rq-alert').dataset.touched;
+      await store.reminders.insert({ title: title.slice(0, 200), team: $('#rq-team').value || null, due_date: due, alert_date: alert, alert_time: time, waiting_on: wait, waiting_since: wait ? todayKey() : null });
+      $('#rq-title').value = ''; $('#rq-wait').value = ''; $('#rq-due').value = ''; $('#rq-alert').value = ''; $('#rq-time').value = ''; delete $('#rq-alert').dataset.touched;
       $('#rq-presets').hidden = true; markPresets();
-      toast('Recordatorio añadido');
+      toast(time ? `Recordatorio añadido · te avisaremos ${alert === todayKey() ? 'hoy' : shortDate(alert)} a las ${hhmm5(time)}` : 'Recordatorio añadido');
       await loadReminders();
       $('#rq-title')?.focus();
     } catch (e) { toast('No se pudo guardar: ' + e.message, true); }
@@ -2796,6 +2809,7 @@
     $('#rm-team').value = r.team || '';
     $('#rm-due').value = r.due_date || '';
     $('#rm-alert').value = r.alert_date || '';
+    $('#rm-time').value = hhmm5(r.alert_time);
     if (r.id && r.alert_date) $('#rm-alert').dataset.touched = '1'; else delete $('#rm-alert').dataset.touched;
     $('#rm-snooze').hidden = !r.id || r.done;
     fitAlertPresets('#rm-alert-pre', '#rm-due', '#rm-alert');
@@ -2824,10 +2838,11 @@
     const r = remEditing; if (!r) return;
     const row = {
       title: $('#rm-title').value.trim().slice(0, 200), team: $('#rm-team').value || null,
-      due_date: $('#rm-due').value || null, alert_date: $('#rm-alert').value || null,
+      due_date: $('#rm-due').value || null, alert_date: $('#rm-alert').value || null, alert_time: $('#rm-time').value || null,
       notes: $('#rm-notes').value.trim().slice(0, 1000) || null,
       waiting_on: $('#rm-wait').value.trim().slice(0, 80) || null,
     };
+    row.alert_date = timedAlert(row.due_date, row.alert_date, row.alert_time);
     row.waiting_since = !row.waiting_on ? null : (r.waiting_on === row.waiting_on && r.waiting_since) ? r.waiting_since : todayKey();
     if (!row.title) { toast('Escribe qué hay que hacer', true); $('#rm-title').focus(); return; }
     if (row.due_date && row.alert_date && row.alert_date > row.due_date) { toast('El aviso tiene que ser antes de la fecha máxima', true); return; }
@@ -4317,7 +4332,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261028102022';
+  const APP_VERSION = '20261029103807';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

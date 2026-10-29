@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261028102022">
+  <link rel="stylesheet" href="styles.css?v=20261029103807">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -343,6 +343,8 @@
           <div class="field"><label for="rm-due">Fecha máxima</label><input type="date" id="rm-due"></div>
           <div class="field"><label for="rm-alert">Aviso <small>(pasa a urgente)</small></label><input type="date" id="rm-alert"></div>
         </div>
+        <div class="field rm-time-f"><label for="rm-time">🔔 Hora de la notificación <small>(opcional)</small></label><input type="time" id="rm-time" step="300">
+          <p class="rm-time-hint">Te llega al móvil ese día (el de aviso o, si no hay, el de la fecha máxima) a esa hora. Necesitas tener activadas las notificaciones (menú → 🔔 Notificaciones).</p></div>
         <div class="rq-presets rq-due-pre" id="rm-due-pre"><span>Fecha máxima:</span><button type="button" data-due="0">Hoy</button><button type="button" data-due="1">Mañana</button><button type="button" data-due="3">En 3 días</button><button type="button" data-due="fri">Viernes</button><button type="button" data-due="7">1 semana</button><button type="button" data-due="14">2 semanas</button></div>
         <div class="rq-presets" id="rm-alert-pre"><span>Aviso:</span><button type="button" data-pre="0">el mismo día</button><button type="button" data-pre="1">1 día antes</button><button type="button" data-pre="2">2 días antes</button><button type="button" data-pre="7">1 semana antes</button></div>
         <div class="rq-presets rm-snooze" id="rm-snooze"><span>Posponer:</span><button type="button" data-snooze="1">+1 día</button><button type="button" data-snooze="2">+2 días</button><button type="button" data-snooze="3">+3 días</button><button type="button" data-snooze="7">+1 semana</button><button type="button" data-snooze="14">+2 semanas</button></div>
@@ -554,8 +556,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261028102022"></script>
-  <script src="tutorial.js?v=20261028102022"></script>
-  <script src="app.js?v=20261028102022"></script>
+  <script src="config.js?v=20261029103807"></script>
+  <script src="tutorial.js?v=20261029103807"></script>
+  <script src="app.js?v=20261029103807"></script>
 </body>
 </html>

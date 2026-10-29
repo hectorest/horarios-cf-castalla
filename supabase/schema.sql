@@ -661,6 +661,12 @@ alter table public.reminders add column if not exists waiting_since date;
 comment on column public.reminders.waiting_on is 'En espera de otra persona (entrenador, federación…): quién tiene que hacer algo para poder cerrarlo.';
 comment on column public.reminders.waiting_since is 'Desde cuándo está en espera de esa persona.';
 
+-- Hora de aviso: notificación al móvil ese día (fecha de aviso o, si falta, fecha máxima) a esa hora
+alter table public.reminders add column if not exists alert_time time;
+alter table public.reminders add column if not exists alert_sent_sig text check (char_length(alert_sent_sig) <= 40);
+comment on column public.reminders.alert_time is 'Hora de la notificación al móvil: se envía ese día (fecha de aviso o, si no hay, fecha máxima) a esa hora.';
+comment on column public.reminders.alert_sent_sig is 'Fecha|hora de la notificación ya enviada; si cambian (posponer), se vuelve a avisar.';
+
 -- ---------- Notificaciones push (coordinación) ----------
 -- Dispositivos suscritos (Web Push), preferencias de cada coordinador, registro de envíos para no repetir,
 -- y una «foto» de las incidencias calculadas por la herramienta (conflictos y cambios) para el resumen diario.
@@ -810,10 +816,10 @@ drop trigger if exists notif_new_profile on public.profiles;
 create trigger notif_new_profile after insert on public.profiles
   for each row execute function private.notif_new_profile();
 
--- Cada 15 minutos: envía el resumen a quien le toque a esa hora
+-- Cada 5 minutos: envía el resumen a quien le toque a esa hora y los recordatorios con hora de aviso
 do $$ begin
   perform cron.unschedule(jobid) from cron.job where jobname = 'notificaciones';
-  perform cron.schedule('notificaciones', '*/15 * * * *', $c$ select private.notif_call('{"mode": "tick"}'::jsonb); $c$);
+  perform cron.schedule('notificaciones', '*/5 * * * *', $c$ select private.notif_call('{"mode": "tick"}'::jsonb); $c$);
 end $$;
 
 -- ---------- Partidos: datos para compartir el horario confirmado (WhatsApp) ----------

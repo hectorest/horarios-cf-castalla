@@ -6,8 +6,7 @@
 // Autenticación: cabecera «Authorization: Bearer cfc_…» (código generado en la herramienta, en
 // «Conectar con Atajos»). Se despliega con verify_jwt = false porque la comprobación la hace esta función.
 // Secretos: ANTHROPIC_API_KEY (obligatorio), ANTHROPIC_MODEL (opcional).
-import "jsr:@supabase/functions-js/edge-runtime.d.ts";
-import { createClient } from "jsr:@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
 const TZ = "Europe/Madrid";
 const MAX_BYTES = 8 * 1024 * 1024;
@@ -44,6 +43,7 @@ const reply = (text: string, status = 200) =>
   new Response(text, { status, headers: { ...CORS, "Content-Type": "text/plain; charset=utf-8" } });
 
 // ---------- Fechas (en hora de Madrid) ----------
+const nowMin = () => { const p = Object.fromEntries(new Intl.DateTimeFormat("en-GB", { timeZone: TZ, hour: "2-digit", minute: "2-digit", hour12: false }).formatToParts(new Date()).map((x) => [x.type, x.value])); return (p.hour === "24" ? 0 : +p.hour) * 60 + +p.minute; };
 const todayKey = () => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const parseKey = (k: string) => { const [y, m, d] = k.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d)); };
 const keyOf = (d: Date) => d.toISOString().slice(0, 10);
@@ -130,9 +130,10 @@ const TOOL = {
             fecha_maxima: { type: ["string", "null"], description: "AAAA-MM-DD: el día límite para hacerlo. Si se refiere a un partido, el día del partido (o antes si lo dice). null si no hay ninguna pista de fecha." },
             fecha_aviso: { type: ["string", "null"], description: "AAAA-MM-DD solo si el mensaje pide expresamente que se avise un día concreto; si no, null." },
             notas: { type: ["string", "null"], description: "Contexto útil y breve (quién lo pide, detalles, teléfonos…). Máx. 300 caracteres." },
+            hora_aviso: { type: ["string", "null"], description: "HH:MM (24 h) si el mensaje pide que se avise o recuerde a una hora concreta («a las 6 de la tarde» → 18:00); si no, null." },
             en_espera_de: { type: ["string", "null"], description: "Si la tarea depende de que OTRA persona o entidad haga algo antes (mandar un documento, confirmar, responder…), su nombre corto (p. ej. «Laura», «Federación», «Ayuntamiento»). null si depende de la coordinación." },
           },
-          required: ["titulo", "equipo", "fecha_maxima", "fecha_aviso", "notas", "en_espera_de"],
+          required: ["titulo", "equipo", "fecha_maxima", "fecha_aviso", "hora_aviso", "notas", "en_espera_de"],
         },
       },
       texto_leido: { type: "string", description: "Transcripción breve del contenido relevante que has leído (de la captura o del texto). Máx. 1000 caracteres." },
@@ -198,6 +199,7 @@ Reglas:
 - Si la tarea está ligada a un partido, la fecha máxima es el día del partido salvo que se diga otra cosa.
 - No inventes fechas: si no hay ninguna pista, fecha_maxima = null.
 - fecha_aviso solo si se pide expresamente; si no, null (la herramienta lo pone 2 días antes).
+- hora_aviso solo si se pide que avise o recuerde a una hora («recuérdamelo el viernes a las 18:00» → fecha_aviso = ese viernes, hora_aviso = "18:00"). Si solo hay hora («a las 7»), deja fecha_aviso en null.
 - En capturas de WhatsApp, fíjate en quién escribe cada mensaje y en la hora/fecha de los mensajes; las tareas suelen ser peticiones hechas a la coordinación.
 - Si algo está pendiente de otra persona («cuando Paco me pase las fichas», «la Federación tiene que confirmar»), indícalo en en_espera_de y redacta el título como lo que hay que conseguir («Recibir las fichas del Cadete»).
 - Todo en español de España.`;
@@ -244,8 +246,10 @@ Reglas:
       if (alert < today) alert = today;
     } else if (alert && alert < today) alert = today;
     const notes = x?.notas ? String(x.notas).trim().slice(0, 1000) : null;
+    const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(String(x?.hora_aviso || "")) ? String(x.hora_aviso) : null;
+    if (time && !alert && !due) { const [h, m] = time.split(":").map(Number); alert = h * 60 + m > nowMin() ? today : addDays(today, 1); }
     const waiting = x?.en_espera_de ? String(x.en_espera_de).trim().slice(0, 80) || null : null;
-    return { title, team, due_date: due, alert_date: alert, notes, waiting_on: waiting, waiting_since: waiting ? today : null, source: "atajo", source_text: sourceText, created_by: tok.user_id };
+    return { title, team, due_date: due, alert_date: alert, alert_time: time, notes, waiting_on: waiting, waiting_since: waiting ? today : null, source: "atajo", source_text: sourceText, created_by: tok.user_id };
   }).filter(Boolean) as any[];
 
   if (!rows.length) return reply(`🤷 No he encontrado ninguna tarea${out.motivo_si_vacio ? ": " + out.motivo_si_vacio : "."}`);
@@ -253,6 +257,6 @@ Reglas:
   const { error } = await sb.from("reminders").insert(rows);
   if (error) { console.error(error); return reply("⚠️ No se ha podido guardar el recordatorio: " + error.message, 500); }
 
-  const line = (r: any) => `${r.title}${r.team ? " · " + TEAM_NAME[r.team] : ""}${r.waiting_on ? " · ⏳ " + r.waiting_on : ""}${r.due_date ? " · hasta " + shortDate(r.due_date) + (r.alert_date && r.alert_date !== r.due_date ? " (aviso " + shortDate(r.alert_date) + ")" : "") : " · sin fecha"}`;
+  const line = (r: any) => `${r.title}${r.team ? " · " + TEAM_NAME[r.team] : ""}${r.waiting_on ? " · ⏳ " + r.waiting_on : ""}${r.due_date ? " · hasta " + shortDate(r.due_date) + (r.alert_date && r.alert_date !== r.due_date ? " (aviso " + shortDate(r.alert_date) + ")" : "") : r.alert_time ? "" : " · sin fecha"}${r.alert_time ? ` · 🔔 ${shortDate(r.alert_date || r.due_date)} ${r.alert_time}` : ""}`;
   return reply(rows.length === 1 ? `✅ ${line(rows[0])}` : `✅ ${rows.length} recordatorios:\n` + rows.map((r) => "• " + line(r)).join("\n"));
 });

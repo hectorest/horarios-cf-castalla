@@ -60,6 +60,16 @@ Los coordinadores entran en **Inicio** (pestaña junto a *Semana* y *Horario hab
 - **Próximos 14 días**: conflictos, avisos y pendientes del calendario (partidos por confirmar, falta de OK del rival, propuestas, semanas sin publicar el horario habitual, solicitudes de entrenadores). Tocando uno se abre en el calendario.
 - El contador rojo de **Inicio** suma recordatorios vencidos y urgentes y conflictos próximos.
 
+### Recordatorios con hora (notificación)
+
+- Cada recordatorio puede tener una **🔔 hora**. Ese día te llega una notificación al móvil: el día de aviso o, si no hay, el de la fecha máxima.
+- Si solo pones la hora, se avisa hoy, o mañana si esa hora ya ha pasado.
+- Si lo pospones o cambias la fecha o la hora, vuelve a avisar.
+- La recibe quien creó el recordatorio, si tiene las notificaciones activadas.
+- La tarea programada revisa cada 5 minutos. Si un aviso se pierde (móvil apagado, etc.), se envía hasta 2 horas tarde; pasado ese margen ya no.
+- En Inicio, el recordatorio muestra «🔔 hoy 18:00», y «✓» cuando ya se ha enviado.
+- Con el Atajo del iPhone también funciona: «recuérdamelo el viernes a las 18:00».
+
 ### Recordatorios desde el iPhone (Atajos + Claude)
 
 Los coordinadores pueden crear recordatorios sin abrir la herramienta: comparten una **captura de WhatsApp** o un **texto** con un Atajo de iPhone, o lo **dictan con Siri**. La Edge Function `atajo-recordatorio` (en `supabase/functions/`) lo interpreta con Claude y crea uno o varios recordatorios (uno por tarea), con equipo, fecha máxima y aviso (2 días antes si no se dice otra cosa). El Atajo muestra una notificación con lo que se ha guardado. Los recordatorios del atajo llevan 📲 y guardan el texto interpretado.

@@ -1,5 +1,6 @@
 // Notificaciones push para la coordinación (Web Push a la app instalada / navegador).
-//  - mode "tick"   (tarea programada cada 15 min, cabecera x-cron-secret): resumen diario a la hora de cada coordinador.
+//  - mode "tick"   (tarea programada cada 5 min, cabecera x-cron-secret): resumen diario a la hora de cada coordinador
+//                    y notificación de los recordatorios con hora de aviso (reminders.alert_time).
 //  - mode "altas"  (trigger al crearse un perfil, x-cron-secret): aviso inmediato de altas de entrenadores.
 //  - mode "config" (coordinador con su sesión): devuelve la clave pública VAPID (la genera la primera vez).
 //  - mode "test"   (coordinador): notificación de prueba a sus dispositivos.
@@ -76,6 +77,38 @@ async function sendToUser(sb: Sb, vapid: any, userId: string, msgs: Msg[]) {
     else await sb.from("push_subscriptions").update(ok ? { last_ok_at: new Date().toISOString(), fail_count: 0 } : { fail_count: s.fail_count + 1 }).eq("id", s.id);
   }
   return { sent, devices: (subs || []).length };
+}
+
+/** Recordatorios con hora de aviso: se avisa a quien lo creó el día de aviso (o la fecha máxima) a esa hora */
+async function sendTimedReminders(sb: Sb, vapid: any, today: string, minutes: number) {
+  const { data: rows } = await sb.from("reminders")
+    .select("id, title, team, due_date, alert_date, alert_time, alert_sent_sig, created_by, waiting_on, notes")
+    .eq("done", false).not("alert_time", "is", null);
+  let sent = 0, due = 0;
+  for (const r of rows || []) {
+    const day = r.alert_date || r.due_date;
+    if (!day || day > today) continue;
+    const t = timeToMin(r.alert_time);
+    const sig = `${day}|${String(r.alert_time).slice(0, 5)}`;
+    if (r.alert_sent_sig === sig) continue;
+    if (day === today && minutes < t) continue;
+    // Se marca antes de enviar para no repetirlo; si ya pasó hace mucho (o es de otro día), no se avisa tarde
+    await sb.from("reminders").update({ alert_sent_sig: sig }).eq("id", r.id);
+    if (day < today || minutes - t > CATCH_UP_MIN || !r.created_by) continue;
+    const { data: prof } = await sb.from("profiles").select("role, status").eq("id", r.created_by).maybeSingle();
+    if (prof?.role !== "coordinador" || prof?.status !== "aprobado") continue;
+    const { data: pref } = await sb.from("notify_settings").select("enabled").eq("user_id", r.created_by).maybeSingle();
+    if (pref && pref.enabled === false) continue;
+    const bits = [
+      r.team ? TEAM_NAME[r.team] || r.team : "",
+      r.due_date ? (r.due_date === today ? "hoy es la fecha máxima" : `hasta ${shortDate(r.due_date)}`) : "",
+      r.waiting_on ? `⏳ ${r.waiting_on}` : "",
+    ].filter(Boolean).join(" · ");
+    const body = [bits, r.notes ? String(r.notes).slice(0, 140) : ""].filter(Boolean).join("\n") || "Recordatorio";
+    due++;
+    sent += (await sendToUser(sb, vapid, r.created_by, [{ title: `🔔 ${r.title}`, body, url: "./#inicio", tag: `rem-${String(r.id).slice(0, 8)}` }])).sent;
+  }
+  return { reminders: due, sent };
 }
 
 /** Resumen del día para un coordinador según sus preferencias */
@@ -178,7 +211,8 @@ Deno.serve(async (req) => {
         const r = await sendToUser(sb, vapid, s.user_id, msgs);
         users++; sent += r.sent;
       }
-      return json({ ok: true, users, sent });
+      const timed = await sendTimedReminders(sb, vapid, today, minutes);
+      return json({ ok: true, users, sent, timed });
     }
 
     if (mode === "altas") {
