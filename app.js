@@ -765,8 +765,8 @@
         },
       },
       players: {
-        async list() { return chk(await sb.from('players').select('id, team, number, name, sub23, status, status_note, status_until, status_since, notes, created_at, updated_at').order('team').order('number', { nullsFirst: false }).order('name')); },
-        async insertMany(rows) { return chk(await sb.from('players').insert(rows).select('id, team, number, name, sub23, status, status_note, status_until, status_since, notes, created_at, updated_at')); },
+        async list() { return chk(await sb.from('players').select('id, team, number, name, sub23, status, status_note, status_until, status_since, status_team, notes, created_at, updated_at').order('team').order('number', { nullsFirst: false }).order('name')); },
+        async insertMany(rows) { return chk(await sb.from('players').insert(rows).select('id, team, number, name, sub23, status, status_note, status_until, status_since, status_team, notes, created_at, updated_at')); },
         async update(id, r) {
           const rows = chk(await sb.from('players').update(r).eq('id', id).select('id'));
           if (!rows.length) throw new Error('No tienes permiso para esta plantilla.');
@@ -3345,7 +3345,12 @@
     no_disponible: { label: 'No disponible', cls: 'ps-no',  out: true },
   };
   const isOut = p => !!PST[p.status]?.out;
+  /** Equipos superiores con los que puede ir el jugador (reglas de convocables y su condición) */
+  const upTargets = (p, cond = p.sub23) => (state.callupRules || []).filter(r => r.from === p.team && (!r.sub23 || cond)).map(r => r.team);
+  const withUpper = p => p.status === 'no_disponible' && p.status_team ? p.status_team : null;
   const psBadge = p => {
+    const up = withUpper(p);
+    if (up) return `<span class="ps ps-up" title="${esc(`No disponible: va con el ${teamOf(up).name}`)}${p.status_until ? ' · hasta ' + shortDate(p.status_until) : ''}">⬆️ Con el ${esc(teamOf(up).short)}${p.status_until ? ` · hasta ${shortDate(p.status_until)}` : ''}</span>`;
     const st = PST[p.status]; if (!st) return '';
     const late = p.status_until && p.status_until < todayKey();
     const tip = [st.label, p.status_note, p.status_since ? 'desde ' + shortDate(p.status_since) : '', p.status_until ? 'vuelta prevista ' + shortDate(p.status_until) : ''].filter(Boolean).join(' · ');
@@ -3353,13 +3358,13 @@
   };
   const playerSub = p => {
     const bits = [];
-    if (p.status && p.status_note) bits.push(`<span>${p.status === 'no_disponible' ? '🚫' : '🩹'} ${esc(p.status_note)}</span>`);
+    if (p.status && p.status_note && !withUpper(p)) bits.push(`<span>${p.status === 'no_disponible' ? '🚫' : '🩹'} ${esc(p.status_note)}</span>`);
     if (p.notes) bits.push(`<span>📝 ${esc(p.notes)}</span>`);
     return bits.length ? `<span class="tm-sub">${bits.join('')}</span>` : '';
   };
   const squadSummary = sq => {
-    const out = sq.filter(isOut).length, mol = sq.filter(p => p.status === 'molestias').length;
-    return [`${sq.length - out} convocable${sq.length - out === 1 ? '' : 's'}`, mol ? `${mol} con molestias` : '', out ? `${plural(out, 'baja', 'bajas')}` : ''].filter(Boolean).join(' · ');
+    const out = sq.filter(isOut).length, mol = sq.filter(p => p.status === 'molestias').length, up = sq.filter(withUpper).length;
+    return [`${sq.length - out} convocable${sq.length - out === 1 ? '' : 's'}`, mol ? `${mol} con molestias` : '', out - up ? `${plural(out - up, 'baja', 'bajas')}` : '', up ? `${up} con el superior` : ''].filter(Boolean).join(' · ');
   };
   const canEditPlayer = p => isCoord() || isMine(p.team);
   const CU_ST = { pendiente: '⏳ Pendiente de aprobar', aprobado: '', rechazado: '✗ Rechazado' };
@@ -3583,7 +3588,8 @@
     $('#pd-team').innerHTML = `<span class="tm-dot" style="--team:${t.color}"></span>${esc(t.name)}`;
     $('#pd-num').value = p.number ?? ''; $('#pd-name').value = p.name;
     $('#pd-s23-row').hidden = !upFlag(p.team); $('#pd-s23').checked = !!p.sub23; $('#pd-s23-l').textContent = upLabel(p.team);
-    $('#pd-st-note').value = p.status_note || ''; $('#pd-until').value = p.status_until || '';
+    $('#pd-st-note').value = withUpper(p) ? '' : (p.status_note || ''); $('#pd-until').value = p.status_until || '';
+    pdUp = withUpper(p);
     $('#pd-notes').value = p.notes || '';
     setPdStatus(p.status || '');
     $$('#player-dialog input, #player-dialog textarea, #pd-st button, #pd-until-pre button').forEach(x => x.disabled = !edit);
@@ -3600,6 +3606,21 @@
     $('#pd-st-note').placeholder = st === 'no_disponible' ? 'Ej.: de viaje, sanción, exámenes…' : st === 'molestias' ? 'Ej.: carga en el gemelo' : 'Ej.: esguince de tobillo';
     $('#player-dialog').dataset.st = st;
     markUntilPresets();
+    renderPdUp();
+  }
+  /** «Va con el superior»: solo si el jugador cumple las reglas de convocables */
+  let pdUp = null;
+  function renderPdUp() {
+    const p = pdPlayer, box = $('#pd-up'); if (!p || !box) return;
+    const st = $('#player-dialog').dataset.st;
+    const cond = upFlag(p.team) ? $('#pd-s23').checked : !!p.sub23;
+    const targets = upTargets(p, cond), anyRule = (state.callupRules || []).some(r => r.from === p.team);
+    if (pdUp && !targets.includes(pdUp)) pdUp = null;
+    box.hidden = st !== 'no_disponible' || !anyRule;
+    box.innerHTML = targets.length
+      ? `<span>Va con:</span>${targets.map(t => `<button type="button" data-up="${t}" class="${pdUp === t ? 'on' : ''}" aria-pressed="${pdUp === t}" ${canEditPlayer(p) ? '' : 'disabled'}>⬆️ ${esc(teamOf(t).name)}</button>`).join('')}`
+      : `<span class="pd-up-no">Para marcar que va con el superior tiene que cumplir «${esc(upLabel(p.team))}».</span>`;
+    $('#pd-st-note-f').hidden = !!pdUp;
   }
   function markUntilPresets() {
     const v = $('#pd-until').value;
@@ -3615,7 +3636,8 @@
     const st = $('#player-dialog').dataset.st || null;
     const row = {
       number: d.n, name, sub23: upFlag(p.team) ? $('#pd-s23').checked : !!p.sub23,
-      status: st, status_note: st ? ($('#pd-st-note').value.trim() || null) : null,
+      status: st, status_note: st ? (st === 'no_disponible' && pdUp ? `Con el ${teamOf(pdUp).name}` : ($('#pd-st-note').value.trim() || null)) : null,
+      status_team: st === 'no_disponible' && pdUp ? pdUp : null,
       status_until: st ? ($('#pd-until').value || null) : null,
       status_since: st ? (st === p.status && p.status_since ? p.status_since : todayKey()) : null,
       notes: $('#pd-notes').value.trim() || null,
@@ -3624,7 +3646,7 @@
       await store.players.update(p.id, row);
       Object.assign(p, row);
       $('#player-dialog').close();
-      toast(st ? `${name}: ${PST[st].label.toLowerCase()}` : 'Jugador guardado');
+      toast(row.status_team ? `${name}: va con el ${teamOf(row.status_team).name}` : st ? `${name}: ${PST[st].label.toLowerCase()}` : 'Jugador guardado');
       renderTeams();
     } catch (e) { toast('No se pudo guardar: ' + playerErr(e), true); }
   }
@@ -3632,6 +3654,8 @@
     $('#pd-st').addEventListener('click', e => { const b = e.target.closest('[data-st]'); if (!b || b.disabled) return; setPdStatus(b.dataset.st); if (b.dataset.st && !$('#pd-st-note').value && !coarse()) $('#pd-st-note').focus(); });
     $('#pd-until-pre').addEventListener('click', e => { const b = e.target.closest('[data-until]'); if (!b) return; $('#pd-until').value = b.dataset.until === '' ? '' : keyOf(addDays(new Date(), +b.dataset.until)); markUntilPresets(); });
     $('#pd-until').addEventListener('change', markUntilPresets);
+    $('#pd-up').addEventListener('click', e => { const b = e.target.closest('[data-up]'); if (!b || b.disabled) return; pdUp = pdUp === b.dataset.up ? null : b.dataset.up; renderPdUp(); });
+    $('#pd-s23').addEventListener('change', renderPdUp);
     $('#player-form').addEventListener('submit', e => { e.preventDefault(); savePlayer(); });
     $('#pd-delete').onclick = async () => {
       const p = pdPlayer; if (!p) return;
@@ -3710,7 +3734,7 @@
       }
       if (t.closest('[data-tm-copy]')) {
         const ok = callupsOf(team).filter(c => c.status === 'aprobado').map(c => playerById(c.player_id)).filter(Boolean).sort(byDorsal);
-        const text = `*${TEAM[team].name.toUpperCase()}*\n` + squadOf(team).map(p => `${p.number ?? '–'}. ${p.name}${PST[p.status] ? ` (${PST[p.status].label.toLowerCase()})` : ''}`).join('\n')
+        const text = `*${TEAM[team].name.toUpperCase()}*\n` + squadOf(team).map(p => `${p.number ?? '–'}. ${p.name}${withUpper(p) ? ` (con el ${teamOf(withUpper(p)).name})` : PST[p.status] ? ` (${PST[p.status].label.toLowerCase()})` : ''}`).join('\n')
           + (ok.length ? `\n\n_Convocables_\n` + ok.map(p => `${p.number ?? '–'}. ${p.name} (${teamOf(p.team).name})`).join('\n') : '');
         try { await navigator.clipboard.writeText(text); toast('Plantilla copiada'); } catch { toast('No se ha podido copiar', true); }
         return;
@@ -4332,7 +4356,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261029103807';
+  const APP_VERSION = '20261030124744';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

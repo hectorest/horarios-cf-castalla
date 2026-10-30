@@ -296,6 +296,11 @@ window.TUTORIAL_STEPS = [
     body: 'Al crear o editar un recordatorio, pon una <b>🔔 hora</b> y te llegará una notificación al móvil ese día (el de aviso o, si no hay, el de la fecha máxima) a esa hora. Si solo pones la hora, es para hoy (o mañana si ya ha pasado). Si lo pospones, vuelve a avisarte en la nueva fecha. Necesitas tener activadas las notificaciones (menú → 🔔 Notificaciones). Desde el Atajo del iPhone también vale: «recuérdamelo el viernes a las 18:00».',
   },
   {
+    id: 'con-superior', since: 34, target: '#mode-toggle [data-mode="teams"], #user-btn',
+    title: 'No disponible: va con el equipo superior',
+    body: 'En la ficha del jugador, al marcar <b>No disponible</b> aparece <b>Va con: ⬆️ …</b> para indicar que juega con el equipo superior. Solo sale para los jugadores que cumplen las reglas de convocables (p. ej. cadetes con 15 cumplidos, Senior B sub-23). En la plantilla se ve «⬆️ Con el JUV» y el resumen lo cuenta aparte de las bajas.',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',

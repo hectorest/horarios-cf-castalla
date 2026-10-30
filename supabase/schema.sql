@@ -965,6 +965,8 @@ comment on column public.players.status_note is 'Detalle del estado (lesión o m
 comment on column public.players.status_until is 'Fecha prevista de vuelta (opcional).';
 comment on column public.players.status_since is 'Desde cuándo tiene ese estado.';
 comment on column public.players.notes is 'A tener en cuenta siempre (p. ej. «el domingo por la mañana no puede»).';
+alter table public.players add column if not exists status_team text check (char_length(status_team) <= 40);
+comment on column public.players.status_team is 'Con status = no_disponible: equipo superior con el que va (solo si cumple las reglas de convocables).';
 
 create table if not exists public.callup_rules (
   team        text not null,
