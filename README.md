@@ -130,7 +130,11 @@ Pestaña **Equipos** (en el móvil, en el menú del usuario). La coordinación v
   - **Disponible**.
   - **Molestias**: convocable, pero en duda.
   - **Lesión leve**, **Lesión**, **Lesión grave** y **No disponible** (con el motivo): no convocable.
-- **No disponible porque va con el equipo superior:** al elegir «No disponible», la ficha ofrece «Va con: ⬆️ Juvenil» (o el equipo que toque). Solo aparece para los jugadores que cumplen las reglas de convocables de su equipo, incluida su condición (sub-23, 15 cumplidos, 2º año). Si un equipo puede subir a varios, se elige cuál. En la plantilla se ve «⬆️ Con el JUV», y el resumen lo cuenta aparte de las bajas.
+- **Va con el equipo superior:** al elegir «No disponible», la ficha ofrece «Va con: ⬆️ Juvenil» (o el equipo que toque).
+  - Solo aparece para los jugadores que cumplen las reglas de convocables de su equipo, incluida su condición (sub-23, 15 cumplidos, 2º año). Si un equipo puede subir a varios, se elige cuál.
+  - Hay que elegir **el partido o el día** con el superior: la ficha propone sus próximos partidos.
+  - Un jugador puede jugar en dos equipos si juegan días distintos. Solo cuenta como **baja** de su equipo si su equipo también juega ese día; si no, sigue siendo convocable.
+  - En la plantilla se ve «⬆️ JUV sáb 31» (o «… · baja» si coincide). Pasado ese día, sale «revisar».
 - Cada estado admite detalle y **vuelta prevista**, con botones de 1 semana, 2 semanas y 1 mes. Si la fecha pasa, el estado se marca «revisar».
 - **A tener en cuenta** es una nota fija, como «el domingo por la mañana no puede». Se ve debajo del nombre.
 - La plantilla y las tarjetas de equipo cuentan los convocables, los que tienen molestias y las bajas. El estado se ve también en los convocables y al proponerlos, y «Copiar plantilla» lo incluye.

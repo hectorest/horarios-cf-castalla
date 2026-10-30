@@ -3344,13 +3344,22 @@
     lesion_grave:  { label: 'Lesión grave',  cls: 'ps-gra', out: true },
     no_disponible: { label: 'No disponible', cls: 'ps-no',  out: true },
   };
-  const isOut = p => !!PST[p.status]?.out;
+  // «Va con el superior» es para un día concreto (status_until = día del partido de arriba). Solo es baja de su
+  // equipo si su equipo también juega ese día; si juegan días distintos, puede jugar en los dos.
+  const teamMatchesFrom = (team, from = todayKey()) => (state.allMatches || []).filter(b => b.team === team && b.day >= from).sort((a, b) => a.day.localeCompare(b.day) || a.start_min - b.start_min);
+  const upperDay = p => p.status === 'no_disponible' && p.status_team && p.status_until && p.status_until >= todayKey() ? p.status_until : null;
+  const upperClash = p => { const d = upperDay(p); return !!d && teamMatchesFrom(p.team, d).some(b => b.day === d); };
+  const isOut = p => p.status === 'no_disponible' && p.status_team ? (!upperDay(p) ? false : upperClash(p)) : !!PST[p.status]?.out;
   /** Equipos superiores con los que puede ir el jugador (reglas de convocables y su condición) */
   const upTargets = (p, cond = p.sub23) => (state.callupRules || []).filter(r => r.from === p.team && (!r.sub23 || cond)).map(r => r.team);
   const withUpper = p => p.status === 'no_disponible' && p.status_team ? p.status_team : null;
   const psBadge = p => {
     const up = withUpper(p);
-    if (up) return `<span class="ps ps-up" title="${esc(`No disponible: va con el ${teamOf(up).name}`)}${p.status_until ? ' · hasta ' + shortDate(p.status_until) : ''}">⬆️ Con el ${esc(teamOf(up).short)}${p.status_until ? ` · hasta ${shortDate(p.status_until)}` : ''}</span>`;
+    if (up) {
+      const d = upperDay(p), clash = upperClash(p);
+      if (!d) return `<span class="ps ps-no" title="El día con el ${esc(teamOf(up).name)} ya pasó: actualiza su estado">⬆️ ${esc(teamOf(up).short)} · revisar</span>`;
+      return `<span class="ps ${clash ? 'ps-les' : 'ps-up'}" title="${esc(clash ? `Juega con el ${teamOf(up).name} el mismo día que su equipo: baja ese día` : `Juega con el ${teamOf(up).name} ese día; su equipo juega otro día, así que puede jugar en los dos`)}">⬆️ ${esc(teamOf(up).short)} ${shortDate(d)}${clash ? ' · baja' : ''}</span>`;
+    }
     const st = PST[p.status]; if (!st) return '';
     const late = p.status_until && p.status_until < todayKey();
     const tip = [st.label, p.status_note, p.status_since ? 'desde ' + shortDate(p.status_since) : '', p.status_until ? 'vuelta prevista ' + shortDate(p.status_until) : ''].filter(Boolean).join(' · ');
@@ -3363,8 +3372,8 @@
     return bits.length ? `<span class="tm-sub">${bits.join('')}</span>` : '';
   };
   const squadSummary = sq => {
-    const out = sq.filter(isOut).length, mol = sq.filter(p => p.status === 'molestias').length, up = sq.filter(withUpper).length;
-    return [`${sq.length - out} convocable${sq.length - out === 1 ? '' : 's'}`, mol ? `${mol} con molestias` : '', out - up ? `${plural(out - up, 'baja', 'bajas')}` : '', up ? `${up} con el superior` : ''].filter(Boolean).join(' · ');
+    const out = sq.filter(isOut).length, mol = sq.filter(p => p.status === 'molestias').length, up = sq.filter(p => upperDay(p)).length;
+    return [`${sq.length - out} convocable${sq.length - out === 1 ? '' : 's'}`, mol ? `${mol} con molestias` : '', out ? `${plural(out, 'baja', 'bajas')}` : '', up ? `${up} también con el superior` : ''].filter(Boolean).join(' · ');
   };
   const canEditPlayer = p => isCoord() || isMine(p.team);
   const CU_ST = { pendiente: '⏳ Pendiente de aprobar', aprobado: '', rechazado: '✗ Rechazado' };
@@ -3372,8 +3381,8 @@
 
   /** Jugadores, convocables y reglas de una vez (Equipos e Inicio) */
   async function fetchSquads() {
-    const [pl, cu, ru] = await Promise.all([store.players.list(), store.callups.list(), store.callupRules.list()]);
-    state.players = pl; state.callups = cu; state.callupRules = ru;
+    const [pl, cu, ru, ms] = await Promise.all([store.players.list(), store.callups.list(), store.callupRules.list(), store.listAllMatches().catch(() => state.allMatches || [])]);
+    state.players = pl; state.callups = cu; state.callupRules = ru; state.allMatches = ms;
   }
 
   async function loadTeams(quiet) {
@@ -3621,6 +3630,20 @@
       ? `<span>Va con:</span>${targets.map(t => `<button type="button" data-up="${t}" class="${pdUp === t ? 'on' : ''}" aria-pressed="${pdUp === t}" ${canEditPlayer(p) ? '' : 'disabled'}>⬆️ ${esc(teamOf(t).name)}</button>`).join('')}`
       : `<span class="pd-up-no">Para marcar que va con el superior tiene que cumplir «${esc(upLabel(p.team))}».</span>`;
     $('#pd-st-note-f').hidden = !!pdUp;
+    // Día con el superior: sus próximos partidos (y si coincide con un partido del propio equipo)
+    const days = $('#pd-up-days');
+    days.hidden = box.hidden || !pdUp;
+    $('#pd-until-l').textContent = pdUp ? 'Día con el superior' : 'Vuelta prevista';
+    const opt = $('#pd-until-l').parentElement.querySelector('small'); if (opt) opt.hidden = !!pdUp;
+    $('#pd-until-pre').hidden = !!pdUp;
+    if (pdUp) {
+      const own = new Set(teamMatchesFrom(p.team).map(b => b.day));
+      const ms = teamMatchesFrom(pdUp).slice(0, 4), v = $('#pd-until').value;
+      days.innerHTML = ms.length
+        ? `<span>Partido:</span>${ms.map(b => `<button type="button" data-up-day="${b.day}" class="${v === b.day ? 'on' : ''}">${shortDate(b.day)} ${fmt(b.start_min)} · ${esc(b.opponent || 'rival por definir')}${own.has(b.day) ? ' ⚠️' : ''}</button>`).join('')}
+           <p class="pd-up-hint">${v ? (own.has(v) ? `⚠️ El ${esc(teamOf(p.team).name)} también juega ese día: cuenta como baja.` : `✓ El ${esc(teamOf(p.team).name)} no juega ese día: sigue siendo convocable.`) : 'Elige el partido (o pon el día abajo). Solo es baja si su equipo juega ese mismo día.'}</p>`
+        : `<p class="pd-up-hint">El ${esc(teamOf(pdUp).name)} no tiene partidos cargados: pon el día abajo. Solo es baja si su equipo juega ese mismo día.</p>`;
+    }
   }
   function markUntilPresets() {
     const v = $('#pd-until').value;
@@ -3638,15 +3661,17 @@
       number: d.n, name, sub23: upFlag(p.team) ? $('#pd-s23').checked : !!p.sub23,
       status: st, status_note: st ? (st === 'no_disponible' && pdUp ? `Con el ${teamOf(pdUp).name}` : ($('#pd-st-note').value.trim() || null)) : null,
       status_team: st === 'no_disponible' && pdUp ? pdUp : null,
+
       status_until: st ? ($('#pd-until').value || null) : null,
       status_since: st ? (st === p.status && p.status_since ? p.status_since : todayKey()) : null,
       notes: $('#pd-notes').value.trim() || null,
     };
+    if (row.status_team && !row.status_until) { toast('Elige el partido o el día con el superior', true); return; }
     try {
       await store.players.update(p.id, row);
       Object.assign(p, row);
       $('#player-dialog').close();
-      toast(row.status_team ? `${name}: va con el ${teamOf(row.status_team).name}` : st ? `${name}: ${PST[st].label.toLowerCase()}` : 'Jugador guardado');
+      toast(row.status_team ? `${name}: con el ${teamOf(row.status_team).name} el ${shortDate(row.status_until)}${upperClash(p) ? ' (baja ese día)' : ' (sigue convocable)'}` : row.status_team ? `${name}: va con el ${teamOf(row.status_team).name}` : st ? `${name}: ${PST[st].label.toLowerCase()}` : 'Jugador guardado');
       renderTeams();
     } catch (e) { toast('No se pudo guardar: ' + playerErr(e), true); }
   }
@@ -3656,6 +3681,8 @@
     $('#pd-until').addEventListener('change', markUntilPresets);
     $('#pd-up').addEventListener('click', e => { const b = e.target.closest('[data-up]'); if (!b || b.disabled) return; pdUp = pdUp === b.dataset.up ? null : b.dataset.up; renderPdUp(); });
     $('#pd-s23').addEventListener('change', renderPdUp);
+    $('#pd-up-days').addEventListener('click', e => { const b = e.target.closest('[data-up-day]'); if (!b) return; $('#pd-until').value = b.dataset.upDay; markUntilPresets(); renderPdUp(); });
+    $('#pd-until').addEventListener('change', renderPdUp);
     $('#player-form').addEventListener('submit', e => { e.preventDefault(); savePlayer(); });
     $('#pd-delete').onclick = async () => {
       const p = pdPlayer; if (!p) return;
@@ -3734,7 +3761,7 @@
       }
       if (t.closest('[data-tm-copy]')) {
         const ok = callupsOf(team).filter(c => c.status === 'aprobado').map(c => playerById(c.player_id)).filter(Boolean).sort(byDorsal);
-        const text = `*${TEAM[team].name.toUpperCase()}*\n` + squadOf(team).map(p => `${p.number ?? '–'}. ${p.name}${withUpper(p) ? ` (con el ${teamOf(withUpper(p)).name})` : PST[p.status] ? ` (${PST[p.status].label.toLowerCase()})` : ''}`).join('\n')
+        const text = `*${TEAM[team].name.toUpperCase()}*\n` + squadOf(team).map(p => `${p.number ?? '–'}. ${p.name}${upperDay(p) ? ` (con el ${teamOf(withUpper(p)).name} el ${shortDate(upperDay(p))}${upperClash(p) ? '' : ', disponible'})` : withUpper(p) ? '' : PST[p.status] ? ` (${PST[p.status].label.toLowerCase()})` : ''}`).join('\n')
           + (ok.length ? `\n\n_Convocables_\n` + ok.map(p => `${p.number ?? '–'}. ${p.name} (${teamOf(p.team).name})`).join('\n') : '');
         try { await navigator.clipboard.writeText(text); toast('Plantilla copiada'); } catch { toast('No se ha podido copiar', true); }
         return;
@@ -4356,7 +4383,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261030124744';
+  const APP_VERSION = '20261030125316';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

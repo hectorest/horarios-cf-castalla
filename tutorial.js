@@ -301,6 +301,11 @@ window.TUTORIAL_STEPS = [
     body: 'En la ficha del jugador, al marcar <b>No disponible</b> aparece <b>Va con: ⬆️ …</b> para indicar que juega con el equipo superior. Solo sale para los jugadores que cumplen las reglas de convocables (p. ej. cadetes con 15 cumplidos, Senior B sub-23). En la plantilla se ve «⬆️ Con el JUV» y el resumen lo cuenta aparte de las bajas.',
   },
   {
+    id: 'con-superior-dia', since: 35, target: '#mode-toggle [data-mode="teams"], #user-btn',
+    title: 'Jugar en dos equipos',
+    body: 'Un jugador puede jugar con su equipo y con el superior si juegan días distintos. Al marcar <b>Va con ⬆️ …</b> elige el <b>partido o el día</b> con el superior: solo cuenta como baja de su equipo si su equipo juega ese mismo día (lo verás como «⬆️ JUV sáb 31 · baja»); si no, sigue siendo convocable.',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',

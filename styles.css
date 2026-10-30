@@ -1249,3 +1249,6 @@ button.tm-pname:hover .tm-pn { text-decoration: underline; text-underline-offset
 .ps-up { color: #1e40af; background: #dbeafe; border-color: #bfdbfe; }
 .pd-up { margin: 0 0 10px; }
 .pd-up-no { font-size: 12.5px; color: var(--muted); }
+.pd-up-days { margin: -4px 0 10px; flex-wrap: wrap; }
+.pd-up-days button { font-size: 12.5px; }
+.pd-up-hint { flex-basis: 100%; margin: 4px 0 0; font-size: 12.5px; color: var(--muted); }
