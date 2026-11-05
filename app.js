@@ -3395,7 +3395,7 @@
   const squadSummary = sq => {
     const out = sq.filter(isOut).length, mol = sq.filter(p => p.status === 'molestias').length, up = sq.filter(p => upperDay(p)).length;
     const a = availSplit(sq), anyGk = sq.some(p => p.goalkeeper);
-    return [`${a.all} convocable${a.all === 1 ? '' : 's'}${anyGk ? ` (${plural(a.field, 'jugador', 'jugadores')} y ${plural(a.gk, 'portero', 'porteros')})` : ' (ningún portero marcado)'}`, mol ? `${mol} con molestias` : '', out ? `${plural(out, 'baja', 'bajas')}` : '', up ? `${up} también con el superior` : ''].filter(Boolean).join(' · ');
+    return [`${a.all} convocable${a.all === 1 ? '' : 's'}${anyGk ? ` (👟 ${plural(a.field, 'jugador', 'jugadores')} · 🧤 ${plural(a.gk, 'portero', 'porteros')})` : ' (ningún portero marcado)'}`, mol ? `${mol} con molestias` : '', out ? `${plural(out, 'baja', 'bajas')}` : '', up ? `${up} también con el superior` : ''].filter(Boolean).join(' · ');
   };
   const canEditPlayer = p => isCoord() || isMine(p.team);
   const CU_ST = { pendiente: '⏳ Pendiente de aprobar', aprobado: '', rechazado: '✗ Rechazado' };
@@ -3465,7 +3465,7 @@
       return `<button type="button" class="tm-card" data-team-open="${t.id}" style="--team:${t.color}">
         <span class="tm-card-name">${esc(t.name)}</span>
         <span class="tm-card-n ${n ? '' : 'zero'}"><b>${loading ? '…' : n}</b> ${n === 1 ? 'jugador' : 'jugadores'}${ok ? ` <span class="tm-card-cu">+${ok} conv.</span>` : ''}</span>
-        ${(() => { const sq = squadOf(t.id); if (!sq.length) return ''; const a = availSplit(sq); return `<span class="tm-card-av">Convocables: <b>${a.field}</b> jug. · <b>${a.gk}</b> 🧤${a.gk ? '' : ' ⚠️'}</span>`; })()}
+        ${(() => { const sq = squadOf(t.id); if (!sq.length) return ''; const a = availSplit(sq); return `<span class="tm-card-av" title="${plural(a.all, 'convocable', 'convocables')}: ${plural(a.field, 'jugador', 'jugadores')} y ${plural(a.gk, 'portero', 'porteros')}">Convocables: <b>${a.all}</b> <span class="nowrap">(👟 <b>${a.field}</b> · 🧤 <b>${a.gk}</b>${a.gk ? '' : ' ⚠️'})</span></span>`; })()}
         ${(() => { const sq = squadOf(t.id), o = sq.filter(isOut).length, m = sq.filter(p => p.status === 'molestias').length; return o || m ? `<span class="tm-card-st">${o ? `<span class="ps ps-les">${plural(o, 'baja', 'bajas')}</span>` : ''}${m ? `<span class="ps ps-mol">${m} con molestias</span>` : ''}</span>` : ''; })()}
         ${pe ? `<span class="tm-card-pe">⏳ ${plural(pe, 'convocable por aprobar', 'convocables por aprobar')}</span>` : ''}
         ${co ? `<span class="tm-card-co">${co.length ? '👤 ' + esc(co.join(', ')) : '<i>Sin entrenador</i>'}</span>` : ''}
@@ -4440,7 +4440,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261105074939';
+  const APP_VERSION = '20261105075517';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

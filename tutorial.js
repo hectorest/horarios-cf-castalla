@@ -313,7 +313,7 @@ window.TUTORIAL_STEPS = [
   {
     id: 'porteros', since: 37, target: '#mode-toggle [data-mode="teams"], #user-btn',
     title: 'Porteros',
-    body: 'Marca a los porteros con <b>🧤 Portero</b> (al añadirlos, en su ficha o pegando la lista con «(P)» al final del nombre). La plantilla cuenta los convocables por separado: «9 convocables (8 jugadores y 1 portero)», y la tarjeta de cada equipo avisa ⚠️ si no queda ningún portero disponible.',
+    body: 'Marca a los porteros con <b>🧤 Portero</b> (al añadirlos, en su ficha o pegando la lista con «(P)» al final del nombre). La plantilla cuenta los convocables por separado: «9 convocables (👟 8 jugadores · 🧤 1 portero)», y la tarjeta de cada equipo avisa ⚠️ si no queda ningún portero disponible.',
   },
   {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',

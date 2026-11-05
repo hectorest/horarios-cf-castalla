@@ -126,7 +126,7 @@ Pestaña **Equipos** (en el móvil, en el menú del usuario). La coordinación v
 ### Porteros
 
 - Cada jugador puede marcarse como **🧤 Portero**: al añadirlo, en su ficha o pegando la lista con «(P)» al final del nombre («1 Hugo Sanchis (P)»).
-- Los convocables se cuentan por separado, por ejemplo «9 convocables (8 jugadores y 1 portero)». La tarjeta de cada equipo muestra «Convocables: 8 jug. · 1 🧤» y avisa con ⚠️ si no queda ningún portero disponible.
+- Los convocables se cuentan por separado, por ejemplo «9 convocables (👟 8 jugadores · 🧤 1 portero)». La tarjeta de cada equipo muestra «Convocables: 9 (👟 8 · 🧤 1)» y avisa con ⚠️ si no queda ningún portero disponible.
 
 ### Estado de los jugadores
 
