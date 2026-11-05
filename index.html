@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261030125316">
+  <link rel="stylesheet" href="styles.css?v=20261105074743">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -382,14 +382,23 @@
             <button type="button" role="radio" data-st="lesion" class="ps-les">Lesión</button>
             <button type="button" role="radio" data-st="lesion_grave" class="ps-gra">Lesión grave</button>
             <button type="button" role="radio" data-st="no_disponible" class="ps-no">No disponible</button>
+            <button type="button" role="radio" data-st="sancionado" class="ps-san">Sancionado</button>
           </div>
-          <p class="pd-hint">Con molestias sigue siendo convocable (en duda). Con lesión o no disponible, no.</p>
+          <p class="pd-hint">Con molestias sigue siendo convocable (en duda). Con lesión, sanción o no disponible, no.</p>
         </div>
         <div id="pd-st-more" class="pd-st-more" hidden>
+          <div class="pd-san" id="pd-san" hidden>
+            <div class="rq-presets" id="pd-san-kind"><span>Motivo:</span><button type="button" data-san="amarillas">🟨🟨 Doble amarilla · 1 partido</button><button type="button" data-san="roja">🟥 Roja directa · 1 partido</button><button type="button" data-san="grave">⛔ Sanción grave · varios</button></div>
+            <div class="pd-san-row">
+              <div class="field" id="pd-san-n-f" hidden><label for="pd-san-n">Partidos de sanción</label><input type="number" id="pd-san-n" min="1" max="99" inputmode="numeric"></div>
+              <div class="field"><label for="pd-san-since">Fecha de la sanción <small>(el partido en que le sancionaron)</small></label><input type="date" id="pd-san-since"></div>
+            </div>
+            <p class="pd-up-hint" id="pd-san-info"></p>
+          </div>
           <div class="rq-presets pd-up" id="pd-up" hidden></div>
           <div class="rq-presets pd-up-days" id="pd-up-days" hidden></div>
           <div class="field" id="pd-st-note-f"><label for="pd-st-note" id="pd-st-note-l">Detalle</label><input id="pd-st-note" maxlength="200"></div>
-          <div class="field"><label for="pd-until"><span id="pd-until-l">Vuelta prevista</span> <small>(opcional)</small></label><input type="date" id="pd-until"></div>
+          <div class="field" id="pd-until-f"><label for="pd-until"><span id="pd-until-l">Vuelta prevista</span> <small>(opcional)</small></label><input type="date" id="pd-until"></div>
           <div class="rq-presets" id="pd-until-pre"><span>Vuelve:</span><button type="button" data-until="7">en 1 semana</button><button type="button" data-until="14">en 2 semanas</button><button type="button" data-until="30">en 1 mes</button><button type="button" data-until="">sin fecha</button></div>
         </div>
         <div class="field"><label for="pd-notes">A tener en cuenta <small>(siempre)</small></label><textarea id="pd-notes" rows="2" maxlength="500" placeholder="Ej.: el domingo por la mañana no puede"></textarea></div>
@@ -558,8 +567,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261030125316"></script>
-  <script src="tutorial.js?v=20261030125316"></script>
-  <script src="app.js?v=20261030125316"></script>
+  <script src="config.js?v=20261105074743"></script>
+  <script src="tutorial.js?v=20261105074743"></script>
+  <script src="app.js?v=20261105074743"></script>
 </body>
 </html>

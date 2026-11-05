@@ -1252,3 +1252,15 @@ button.tm-pname:hover .tm-pn { text-decoration: underline; text-underline-offset
 .pd-up-days { margin: -4px 0 10px; flex-wrap: wrap; }
 .pd-up-days button { font-size: 12.5px; }
 .pd-up-hint { flex-basis: 100%; margin: 4px 0 0; font-size: 12.5px; color: var(--muted); }
+
+/* ---------- Sancionado ---------- */
+.ps-san { color: #fff; background: #b91c1c; border-color: #b91c1c; }
+.pd-st .ps-san { --dot: #b91c1c; }
+.pd-st button.ps-san.on::before { background: #fff; }
+.pd-san { margin: 0 0 10px; }
+.pd-san .rq-presets { margin-bottom: 8px; }
+.pd-san-row { display: grid; grid-template-columns: minmax(0, 140px) minmax(0, 1fr); gap: 10px; }
+.pd-san-row .field { min-width: 0; margin-bottom: 4px; }
+.pd-san-row .field[hidden] { display: none; }
+.pd-san-row:has(#pd-san-n-f[hidden]) { grid-template-columns: minmax(0, 1fr); }
+#pd-san-info b { color: var(--ink); }

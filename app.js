@@ -765,8 +765,8 @@
         },
       },
       players: {
-        async list() { return chk(await sb.from('players').select('id, team, number, name, sub23, status, status_note, status_until, status_since, status_team, notes, created_at, updated_at').order('team').order('number', { nullsFirst: false }).order('name')); },
-        async insertMany(rows) { return chk(await sb.from('players').insert(rows).select('id, team, number, name, sub23, status, status_note, status_until, status_since, status_team, notes, created_at, updated_at')); },
+        async list() { return chk(await sb.from('players').select('id, team, number, name, sub23, status, status_note, status_until, status_since, status_team, sanction_matches, notes, created_at, updated_at').order('team').order('number', { nullsFirst: false }).order('name')); },
+        async insertMany(rows) { return chk(await sb.from('players').insert(rows).select('id, team, number, name, sub23, status, status_note, status_until, status_since, status_team, sanction_matches, notes, created_at, updated_at')); },
         async update(id, r) {
           const rows = chk(await sb.from('players').update(r).eq('id', id).select('id'));
           if (!rows.length) throw new Error('No tienes permiso para esta plantilla.');
@@ -3343,13 +3343,23 @@
     lesion:        { label: 'Lesión',        cls: 'ps-les', out: true },
     lesion_grave:  { label: 'Lesión grave',  cls: 'ps-gra', out: true },
     no_disponible: { label: 'No disponible', cls: 'ps-no',  out: true },
+    sancionado:    { label: 'Sancionado',    cls: 'ps-san', out: true },
+  };
+  // Sanción: partidos que le quedan = partidos de sanción − partidos de su equipo jugados después de la sanción
+  const SAN = { amarillas: { label: 'Doble amarilla', n: 1 }, roja: { label: 'Roja directa', n: 1 }, grave: { label: 'Sanción grave', n: null } };
+  const sanKindOf = p => Object.keys(SAN).find(k => String(p.status_note || '').startsWith(SAN[k].label)) || ((p.sanction_matches || 1) > 1 ? 'grave' : 'roja');
+  const sanctionLeft = p => {
+    if (p.status !== 'sancionado') return 0;
+    const since = p.status_since || '', today = todayKey();
+    const played = (state.allMatches || []).filter(b => b.team === p.team && b.day > since && b.day < today).length;
+    return Math.max(0, (p.sanction_matches || 1) - played);
   };
   // «Va con el superior» es para un día concreto (status_until = día del partido de arriba). Solo es baja de su
   // equipo si su equipo también juega ese día; si juegan días distintos, puede jugar en los dos.
   const teamMatchesFrom = (team, from = todayKey()) => (state.allMatches || []).filter(b => b.team === team && b.day >= from).sort((a, b) => a.day.localeCompare(b.day) || a.start_min - b.start_min);
   const upperDay = p => p.status === 'no_disponible' && p.status_team && p.status_until && p.status_until >= todayKey() ? p.status_until : null;
   const upperClash = p => { const d = upperDay(p); return !!d && teamMatchesFrom(p.team, d).some(b => b.day === d); };
-  const isOut = p => p.status === 'no_disponible' && p.status_team ? (!upperDay(p) ? false : upperClash(p)) : !!PST[p.status]?.out;
+  const isOut = p => p.status === 'no_disponible' && p.status_team ? (!upperDay(p) ? false : upperClash(p)) : p.status === 'sancionado' ? sanctionLeft(p) > 0 : !!PST[p.status]?.out;
   /** Equipos superiores con los que puede ir el jugador (reglas de convocables y su condición) */
   const upTargets = (p, cond = p.sub23) => (state.callupRules || []).filter(r => r.from === p.team && (!r.sub23 || cond)).map(r => r.team);
   const withUpper = p => p.status === 'no_disponible' && p.status_team ? p.status_team : null;
@@ -3360,6 +3370,12 @@
       if (!d) return `<span class="ps ps-no" title="El día con el ${esc(teamOf(up).name)} ya pasó: actualiza su estado">⬆️ ${esc(teamOf(up).short)} · revisar</span>`;
       return `<span class="ps ${clash ? 'ps-les' : 'ps-up'}" title="${esc(clash ? `Juega con el ${teamOf(up).name} el mismo día que su equipo: baja ese día` : `Juega con el ${teamOf(up).name} ese día; su equipo juega otro día, así que puede jugar en los dos`)}">⬆️ ${esc(teamOf(up).short)} ${shortDate(d)}${clash ? ' · baja' : ''}</span>`;
     }
+    if (p.status === 'sancionado') {
+      const left = sanctionLeft(p), kind = SAN[sanKindOf(p)];
+      return left
+        ? `<span class="ps ps-san" title="${esc(`${p.status_note || kind.label} · ${plural(p.sanction_matches || 1, 'partido', 'partidos')} de sanción${p.status_since ? ' desde ' + shortDate(p.status_since) : ''}`)}">🟥 Sancionado · ${left === 1 ? 'le queda 1 partido' : `le quedan ${left} partidos`}</span>`
+        : `<span class="ps ps-no" title="Ya ha cumplido la sanción: quítale el estado">Sanción cumplida · revisar</span>`;
+    }
     const st = PST[p.status]; if (!st) return '';
     const late = p.status_until && p.status_until < todayKey();
     const tip = [st.label, p.status_note, p.status_since ? 'desde ' + shortDate(p.status_since) : '', p.status_until ? 'vuelta prevista ' + shortDate(p.status_until) : ''].filter(Boolean).join(' · ');
@@ -3367,7 +3383,7 @@
   };
   const playerSub = p => {
     const bits = [];
-    if (p.status && p.status_note && !withUpper(p)) bits.push(`<span>${p.status === 'no_disponible' ? '🚫' : '🩹'} ${esc(p.status_note)}</span>`);
+    if (p.status && p.status_note && !withUpper(p)) bits.push(`<span>${p.status === 'no_disponible' ? '🚫' : p.status === 'sancionado' ? '🟥' : '🩹'} ${esc(p.status_note)}</span>`);
     if (p.notes) bits.push(`<span>📝 ${esc(p.notes)}</span>`);
     return bits.length ? `<span class="tm-sub">${bits.join('')}</span>` : '';
   };
@@ -3598,6 +3614,10 @@
     $('#pd-num').value = p.number ?? ''; $('#pd-name').value = p.name;
     $('#pd-s23-row').hidden = !upFlag(p.team); $('#pd-s23').checked = !!p.sub23; $('#pd-s23-l').textContent = upLabel(p.team);
     $('#pd-st-note').value = withUpper(p) ? '' : (p.status_note || ''); $('#pd-until').value = p.status_until || '';
+    pdSan = p.status === 'sancionado' ? sanKindOf(p) : null;
+    if (pdSan) { const base = SAN[pdSan].label; $('#pd-st-note').value = String(p.status_note || '').replace(base, '').replace(/^\s*·\s*/, ''); }
+    $('#pd-san-n').value = p.status === 'sancionado' ? (p.sanction_matches || 1) : 2;
+    $('#pd-san-since').value = p.status === 'sancionado' && p.status_since ? p.status_since : todayKey();
     pdUp = withUpper(p);
     $('#pd-notes').value = p.notes || '';
     setPdStatus(p.status || '');
@@ -3616,6 +3636,28 @@
     $('#player-dialog').dataset.st = st;
     markUntilPresets();
     renderPdUp();
+    renderPdSan();
+  }
+  /** Sancionado: doble amarilla o roja directa (1 partido) o sanción grave (varios) */
+  let pdSan = null;
+  function renderPdSan() {
+    const st = $('#player-dialog').dataset.st, on = st === 'sancionado';
+    $('#pd-san').hidden = !on;
+    $('#pd-until-f').hidden = on; $('#pd-until-pre').hidden = on || !!pdUp;
+    if (!on) return;
+    if (!pdSan) pdSan = 'amarillas';
+    $$('#pd-san-kind [data-san]').forEach(b => { const x = b.dataset.san === pdSan; b.classList.toggle('on', x); b.setAttribute('aria-pressed', String(x)); });
+    $('#pd-san-n-f').hidden = pdSan !== 'grave';
+    $('#pd-st-note-l').textContent = 'Detalle';
+    $('#pd-st-note').placeholder = 'Ej.: protestar al árbitro, jornada 8…';
+    const p = pdPlayer;
+    if (p) {
+      const n = pdSan === 'grave' ? Math.max(1, +$('#pd-san-n').value || 1) : 1, since = $('#pd-san-since').value || todayKey();
+      const played = (state.allMatches || []).filter(b => b.team === p.team && b.day > since && b.day < todayKey()).length;
+      const next = teamMatchesFrom(p.team, keyOf(addDays(parseKey(since), 1))).filter(b => b.day >= todayKey()).slice(0, Math.max(0, n - played));
+      $('#pd-san-info').innerHTML = n - played <= 0 ? '✓ Ya la ha cumplido con los partidos jugados desde esa fecha.'
+        : `Se descuenta sola con los partidos del ${esc(teamOf(p.team).name)}.${next.length ? ` No puede jugar: ${next.map(b => `<b>${shortDate(b.day)}</b> vs ${esc(b.opponent || 'rival por definir')}`).join(', ')}.` : ''}`;
+    }
   }
   /** «Va con el superior»: solo si el jugador cumple las reglas de convocables */
   let pdUp = null;
@@ -3629,13 +3671,13 @@
     box.innerHTML = targets.length
       ? `<span>Va con:</span>${targets.map(t => `<button type="button" data-up="${t}" class="${pdUp === t ? 'on' : ''}" aria-pressed="${pdUp === t}" ${canEditPlayer(p) ? '' : 'disabled'}>⬆️ ${esc(teamOf(t).name)}</button>`).join('')}`
       : `<span class="pd-up-no">Para marcar que va con el superior tiene que cumplir «${esc(upLabel(p.team))}».</span>`;
-    $('#pd-st-note-f').hidden = !!pdUp;
+    $('#pd-st-note-f').hidden = !!pdUp && st === 'no_disponible';
     // Día con el superior: sus próximos partidos (y si coincide con un partido del propio equipo)
     const days = $('#pd-up-days');
     days.hidden = box.hidden || !pdUp;
     $('#pd-until-l').textContent = pdUp ? 'Día con el superior' : 'Vuelta prevista';
     const opt = $('#pd-until-l').parentElement.querySelector('small'); if (opt) opt.hidden = !!pdUp;
-    $('#pd-until-pre').hidden = !!pdUp;
+    $('#pd-until-pre').hidden = !!pdUp || st === 'sancionado';
     if (pdUp) {
       const own = new Set(teamMatchesFrom(p.team).map(b => b.day));
       const ms = teamMatchesFrom(pdUp).slice(0, 4), v = $('#pd-until').value;
@@ -3657,13 +3699,16 @@
     const other = d.n != null && squadOf(p.team).find(x => x.number === d.n && x.id !== p.id);
     if (other) { toast(`El ${d.n} ya lo lleva ${other.name}`, true); return; }
     const st = $('#player-dialog').dataset.st || null;
+    const san = st === 'sancionado' ? pdSan || 'amarillas' : null;
+    const sanN = san ? (san === 'grave' ? Math.min(99, Math.max(1, +$('#pd-san-n').value || 1)) : 1) : null;
     const row = {
       number: d.n, name, sub23: upFlag(p.team) ? $('#pd-s23').checked : !!p.sub23,
-      status: st, status_note: st ? (st === 'no_disponible' && pdUp ? `Con el ${teamOf(pdUp).name}` : ($('#pd-st-note').value.trim() || null)) : null,
+      status: st, status_note: st ? (st === 'no_disponible' && pdUp ? `Con el ${teamOf(pdUp).name}` : san ? [SAN[san].label, $('#pd-st-note').value.trim()].filter(Boolean).join(' · ').slice(0, 200) : ($('#pd-st-note').value.trim() || null)) : null,
+      sanction_matches: sanN,
       status_team: st === 'no_disponible' && pdUp ? pdUp : null,
 
-      status_until: st ? ($('#pd-until').value || null) : null,
-      status_since: st ? (st === p.status && p.status_since ? p.status_since : todayKey()) : null,
+      status_until: st && !san ? ($('#pd-until').value || null) : null,
+      status_since: san ? ($('#pd-san-since').value || todayKey()) : st ? (st === p.status && p.status_since ? p.status_since : todayKey()) : null,
       notes: $('#pd-notes').value.trim() || null,
     };
     if (row.status_team && !row.status_until) { toast('Elige el partido o el día con el superior', true); return; }
@@ -3671,7 +3716,7 @@
       await store.players.update(p.id, row);
       Object.assign(p, row);
       $('#player-dialog').close();
-      toast(row.status_team ? `${name}: con el ${teamOf(row.status_team).name} el ${shortDate(row.status_until)}${upperClash(p) ? ' (baja ese día)' : ' (sigue convocable)'}` : row.status_team ? `${name}: va con el ${teamOf(row.status_team).name}` : st ? `${name}: ${PST[st].label.toLowerCase()}` : 'Jugador guardado');
+      toast(san ? `${name}: sancionado ${plural(sanN, 'partido', 'partidos')}` : row.status_team ? `${name}: con el ${teamOf(row.status_team).name} el ${shortDate(row.status_until)}${upperClash(p) ? ' (baja ese día)' : ' (sigue convocable)'}` : row.status_team ? `${name}: va con el ${teamOf(row.status_team).name}` : st ? `${name}: ${PST[st].label.toLowerCase()}` : 'Jugador guardado');
       renderTeams();
     } catch (e) { toast('No se pudo guardar: ' + playerErr(e), true); }
   }
@@ -3681,6 +3726,9 @@
     $('#pd-until').addEventListener('change', markUntilPresets);
     $('#pd-up').addEventListener('click', e => { const b = e.target.closest('[data-up]'); if (!b || b.disabled) return; pdUp = pdUp === b.dataset.up ? null : b.dataset.up; renderPdUp(); });
     $('#pd-s23').addEventListener('change', renderPdUp);
+    $('#pd-san-kind').addEventListener('click', e => { const b = e.target.closest('[data-san]'); if (!b || b.disabled) return; pdSan = b.dataset.san; renderPdSan(); if (pdSan === 'grave' && !coarse()) $('#pd-san-n').focus(); });
+    $('#pd-san-n').addEventListener('input', renderPdSan);
+    $('#pd-san-since').addEventListener('change', renderPdSan);
     $('#pd-up-days').addEventListener('click', e => { const b = e.target.closest('[data-up-day]'); if (!b) return; $('#pd-until').value = b.dataset.upDay; markUntilPresets(); renderPdUp(); });
     $('#pd-until').addEventListener('change', renderPdUp);
     $('#player-form').addEventListener('submit', e => { e.preventDefault(); savePlayer(); });
@@ -4383,7 +4431,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261030125316';
+  const APP_VERSION = '20261105074743';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

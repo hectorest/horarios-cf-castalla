@@ -306,6 +306,11 @@ window.TUTORIAL_STEPS = [
     body: 'Un jugador puede jugar con su equipo y con el superior si juegan días distintos. Al marcar <b>Va con ⬆️ …</b> elige el <b>partido o el día</b> con el superior: solo cuenta como baja de su equipo si su equipo juega ese mismo día (lo verás como «⬆️ JUV sáb 31 · baja»); si no, sigue siendo convocable.',
   },
   {
+    id: 'sancionado', since: 36, target: '#mode-toggle [data-mode="teams"], #user-btn',
+    title: 'Jugadores sancionados',
+    body: 'En la ficha del jugador, estado <b>Sancionado</b>: elige <b>doble amarilla</b> o <b>roja directa</b> (1 partido) o <b>sanción grave</b> (indica cuántos partidos) y la fecha del partido en que le sancionaron. La sanción se descuenta sola con los partidos de su equipo: verás «🟥 Sancionado · le queda 1 partido» y, cuando la cumpla, «Sanción cumplida · revisar».',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',

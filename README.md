@@ -135,6 +135,11 @@ Pestaña **Equipos** (en el móvil, en el menú del usuario). La coordinación v
   - Hay que elegir **el partido o el día** con el superior: la ficha propone sus próximos partidos.
   - Un jugador puede jugar en dos equipos si juegan días distintos. Solo cuenta como **baja** de su equipo si su equipo también juega ese día; si no, sigue siendo convocable.
   - En la plantilla se ve «⬆️ JUV sáb 31» (o «… · baja» si coincide). Pasado ese día, sale «revisar».
+- **Sancionado:**
+  - Motivo: **doble amarilla** o **roja directa** (1 partido) o **sanción grave** (indicando el número de partidos).
+  - Se pone la fecha del partido en que le sancionaron. La sanción se **descuenta sola** con los partidos que juegue su equipo después de esa fecha, y la ficha indica qué partidos no puede jugar.
+  - En la plantilla se ve «🟥 Sancionado · le quedan N partidos» y cuenta como baja.
+  - Cuando la cumple, sale «Sanción cumplida · revisar» y deja de contar como baja.
 - Cada estado admite detalle y **vuelta prevista**, con botones de 1 semana, 2 semanas y 1 mes. Si la fecha pasa, el estado se marca «revisar».
 - **A tener en cuenta** es una nota fija, como «el domingo por la mañana no puede». Se ve debajo del nombre.
 - La plantilla y las tarjetas de equipo cuentan los convocables, los que tienen molestias y las bajas. El estado se ve también en los convocables y al proponerlos, y «Copiar plantilla» lo incluye.

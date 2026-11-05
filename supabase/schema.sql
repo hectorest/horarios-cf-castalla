@@ -960,13 +960,18 @@ alter table public.players add column if not exists status_note text check (char
 alter table public.players add column if not exists status_until date;
 alter table public.players add column if not exists status_since date;
 alter table public.players add column if not exists notes text check (char_length(notes) <= 500);
-comment on column public.players.status is 'Disponibilidad: null = disponible; molestias = convocable en duda; lesion_leve/lesion/lesion_grave/no_disponible = no convocable.';
+comment on column public.players.status is 'Disponibilidad: null = disponible; molestias = convocable en duda; lesion_leve/lesion/lesion_grave/no_disponible/sancionado = no convocable.';
 comment on column public.players.status_note is 'Detalle del estado (lesión o motivo de no estar disponible).';
 comment on column public.players.status_until is 'Fecha prevista de vuelta (opcional).';
 comment on column public.players.status_since is 'Desde cuándo tiene ese estado.';
 comment on column public.players.notes is 'A tener en cuenta siempre (p. ej. «el domingo por la mañana no puede»).';
 alter table public.players add column if not exists status_team text check (char_length(status_team) <= 40);
 comment on column public.players.status_team is 'Con status = no_disponible: equipo superior con el que va (solo si cumple las reglas de convocables).';
+-- Sancionado: doble amarilla o roja directa (1 partido) o sanción grave (varios); se descuenta con los partidos del equipo
+alter table public.players drop constraint if exists players_status_check;
+alter table public.players add constraint players_status_check check (status in ('molestias', 'lesion_leve', 'lesion', 'lesion_grave', 'no_disponible', 'sancionado'));
+alter table public.players add column if not exists sanction_matches smallint check (sanction_matches between 1 and 99);
+comment on column public.players.sanction_matches is 'Con status = sancionado: partidos de sanción, contados desde status_since (fecha de la sanción).';
 
 create table if not exists public.callup_rules (
   team        text not null,
