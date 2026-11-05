@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261105074743">
+  <link rel="stylesheet" href="styles.css?v=20261105074939">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -373,7 +373,8 @@
           <div class="field"><label for="pd-num">Dorsal</label><input id="pd-num" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="—"></div>
           <div class="field"><label for="pd-name">Nombre y apellidos</label><input id="pd-name" maxlength="80" required></div>
         </div>
-        <label class="pd-s23" id="pd-s23-row"><input type="checkbox" id="pd-s23"> <span id="pd-s23-l">Sub-23</span></label>
+        <div class="pd-flags"><label class="pd-s23"><input type="checkbox" id="pd-gk"> 🧤 Portero</label>
+        <label class="pd-s23" id="pd-s23-row"><input type="checkbox" id="pd-s23"> <span id="pd-s23-l">Sub-23</span></label></div>
         <div class="field"><span class="pd-lbl">Estado <small id="pd-since"></small></span>
           <div class="pd-st" id="pd-st" role="radiogroup" aria-label="Estado del jugador">
             <button type="button" role="radio" data-st="" class="ps-ok">Disponible</button>
@@ -567,8 +568,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261105074743"></script>
-  <script src="tutorial.js?v=20261105074743"></script>
-  <script src="app.js?v=20261105074743"></script>
+  <script src="config.js?v=20261105074939"></script>
+  <script src="tutorial.js?v=20261105074939"></script>
+  <script src="app.js?v=20261105074939"></script>
 </body>
 </html>

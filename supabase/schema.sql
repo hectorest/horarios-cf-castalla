@@ -972,6 +972,8 @@ alter table public.players drop constraint if exists players_status_check;
 alter table public.players add constraint players_status_check check (status in ('molestias', 'lesion_leve', 'lesion', 'lesion_grave', 'no_disponible', 'sancionado'));
 alter table public.players add column if not exists sanction_matches smallint check (sanction_matches between 1 and 99);
 comment on column public.players.sanction_matches is 'Con status = sancionado: partidos de sanción, contados desde status_since (fecha de la sanción).';
+alter table public.players add column if not exists goalkeeper boolean not null default false;
+comment on column public.players.goalkeeper is 'Es portero: los disponibles se cuentan por separado (jugadores y porteros).';
 
 create table if not exists public.callup_rules (
   team        text not null,

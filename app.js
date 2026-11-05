@@ -765,8 +765,8 @@
         },
       },
       players: {
-        async list() { return chk(await sb.from('players').select('id, team, number, name, sub23, status, status_note, status_until, status_since, status_team, sanction_matches, notes, created_at, updated_at').order('team').order('number', { nullsFirst: false }).order('name')); },
-        async insertMany(rows) { return chk(await sb.from('players').insert(rows).select('id, team, number, name, sub23, status, status_note, status_until, status_since, status_team, sanction_matches, notes, created_at, updated_at')); },
+        async list() { return chk(await sb.from('players').select('id, team, number, name, sub23, status, status_note, status_until, status_since, status_team, sanction_matches, goalkeeper, notes, created_at, updated_at').order('team').order('number', { nullsFirst: false }).order('name')); },
+        async insertMany(rows) { return chk(await sb.from('players').insert(rows).select('id, team, number, name, sub23, status, status_note, status_until, status_since, status_team, sanction_matches, goalkeeper, notes, created_at, updated_at')); },
         async update(id, r) {
           const rows = chk(await sb.from('players').update(r).eq('id', id).select('id'));
           if (!rows.length) throw new Error('No tienes permiso para esta plantilla.');
@@ -3326,7 +3326,10 @@
   const parsePlayerLine = l => {
     const m = /^\s*(?:(\d{1,2})\s*[.\-–:)\s]\s*)?(.+?)\s*$/.exec(l);
     if (!m || !m[2].trim()) return null;
-    return { number: m[1] != null ? +m[1] : null, name: m[2].replace(/\s+/g, ' ').slice(0, 80) };
+    let name = m[2].replace(/\s+/g, ' ');
+    const gk = /\s*(\((p|por|portero)\)|[-–·]\s*(por|portero)|🧤)\s*$/i.test(name);
+    if (gk) name = name.replace(/\s*(\((p|por|portero)\)|[-–·]\s*(por|portero)|🧤)\s*$/i, '');
+    return { number: m[1] != null ? +m[1] : null, name: name.slice(0, 80), goalkeeper: gk };
   };
   // Convocables: reglas (qué equipo puede tirar de cuál) y propuestas pendientes/aprobadas/rechazadas
   const rulesFor = team => (state.callupRules || []).filter(r => r.team === team).sort((a, b) => TEAMS.findIndex(t => t.id === a.from) - TEAMS.findIndex(t => t.id === b.from));
@@ -3387,9 +3390,12 @@
     if (p.notes) bits.push(`<span>📝 ${esc(p.notes)}</span>`);
     return bits.length ? `<span class="tm-sub">${bits.join('')}</span>` : '';
   };
+  // Convocables por separado: jugadores de campo y porteros
+  const availSplit = sq => { const av = sq.filter(p => !isOut(p)); const gk = av.filter(p => p.goalkeeper).length; return { all: av.length, gk, field: av.length - gk }; };
   const squadSummary = sq => {
     const out = sq.filter(isOut).length, mol = sq.filter(p => p.status === 'molestias').length, up = sq.filter(p => upperDay(p)).length;
-    return [`${sq.length - out} convocable${sq.length - out === 1 ? '' : 's'}`, mol ? `${mol} con molestias` : '', out ? `${plural(out, 'baja', 'bajas')}` : '', up ? `${up} también con el superior` : ''].filter(Boolean).join(' · ');
+    const a = availSplit(sq), anyGk = sq.some(p => p.goalkeeper);
+    return [`${a.all} convocable${a.all === 1 ? '' : 's'}${anyGk ? ` (${plural(a.field, 'jugador', 'jugadores')} y ${plural(a.gk, 'portero', 'porteros')})` : ' (ningún portero marcado)'}`, mol ? `${mol} con molestias` : '', out ? `${plural(out, 'baja', 'bajas')}` : '', up ? `${up} también con el superior` : ''].filter(Boolean).join(' · ');
   };
   const canEditPlayer = p => isCoord() || isMine(p.team);
   const CU_ST = { pendiente: '⏳ Pendiente de aprobar', aprobado: '', rechazado: '✗ Rechazado' };
@@ -3459,6 +3465,7 @@
       return `<button type="button" class="tm-card" data-team-open="${t.id}" style="--team:${t.color}">
         <span class="tm-card-name">${esc(t.name)}</span>
         <span class="tm-card-n ${n ? '' : 'zero'}"><b>${loading ? '…' : n}</b> ${n === 1 ? 'jugador' : 'jugadores'}${ok ? ` <span class="tm-card-cu">+${ok} conv.</span>` : ''}</span>
+        ${(() => { const sq = squadOf(t.id); if (!sq.length) return ''; const a = availSplit(sq); return `<span class="tm-card-av">Convocables: <b>${a.field}</b> jug. · <b>${a.gk}</b> 🧤${a.gk ? '' : ' ⚠️'}</span>`; })()}
         ${(() => { const sq = squadOf(t.id), o = sq.filter(isOut).length, m = sq.filter(p => p.status === 'molestias').length; return o || m ? `<span class="tm-card-st">${o ? `<span class="ps ps-les">${plural(o, 'baja', 'bajas')}</span>` : ''}${m ? `<span class="ps ps-mol">${m} con molestias</span>` : ''}</span>` : ''; })()}
         ${pe ? `<span class="tm-card-pe">⏳ ${plural(pe, 'convocable por aprobar', 'convocables por aprobar')}</span>` : ''}
         ${co ? `<span class="tm-card-co">${co.length ? '👤 ' + esc(co.join(', ')) : '<i>Sin entrenador</i>'}</span>` : ''}
@@ -3508,7 +3515,7 @@
     const s23 = !!upFlag(t.id), fl = upFlag(t.id);
     const ups = id => (state.callups || []).filter(c => c.player_id === id && c.status !== 'rechazado' && c.team !== t.id);
     const rows = sq.map(p => `<li class="tm-row ${isOut(p) ? 'is-out' : ''}" data-pl="${p.id}"><span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span>
-          <button type="button" class="tm-pname" data-pl-open title="Ver la ficha de ${esc(p.name)}"><span class="tm-pn">${esc(p.name)}</span>${psBadge(p)}${ups(p.id).map(c => `<span class="tm-up ${c.status}" title="${c.status === 'pendiente' ? 'Propuesto como convocable, pendiente de aprobar' : 'Convocable'} en ${esc(teamOf(c.team).name)}">↑ ${esc(teamOf(c.team).short)}${c.status === 'pendiente' ? ' ⏳' : ''}</span>`).join('')}${playerSub(p)}</button>
+          <button type="button" class="tm-pname" data-pl-open title="Ver la ficha de ${esc(p.name)}"><span class="tm-pn">${esc(p.name)}</span>${p.goalkeeper ? '<span class="tm-gk" title="Portero">🧤</span>' : ''}${psBadge(p)}${ups(p.id).map(c => `<span class="tm-up ${c.status}" title="${c.status === 'pendiente' ? 'Propuesto como convocable, pendiente de aprobar' : 'Convocable'} en ${esc(teamOf(c.team).name)}">↑ ${esc(teamOf(c.team).short)}${c.status === 'pendiente' ? ' ⏳' : ''}</span>`).join('')}${playerSub(p)}</button>
           ${s23 ? `<button type="button" class="tm-s23 ${p.sub23 ? 'on' : ''}" data-pl-s23 aria-pressed="${!!p.sub23}" title="${p.sub23 ? esc(fl.label) + ': sí' : 'Marcar: ' + esc(fl.label)}">${esc(fl.short)}</button>` : ''}
           <button type="button" class="icon-btn" data-pl-open title="Estado y datos" aria-label="Estado y datos de ${esc(p.name)}">✎</button></li>`).join('');
     return `<div class="tm-head" style="--team:${t.color}">
@@ -3521,7 +3528,8 @@
         <form class="tm-add ${s23 ? 'with-s23' : ''}" id="tm-add" autocomplete="off">
           <input id="tm-num" inputmode="numeric" pattern="[0-9]*" maxlength="2" placeholder="Dorsal" aria-label="Dorsal (opcional)">
           <input id="tm-name" maxlength="80" placeholder="Nombre y apellidos" aria-label="Nombre del jugador" required>
-          ${s23 ? `<label class="tm-add-s23"><input type="checkbox" id="tm-s23"> ${esc(fl.label)}</label>` : ''}
+          <div class="tm-add-flags">${s23 ? `<label class="tm-add-s23"><input type="checkbox" id="tm-s23"> ${esc(fl.label)}</label>` : ''}
+          <label class="tm-add-s23"><input type="checkbox" id="tm-gk"> 🧤 Portero</label></div>
           <button class="primary">Añadir</button>
         </form>
         <div class="tm-tools">
@@ -3529,7 +3537,7 @@
           ${sq.length ? `<button type="button" class="link" data-tm-copy>Copiar plantilla</button>` : ''}
         </div>
         <div class="tm-bulk" ${state.bulkOpen ? '' : 'hidden'}>
-          <textarea id="tm-bulk" rows="7" placeholder="Un jugador por línea, con el dorsal delante (si lo tiene):&#10;1 Hugo Sanchis&#10;7 Iker Molina&#10;Sergio Coloma">${esc(state.bulkDraft || '')}</textarea>
+          <textarea id="tm-bulk" rows="7" placeholder="Un jugador por línea, con el dorsal delante (si lo tiene). Los porteros con (P) al final:&#10;1 Hugo Sanchis (P)&#10;7 Iker Molina&#10;Sergio Coloma">${esc(state.bulkDraft || '')}</textarea>
           <div class="tm-bulk-foot"><span id="tm-bulk-info" class="muted"></span><button type="button" class="primary" data-bulk-add disabled>Añadir</button></div>
         </div>
         ${loading ? '<p class="muted tm-loading">Cargando la plantilla…</p>'
@@ -3552,7 +3560,7 @@
       const f = teamOf(p.team), bad = !ruleOk(p, t.id);
       return `<li class="tm-row cu-row st-${c.status}" data-cu="${c.id}" style="--team:${f.color}">
         <span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span>
-        <button type="button" class="tm-pname" data-pl-open data-pl-id="${p.id}"><span class="tm-pn">${esc(p.name)}</span><span class="cu-from">${esc(f.name)}</span>${psBadge(p)}
+        <button type="button" class="tm-pname" data-pl-open data-pl-id="${p.id}"><span class="tm-pn">${esc(p.name)}</span>${p.goalkeeper ? '<span class="tm-gk" title="Portero">🧤</span>' : ''}<span class="cu-from">${esc(f.name)}</span>${psBadge(p)}
           ${CU_ST[c.status] ? `<span class="cu-st">${CU_ST[c.status]}</span>` : ''}${bad ? '<span class="cu-st cu-bad" title="Las reglas o la condición del jugador han cambiado desde que se añadió">⚠️ Ya no cumple las reglas</span>' : ''}${playerSub(p)}</button>
         ${coord && c.status === 'pendiente' ? `<button type="button" class="cu-ok" data-cu-set="aprobado" title="Aprobar">✓<span class="hide-sm"> Aprobar</span></button><button type="button" class="cu-no" data-cu-set="rechazado" title="Rechazar">✗</button>` : ''}
         <button type="button" class="icon-btn tm-del" data-cu-del title="Quitar de convocables" aria-label="Quitar a ${esc(p.name)} de convocables">×</button></li>`;
@@ -3574,7 +3582,7 @@
       const all = squadOf(r.from), ok = all.filter(p => !r.sub23 || p.sub23), free = ok.filter(p => !taken.has(p.id));
       const hidden = isCoord() ? all.length - ok.length : 0;
       return `<div class="pk-group" style="--team:${f.color}"><h4>${esc(f.name)}${r.sub23 ? ` <small>solo ${esc(upLabel(r.from).toLowerCase())}</small>` : ''}</h4>
-        ${free.length ? `<div class="pk-list">${free.map(p => `<label class="pk-item"><input type="checkbox" value="${p.id}" ${sel.has(p.id) ? 'checked' : ''}><span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span><span class="pk-name">${esc(p.name)}</span>${psBadge(p)}</label>`).join('')}</div>`
+        ${free.length ? `<div class="pk-list">${free.map(p => `<label class="pk-item"><input type="checkbox" value="${p.id}" ${sel.has(p.id) ? 'checked' : ''}><span class="tm-num ${p.number == null ? 'none' : ''}">${p.number ?? '—'}</span><span class="pk-name">${esc(p.name)}${p.goalkeeper ? ' 🧤' : ''}</span>${psBadge(p)}</label>`).join('')}</div>`
           : `<p class="muted pk-none">${all.length ? 'No queda nadie más por añadir.' : 'Su plantilla está vacía.'}${r.sub23 && !ok.length && all.length ? ` Ninguno está marcado con «${esc(upLabel(r.from))}».` : ''}</p>`}
         ${hidden ? `<p class="muted pk-none">${plural(hidden, 'jugador no aparece', 'jugadores no aparecen')} por no estar marcado${hidden === 1 ? '' : 's'} con «${esc(upLabel(r.from))}».</p>` : ''}</div>`;
     }).join('');
@@ -3612,6 +3620,7 @@
     $('#pd-title').textContent = p.name;
     $('#pd-team').innerHTML = `<span class="tm-dot" style="--team:${t.color}"></span>${esc(t.name)}`;
     $('#pd-num').value = p.number ?? ''; $('#pd-name').value = p.name;
+    $('#pd-gk').checked = !!p.goalkeeper;
     $('#pd-s23-row').hidden = !upFlag(p.team); $('#pd-s23').checked = !!p.sub23; $('#pd-s23-l').textContent = upLabel(p.team);
     $('#pd-st-note').value = withUpper(p) ? '' : (p.status_note || ''); $('#pd-until').value = p.status_until || '';
     pdSan = p.status === 'sancionado' ? sanKindOf(p) : null;
@@ -3702,7 +3711,7 @@
     const san = st === 'sancionado' ? pdSan || 'amarillas' : null;
     const sanN = san ? (san === 'grave' ? Math.min(99, Math.max(1, +$('#pd-san-n').value || 1)) : 1) : null;
     const row = {
-      number: d.n, name, sub23: upFlag(p.team) ? $('#pd-s23').checked : !!p.sub23,
+      number: d.n, name, goalkeeper: $('#pd-gk').checked, sub23: upFlag(p.team) ? $('#pd-s23').checked : !!p.sub23,
       status: st, status_note: st ? (st === 'no_disponible' && pdUp ? `Con el ${teamOf(pdUp).name}` : san ? [SAN[san].label, $('#pd-st-note').value.trim()].filter(Boolean).join(' · ').slice(0, 200) : ($('#pd-st-note').value.trim() || null)) : null,
       sanction_matches: sanN,
       status_team: st === 'no_disponible' && pdUp ? pdUp : null,
@@ -3757,7 +3766,7 @@
     }
     const info = $('#tm-bulk-info'), btn = $('[data-bulk-add]');
     if (info) {
-      info.textContent = !lines.length ? '' : errs.length ? 'Revisa los dorsales: ' + errs.join(', ') + '.' : `Se añadirán ${plural(lines.length, 'jugador', 'jugadores')}.`;
+      info.textContent = !lines.length ? '' : errs.length ? 'Revisa los dorsales: ' + errs.join(', ') + '.' : `Se añadirán ${plural(lines.length, 'jugador', 'jugadores')}${lines.some(l => l.goalkeeper) ? ` (${plural(lines.filter(l => l.goalkeeper).length, 'portero', 'porteros')})` : ''}.`;
       info.classList.toggle('err', !!errs.length);
     }
     if (btn) { btn.disabled = !lines.length || !!errs.length; btn.textContent = lines.length ? `Añadir ${lines.length}` : 'Añadir'; }
@@ -3766,7 +3775,7 @@
 
   async function addPlayers(team, rows) {
     try {
-      const added = await store.players.insertMany(rows.map(r => ({ team, number: r.number, name: r.name, sub23: !!r.sub23 })));
+      const added = await store.players.insertMany(rows.map(r => ({ team, number: r.number, name: r.name, sub23: !!r.sub23, goalkeeper: !!r.goalkeeper })));
       state.players = [...(state.players || []), ...added];
       return true;
     } catch (e) { toast('No se pudo añadir: ' + playerErr(e), true); return false; }
@@ -3809,7 +3818,7 @@
       }
       if (t.closest('[data-tm-copy]')) {
         const ok = callupsOf(team).filter(c => c.status === 'aprobado').map(c => playerById(c.player_id)).filter(Boolean).sort(byDorsal);
-        const text = `*${TEAM[team].name.toUpperCase()}*\n` + squadOf(team).map(p => `${p.number ?? '–'}. ${p.name}${upperDay(p) ? ` (con el ${teamOf(withUpper(p)).name} el ${shortDate(upperDay(p))}${upperClash(p) ? '' : ', disponible'})` : withUpper(p) ? '' : PST[p.status] ? ` (${PST[p.status].label.toLowerCase()})` : ''}`).join('\n')
+        const text = `*${TEAM[team].name.toUpperCase()}*\n` + squadOf(team).map(p => `${p.number ?? '–'}. ${p.name}${p.goalkeeper ? ' 🧤' : ''}${upperDay(p) ? ` (con el ${teamOf(withUpper(p)).name} el ${shortDate(upperDay(p))}${upperClash(p) ? '' : ', disponible'})` : withUpper(p) ? '' : PST[p.status] ? ` (${PST[p.status].label.toLowerCase()})` : ''}`).join('\n')
           + (ok.length ? `\n\n_Convocables_\n` + ok.map(p => `${p.number ?? '–'}. ${p.name} (${teamOf(p.team).name})`).join('\n') : '');
         try { await navigator.clipboard.writeText(text); toast('Plantilla copiada'); } catch { toast('No se ha podido copiar', true); }
         return;
@@ -3878,9 +3887,9 @@
         if (!d.ok) { toast('El dorsal tiene que ser un número del 0 al 99', true); $('#tm-num').focus(); return; }
         const other = d.n != null && squadOf(team).find(x => x.number === d.n);
         if (other) { toast(`El ${d.n} ya lo lleva ${other.name}`, true); $('#tm-num').select(); return; }
-        if (await addPlayers(team, [{ number: d.n, name, sub23: !!$('#tm-s23')?.checked }])) {
+        if (await addPlayers(team, [{ number: d.n, name, sub23: !!$('#tm-s23')?.checked, goalkeeper: !!$('#tm-gk')?.checked }])) {
           state.bulkDraft = $('#tm-bulk')?.value || '';
-          $('#tm-num').value = ''; $('#tm-name').value = ''; if ($('#tm-s23')) $('#tm-s23').checked = false;
+          $('#tm-num').value = ''; $('#tm-name').value = ''; if ($('#tm-s23')) $('#tm-s23').checked = false; $('#tm-gk').checked = false;
           renderTeams(); toast(`${name} añadido`);
           const n = $('#tm-num'); if (n && !coarse()) n.focus(); else $('#tm-name')?.focus({ preventScroll: true });
         }
@@ -4431,7 +4440,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261105074743';
+  const APP_VERSION = '20261105074939';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

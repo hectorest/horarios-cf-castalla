@@ -311,6 +311,11 @@ window.TUTORIAL_STEPS = [
     body: 'En la ficha del jugador, estado <b>Sancionado</b>: elige <b>doble amarilla</b> o <b>roja directa</b> (1 partido) o <b>sanción grave</b> (indica cuántos partidos) y la fecha del partido en que le sancionaron. La sanción se descuenta sola con los partidos de su equipo: verás «🟥 Sancionado · le queda 1 partido» y, cuando la cumpla, «Sanción cumplida · revisar».',
   },
   {
+    id: 'porteros', since: 37, target: '#mode-toggle [data-mode="teams"], #user-btn',
+    title: 'Porteros',
+    body: 'Marca a los porteros con <b>🧤 Portero</b> (al añadirlos, en su ficha o pegando la lista con «(P)» al final del nombre). La plantilla cuenta los convocables por separado: «9 convocables (8 jugadores y 1 portero)», y la tarjeta de cada equipo avisa ⚠️ si no queda ningún portero disponible.',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',
