@@ -326,6 +326,11 @@ window.TUTORIAL_STEPS = [
     body: 'El reparto de jugadores ya no va por fines de semana: muestra los <b>próximos 7 o 14 días</b> en orden cronológico (con ‹ › y «Hoy» para moverte), así un partido de miércoles y otro de jueves salen seguidos. En la carga se ven los días que hay entre un partido y otro (en naranja si son seguidos).',
   },
   {
+    id: 'convocatorias', since: 40, roles: ['coordinador'], target: '#mode-toggle [data-mode="teams"], #user-btn',
+    title: 'Convocatorias en el reparto',
+    body: 'En <b>Reparto de jugadores</b>, cada partido tiene su <b>convocatoria</b> (18 en F11, 14 en F8). <b>Toca un jugador</b> para convocarlo o quitarlo (ⓘ abre su ficha), o usa <b>＋ Disponibles</b> para convocar de golpe a los disponibles de la plantilla. Nadie puede estar en dos partidos el mismo día: si ya está convocado con otro equipo, te ofrece pasarlo. Avisa si falta portero, si sobran jugadores o si un convocado está en duda o de baja. «Copiar» saca la lista para WhatsApp, y la carga distingue lo convocado (relleno) de lo posible (borde).',
+  },
+  {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',
     title: 'Versión de la herramienta',
     body: 'Aquí ves la versión que estás usando (día y hora de publicación). Si alguien tiene un problema, comprobad que tenéis la misma; la herramienta se actualiza sola cuando hay una nueva.',

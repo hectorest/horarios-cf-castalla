@@ -438,7 +438,8 @@
     const CRKEY = 'planificador-campo-demo-callup-rules-v2', CUKEY = 'planificador-campo-demo-callups-v2';
     const cRules = () => ls.get(CRKEY) || (CFG.CALLUPS || []).map(r => ({ team: r.team, from: r.from, sub23: !!r.sub23 }));
     const cups = () => ls.get(CUKEY) || [];
-    const cuListeners = [], crListeners = [], tsListeners = [];
+    const cuListeners = [], crListeners = [], tsListeners = [], sqListeners = [];
+    const SQKEY = 'planificador-campo-demo-squads-v1';
     const writeCups = a => { ls.set(CUKEY, a); cuListeners.forEach(cb => setTimeout(cb, 0)); };
     const writeRules = a => { ls.set(CRKEY, a); crListeners.forEach(cb => setTimeout(cb, 0)); };
     const canSeeLower = p => cRules().some(r => r.from === p.team && (!r.sub23 || p.sub23) && canRoster(r.team));
@@ -566,6 +567,24 @@
           a.push({ team, ...patch }); ls.set('planificador-campo-demo-team-settings-v1', a); tsListeners.forEach(cb => setTimeout(cb, 0));
         },
         subscribe(cb) { tsListeners.push(cb); },
+      },
+      squads: {
+        async list(from, to) { return (ls.get(SQKEY) || []).filter(x => x.day >= from && x.day <= to).map(x => ({ ...x })); },
+        async add(bookingId, ids) {
+          if (!isCoordDemo()) throw new Error('Solo la coordinación hace las convocatorias.');
+          const b = read().find(x => x.id === bookingId);
+          if (!b || b.kind !== 'partido') throw new Error('Solo se convoca a partidos');
+          const all = ls.get(SQKEY) || [], out = [];
+          for (const id of ids) {
+            if (all.some(x => x.player_id === id && x.day === b.day)) throw new Error('duplicate key value violates unique constraint "match_squads_un_partido_al_dia"');
+            const r = { booking_id: bookingId, player_id: id, day: b.day, created_at: new Date().toISOString() };
+            all.push(r); out.push(r);
+          }
+          ls.set(SQKEY, all); sqListeners.forEach(cb => setTimeout(cb, 0)); return out;
+        },
+        async remove(bookingId, playerId) { ls.set(SQKEY, (ls.get(SQKEY) || []).filter(x => !(x.booking_id === bookingId && x.player_id === playerId))); sqListeners.forEach(cb => setTimeout(cb, 0)); },
+        async clear(bookingId) { ls.set(SQKEY, (ls.get(SQKEY) || []).filter(x => x.booking_id !== bookingId)); sqListeners.forEach(cb => setTimeout(cb, 0)); },
+        subscribe(cb) { sqListeners.push(cb); },
       },
       callupRules: {
         async list() { return cRules().map(r => ({ ...r })); },
@@ -793,6 +812,15 @@
         async set(team, patch) { chk(await sb.from('team_settings').upsert({ team, ...patch, updated_at: new Date().toISOString() }).select('team')); },
         subscribe(cb) {
           sb.channel('team-settings-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'team_settings' }, debounce(cb)).subscribe();
+        },
+      },
+      squads: {
+        async list(from, to) { return chk(await sb.from('match_squads').select('booking_id, player_id, day').gte('day', from).lte('day', to)); },
+        async add(bookingId, ids) { return chk(await sb.from('match_squads').insert(ids.map(player_id => ({ booking_id: bookingId, player_id }))).select('booking_id, player_id, day')); },
+        async remove(bookingId, playerId) { chk(await sb.from('match_squads').delete().eq('booking_id', bookingId).eq('player_id', playerId)); },
+        async clear(bookingId) { chk(await sb.from('match_squads').delete().eq('booking_id', bookingId)); },
+        subscribe(cb) {
+          sb.channel('squads-changes').on('postgres_changes', { event: '*', schema: 'public', table: 'match_squads' }, debounce(cb)).subscribe();
         },
       },
       callupRules: {
@@ -3910,13 +3938,22 @@
   }
 
   // ================================================================
-  //  Reparto del finde (coordinación): disponibles de cada partido y quién puede subir
+  //  Reparto de jugadores (coordinación): disponibles de cada partido, quién puede subir y convocatorias
   // ================================================================
   const SQUAD_SIZE = CFG.SQUAD_SIZE || { F11: 18, F8: 14 };
   const squadTarget = team => SQUAD_SIZE[TEAM[team]?.match?.format] || 18;
   const byKickoff = (a, b) => a.day.localeCompare(b.day) || a.start_min - b.start_min;
   /** Partidos de la sanción: los N primeros del equipo después de la fecha de la sanción */
   const sanctionMatches = p => (state.allMatches || []).filter(b => b.team === p.team && b.day > (p.status_since || '')).sort(byKickoff).slice(0, p.sanction_matches || 1);
+
+  // Convocatorias (match_squads) de la ventana: un jugador, un partido por día
+  const inSquad = (mId, pid) => (state.squads || []).some(x => x.booking_id === mId && x.player_id === pid);
+  const squadIds = mId => (state.squads || []).filter(x => x.booking_id === mId).map(x => x.player_id);
+  const convElsewhere = (pid, m) => { const x = (state.squads || []).find(r => r.player_id === pid && r.day === m.day && r.booking_id !== m.id); return x ? (state.allMatches || []).find(b => b.id === x.booking_id) || { team: '?', id: x.booking_id, day: x.day } : null; };
+  async function loadSquads() {
+    const to = keyOf(addDays(parseKey(repFrom), repDays - 1));
+    try { state.squads = await store.squads.list(repFrom, to); } catch (e) { state.squads = state.squads || []; toast('No se pudieron cargar las convocatorias: ' + e.message, true); }
+  }
 
   /** ¿Puede jugar el partido m (de su equipo o de uno superior)? → { ok, doubt, why, cls, up } */
   function availFor(p, m) {
@@ -3941,8 +3978,9 @@
   /** Columna de un partido: plantilla propia y jugadores de equipos inferiores que pueden venir */
   function repColumn(m) {
     const team = m.team, sq = squadOf(team), target = squadTarget(team);
-    const rows = sq.map(p => ({ p, a: availFor(p, m) }));
-    const avail = rows.filter(x => x.a.ok), out = rows.filter(x => !x.a.ok);
+    const rows = sq.map(p => ({ p, a: availFor(p, m), away: convElsewhere(p.id, m) }));
+    const elsewhere = rows.filter(x => x.away);
+    const avail = rows.filter(x => x.a.ok && !x.away), out = rows.filter(x => !x.a.ok && !x.away);
     const gk = avail.filter(x => x.p.goalkeeper).length;
     // De abajo: reglas de convocables + condición; no si su equipo juega ese mismo día (salvo que ya vaya con este)
     const rules = (state.callupRules || []).filter(r => r.team === team);
@@ -3955,11 +3993,14 @@
       const conv = (state.callups || []).some(c => c.player_id === p.id && c.team === team && c.status === 'aprobado');
       // Si su equipo juega ese mismo día no es imposible: es una alternativa (juega uno u otro)
       const sameDay = a.ok && ownSameDay && !fixed;
-      low.push({ p, a, conv, fixed, sameDay, blocked: !a.ok ? a.why : null });
+      const away = convElsewhere(p.id, m);
+      low.push({ p, a, conv, fixed, sameDay, away, blocked: !a.ok ? a.why : null });
     }
     low.sort((x, y) => (y.fixed - x.fixed) || (!!x.blocked - !!y.blocked) || (x.sameDay - y.sameDay) || (y.conv - x.conv) || TEAMS.findIndex(t => t.id === x.p.team) - TEAMS.findIndex(t => t.id === y.p.team) || byDorsal(x.p, y.p));
     const canCome = low.filter(x => !x.blocked && !x.sameDay), sameDay = low.filter(x => x.sameDay), fixed = low.filter(x => x.fixed);
-    return { m, team, target, sq, avail, out, gk, low, canCome, sameDay, fixed };
+    // Convocatoria de este partido
+    const ids = squadIds(m.id), squad = ids.map(playerById).filter(Boolean).sort((x, y) => (y.goalkeeper - x.goalkeeper) || (x.team === team ? 0 : 1) - (y.team === team ? 0 : 1) || byDorsal(x, y));
+    return { m, team, target, sq, avail, out, gk, low, canCome, sameDay, fixed, elsewhere, squad };
   }
 
   // Ventana de próximos días (no por findes: así un miércoles y el jueves siguiente salen seguidos)
@@ -3967,10 +4008,60 @@
   async function openReparto(monKey) {
     repFrom = monKey ? findeRange(monKey)[0] : todayKey();
     if (monKey) repDays = 7;
-    $('#rep-body').innerHTML = '<p class="muted rep-loading">Cargando plantillas y partidos…</p>';
+    $('#rep-body').innerHTML = '<p class="muted rep-loading">Cargando plantillas, partidos y convocatorias…</p>';
     if (!$('#rep-dialog').open) $('#rep-dialog').showModal();
     try { await fetchSquads(); } catch (e) { toast('No se pudo cargar: ' + e.message, true); }
+    await loadSquads();
     renderReparto();
+  }
+  async function moveReparto(from, days) { repFrom = from; repDays = days; await loadSquads(); renderReparto(); }
+
+  /** Convocar o desconvocar a un jugador en un partido */
+  async function toggleSquad(mId, pid) {
+    const m = (state.allMatches || []).find(b => b.id === mId), p = playerById(pid);
+    if (!m || !p) return;
+    try {
+      if (inSquad(mId, pid)) {
+        await store.squads.remove(mId, pid);
+        state.squads = state.squads.filter(x => !(x.booking_id === mId && x.player_id === pid));
+      } else {
+        const a = availFor(p, m);
+        if (!a.ok) { toast(`${p.name} no puede: ${a.why.toLowerCase()}`, true); return; }
+        const other = convElsewhere(pid, m);
+        if (other) {
+          if (!(await askConfirm(`<b>${esc(p.name)}</b> ya está convocado con el ${esc(teamOf(other.team).name)} ese día (no se juegan dos partidos el mismo día). ¿Lo pasas al ${esc(teamOf(m.team).name)}?`, 'Pasarlo'))) return;
+          await store.squads.remove(other.id, pid);
+          state.squads = state.squads.filter(x => !(x.booking_id === other.id && x.player_id === pid));
+        }
+        const added = await store.squads.add(mId, [pid]);
+        state.squads = [...(state.squads || []), ...added];
+        if (a.doubt) toast(`${p.name} convocado · ojo: ${a.why.toLowerCase()}`);
+      }
+    } catch (e) { toast('No se pudo cambiar la convocatoria: ' + (/un_partido_al_dia|duplicate key/.test(e.message) ? 'ya está convocado ese día en otro partido.' : e.message), true); }
+    renderReparto();
+  }
+  /** Convoca a todos los disponibles de la plantilla (sin dudas ni convocados en otro partido ese día) */
+  async function squadFill(mId) {
+    const m = (state.allMatches || []).find(b => b.id === mId); if (!m) return;
+    const c = repColumn(m);
+    const ids = c.avail.filter(x => !x.a.doubt && !inSquad(mId, x.p.id)).map(x => x.p.id);
+    if (!ids.length) { toast('No queda nadie disponible sin convocar'); return; }
+    try { const added = await store.squads.add(mId, ids); state.squads = [...(state.squads || []), ...added]; toast(`${plural(ids.length, 'jugador convocado', 'jugadores convocados')}`); }
+    catch (e) { toast('No se pudo convocar: ' + e.message, true); }
+    renderReparto();
+  }
+  async function squadClear(mId) {
+    const m = (state.allMatches || []).find(b => b.id === mId); if (!m) return;
+    if (!(await askConfirm(`¿Vaciar la convocatoria del ${esc(teamOf(m.team).name)}?`, 'Vaciar', true))) return;
+    try { await store.squads.clear(mId); state.squads = state.squads.filter(x => x.booking_id !== mId); } catch (e) { toast('No se pudo vaciar: ' + e.message, true); }
+    renderReparto();
+  }
+  async function squadCopy(mId) {
+    const m = (state.allMatches || []).find(b => b.id === mId); if (!m) return;
+    const c = repColumn(m), d = parseKey(m.day);
+    const line = p => `${p.goalkeeper ? '🧤' : '👟'} ${p.number ?? '–'}. ${p.name}${p.team !== m.team ? ` (${teamOf(p.team).name})` : ''}`;
+    const text = `*CONVOCATORIA ${teamOf(m.team).name.toUpperCase()}*\n🆚 ${m.opponent || 'Rival por definir'} ${m.away ? '✈️' : '🏠'}\n📅 ${DAYS[dayIndexOf(m.day)]} ${d.getDate()} · ⚽️ ${fmt(m.start_min)}\n\n${c.squad.map(line).join('\n')}\n\n${plural(c.squad.length, 'convocado', 'convocados')}`;
+    try { await navigator.clipboard.writeText(text); toast('Convocatoria copiada'); } catch { toast('No se ha podido copiar', true); }
   }
 
   function renderReparto() {
@@ -3981,9 +4072,16 @@
     const ms = (state.allMatches || []).filter(b => b.day >= from && b.day <= to && TEAM[b.team]).sort((x, y) => byKickoff(x, y) || TEAMS.findIndex(t => t.id === x.team) - TEAMS.findIndex(t => t.id === y.team));
     if (!ms.length) { $('#rep-body').innerHTML = `<p class="muted rep-loading">No hay partidos en estos ${repDays} días.</p>`; return; }
     const cols = ms.map(repColumn);
-    const chip = (p, extra = '', cls = '') => `<span class="rep-p ${cls}" data-pl-open data-pl-id="${p.id}" title="${esc(p.name)}${extra ? ' · ' + esc(extra) : ''}"><b>${p.number ?? '–'}</b> ${esc(p.name)}${p.goalkeeper ? ' 🧤' : ''}${extra ? ` <small>${esc(extra)}</small>` : ''}</span>`;
+    // Tocar un jugador lo convoca o lo quita; ⓘ abre su ficha
+    const chip = (p, extra = '', cls = '', m = null) => `<span class="rep-p ${cls}" ${m ? `data-tog="${p.id}" data-m="${m.id}" role="button" tabindex="0"` : ''} title="${esc(p.name)}${extra ? ' · ' + esc(extra) : ''}${m ? (cls.includes('in') ? ' · toca para quitarlo' : ' · toca para convocarlo') : ''}"><b>${p.number ?? '–'}</b> ${esc(p.name)}${p.goalkeeper ? ' 🧤' : ''}${extra ? ` <small>${esc(extra)}</small>` : ''}<button type="button" class="rep-i" data-info="${p.id}" aria-label="Ficha de ${esc(p.name)}">ⓘ</button></span>`;
     const colHTML = c => {
       const t = teamOf(c.team), m = c.m, n = c.avail.length, field = n - c.gk;
+      const sq = c.squad, sn = sq.length, sgk = sq.filter(p => p.goalkeeper).length, inIds = new Set(sq.map(p => p.id));
+      const sqWarn = [
+        sn && !sgk ? 'Sin portero convocado' : '',
+        sn > c.target ? `Sobran ${sn - c.target} (máximo ${c.target})` : '',
+        ...sq.map(p => ({ p, a: availFor(p, m) })).filter(x => !x.a.ok || x.a.doubt).map(x => `${x.p.name}: ${x.a.why.toLowerCase()}`),
+      ].filter(Boolean);
       const lowGk = c.canCome.filter(x => x.p.goalkeeper).length;
       const short = Math.max(0, c.target - n);
       const pct = Math.min(100, Math.round(n / c.target * 100));
@@ -4004,29 +4102,38 @@
           <div class="rep-bar"><i style="width:${pct}%"></i></div>
         </div>
         ${warn.length ? `<ul class="rep-warn">${warn.map(w => `<li>⚠️ ${esc(w)}</li>`).join('')}</ul>` : ''}
+        ${!sn && !c.sq.length && !c.low.length ? '' : `<div class="rep-squad ${sn ? '' : 'empty'}">
+          <div class="rep-sq-head"><b>Convocatoria</b> <span class="rep-sq-n ${sn > c.target ? 'over' : sn === c.target ? 'full' : ''}">${sn}/${c.target}</span> <span class="rep-sq-split">👟 ${sn - sgk} · 🧤 ${sgk}</span>
+            <span class="rep-sq-acts"><button type="button" class="link" data-sq-fill="${m.id}" title="Convocar a todos los disponibles de la plantilla (sin los que están en duda)">＋ Disponibles</button>${sn ? `<button type="button" class="link" data-sq-copy="${m.id}">Copiar</button><button type="button" class="link danger-link" data-sq-clear="${m.id}">Vaciar</button>` : ''}</span></div>
+          ${sqWarn.length ? `<ul class="rep-warn">${sqWarn.map(w => `<li>⚠️ ${esc(w)}</li>`).join('')}</ul>` : ''}
+          ${sn ? `<div class="rep-list">${sq.map(p => chip(p, p.team !== c.team ? teamOf(p.team).short : '', 'in', m)).join('')}</div>` : '<p class="rep-none">Toca jugadores de abajo para convocarlos, o «＋ Disponibles».</p>'}
+        </div>`}
+        ${c.avail.some(x => !inIds.has(x.p.id)) ? `<div class="rep-sec"><h5>Disponibles sin convocar (${c.avail.filter(x => !inIds.has(x.p.id)).length})</h5><div class="rep-list">${c.avail.filter(x => !inIds.has(x.p.id)).map(x => chip(x.p, x.a.doubt ? x.a.why : '', x.a.doubt ? 'doubt' : '', m)).join('')}</div></div>` : ''}
+        ${c.elsewhere.length ? `<div class="rep-sec"><h5>Convocados con otro equipo ese día (${c.elsewhere.length})</h5><div class="rep-list">${c.elsewhere.map(x => chip(x.p, `con el ${teamOf(x.away.team).short}`, 'fixed', m)).join('')}</div></div>` : ''}
         ${c.out.length ? `<div class="rep-sec"><h5>Bajas (${c.out.length})</h5><div class="rep-list">${c.out.map(x => chip(x.p, x.a.why, 'out')).join('')}</div></div>` : ''}
-        ${doubts.length ? `<div class="rep-sec"><h5>En duda (${doubts.length})</h5><div class="rep-list">${doubts.map(x => chip(x.p, x.a.why, 'doubt')).join('')}</div></div>` : ''}
         ${c.low.length ? `<div class="rep-sec"><h5>Pueden subir (${c.canCome.length})</h5>
-          ${c.canCome.length ? `<div class="rep-list">${c.canCome.map(x => chip(x.p, [teamOf(x.p.team).short, x.fixed ? 'ya va' : x.conv ? '★ convocable' : '', x.a.doubt ? x.a.why : ''].filter(Boolean).join(' · '), x.fixed ? 'fixed' : x.conv ? 'conv' : '')).join('')}</div>` : `<p class="rep-none">${c.sameDay.length ? 'Ninguno libre ese día.' : 'Nadie de abajo puede ese día.'}</p>`}
-          ${c.sameDay.length ? `<details class="rep-more" open><summary>Si no juegan con su equipo (${c.sameDay.length})</summary><div class="rep-list">${c.sameDay.map(x => chip(x.p, [teamOf(x.p.team).short, 'mismo día', x.conv ? '★' : ''].filter(Boolean).join(' · '), 'alt')).join('')}</div></details>` : ''}
+          ${c.canCome.some(x => !inIds.has(x.p.id)) ? `<div class="rep-list">${c.canCome.filter(x => !inIds.has(x.p.id)).map(x => chip(x.p, [teamOf(x.p.team).short, x.fixed ? 'ya va' : x.conv ? '★ convocable' : '', x.away ? `convocado con el ${teamOf(x.away.team).short}` : '', x.a.doubt ? x.a.why : ''].filter(Boolean).join(' · '), [x.fixed ? 'fixed' : x.conv ? 'conv' : '', x.a.doubt ? 'doubt' : ''].join(' '), m)).join('')}</div>` : `<p class="rep-none">${c.canCome.length ? 'Ya están todos convocados.' : c.sameDay.length ? 'Ninguno libre ese día.' : 'Nadie de abajo puede ese día.'}</p>`}
+          ${c.sameDay.some(x => !inIds.has(x.p.id)) ? `<details class="rep-more" open><summary>Si no juegan con su equipo (${c.sameDay.filter(x => !inIds.has(x.p.id)).length})</summary><div class="rep-list">${c.sameDay.filter(x => !inIds.has(x.p.id)).map(x => chip(x.p, [teamOf(x.p.team).short, x.away ? `convocado con el ${teamOf(x.away.team).short}` : 'mismo día', x.conv ? '★' : ''].filter(Boolean).join(' · '), 'alt', m)).join('')}</div></details>` : ''}
           ${c.low.some(x => x.blocked) ? `<details class="rep-more"><summary>No pueden (${c.low.filter(x => x.blocked).length})</summary><div class="rep-list">${c.low.filter(x => x.blocked).map(x => chip(x.p, `${teamOf(x.p.team).short} · ${x.blocked}`, 'out')).join('')}</div></details>` : ''}
         </div>` : ''}
-        <details class="rep-more"><summary>Disponibles de la plantilla (${n})</summary><div class="rep-list">${c.avail.map(x => chip(x.p, x.a.doubt ? x.a.why : '')).join('')}</div></details>
       </section>`;
     };
     // Carga: jugadores que pueden jugar más de un partido este finde (su equipo y uno superior, en días distintos)
     const load = new Map();
+    const addLoad = (p, m) => { const e = load.get(p.id) || { p, ms: [] }; e.ms.push(m); load.set(p.id, e); };
     for (const c of cols) {
-      for (const x of c.avail) { const e = load.get(x.p.id) || { p: x.p, ms: [] }; e.ms.push(c.m); load.set(x.p.id, e); }
-      for (const x of [...c.canCome, ...c.sameDay]) { const e = load.get(x.p.id) || { p: x.p, ms: [] }; e.ms.push(c.m); load.set(x.p.id, e); }
+      for (const x of c.avail) addLoad(x.p, c.m);
+      for (const x of [...c.canCome, ...c.sameDay]) addLoad(x.p, c.m);
+      for (const p of c.squad) addLoad(p, c.m);
     }
-    const multi = [...load.values()].filter(e => new Set(e.ms.map(m => m.id)).size > 1)
-      .sort((a, b) => TEAMS.findIndex(t => t.id === a.p.team) - TEAMS.findIndex(t => t.id === b.p.team) || byDorsal(a.p, b.p));
-    const loadHTML = multi.length ? `<section class="panel rep-load"><h4>Pueden jugar más de un partido en estos días <small>${multi.length} · con los días que hay entre uno y otro; «o» = el mismo día, solo uno de los dos</small></h4>
-      <table><tbody>${multi.map(e => `<tr><td><span class="rep-dot" style="--team:${teamOf(e.p.team).color}"></span>${e.p.number ?? '–'} · ${esc(e.p.name)}${e.p.goalkeeper ? ' 🧤' : ''} <small>${esc(teamOf(e.p.team).short)}</small></td><td>${(() => {
+    const nConv = pid => (state.squads || []).filter(x => x.player_id === pid && cols.some(c => c.m.id === x.booking_id)).length;
+    const multi = [...load.values()].filter(e => new Set(e.ms.map(m => m.id)).size > 1 || nConv(e.p.id) > 1)
+      .sort((a, b) => nConv(b.p.id) - nConv(a.p.id) || TEAMS.findIndex(t => t.id === a.p.team) - TEAMS.findIndex(t => t.id === b.p.team) || byDorsal(a.p, b.p));
+    const loadHTML = multi.length ? `<section class="panel rep-load"><h4>Carga de los jugadores que pueden jugar más de un partido <small>${multi.length} · relleno = convocado, borde = posible; con los días entre uno y otro; «o» = el mismo día, solo uno</small></h4>
+      <table><tbody>${multi.map(e => `<tr><td><span class="rep-dot" style="--team:${teamOf(e.p.team).color}"></span>${e.p.number ?? '–'} · ${esc(e.p.name)}${e.p.goalkeeper ? ' 🧤' : ''} <small>${esc(teamOf(e.p.team).short)}</small>${nConv(e.p.id) ? ` <span class="rep-nconv" title="Convocatorias en estos días">${nConv(e.p.id)} conv.</span>` : ''}</td><td>${(() => {
         const ms = [...new Map(e.ms.map(m => [m.id, m])).values()].sort(byKickoff);
         const days = [...new Set(ms.map(m => m.day))];
-        const tag = m => `<span class="rep-mtag" style="--team:${teamOf(m.team).color}">${esc(teamOf(m.team).short)} ${DAYS[dayIndexOf(m.day)].slice(0, 3).toLowerCase()} ${fmt(m.start_min)}</span>`;
+        const tag = m => `<span class="rep-mtag ${inSquad(m.id, e.p.id) ? 'in' : 'maybe'}" style="--team:${teamOf(m.team).color}" title="${inSquad(m.id, e.p.id) ? 'Convocado' : 'Posible'}">${esc(teamOf(m.team).short)} ${DAYS[dayIndexOf(m.day)].slice(0, 3).toLowerCase()} ${fmt(m.start_min)}</span>`;
         // Entre partido y partido, los días de diferencia (1 = días seguidos)
         return days.map((d, i) => {
           const g = ms.filter(m => m.day === d);
@@ -4035,19 +4142,27 @@
             + (g.length > 1 ? `<span class="rep-alt">${g.map(tag).join('<small>o</small>')}</span>` : tag(g[0]));
         }).join('');
       })()}</td></tr>`).join('')}</tbody></table></section>` : '';
-    $('#rep-body').innerHTML = `<p class="rep-help">Disponibles de cada partido teniendo en cuenta lesiones, sanciones (partido a partido) y quién juega con otro equipo ese día. «Pueden subir» son los de los equipos de abajo que cumplen las reglas de convocables y cuyo equipo no juega ese mismo día. Toca un jugador para ver su ficha.</p>
+    $('#rep-body').innerHTML = `<p class="rep-help"><b>Toca un jugador para convocarlo o quitarlo</b> (ⓘ abre su ficha). Disponibles según lesiones, sanciones (partido a partido) y convocatorias de ese día: nadie juega dos partidos el mismo día. «Pueden subir»: de los equipos de abajo que cumplen las reglas de convocables.</p>
       <div class="rep-cols">${cols.map(colHTML).join('')}</div>${loadHTML}`;
   }
 
   function bindReparto() {
-    $('#rep-prev').onclick = () => { repFrom = keyOf(addDays(parseKey(repFrom), -repDays)); renderReparto(); };
-    $('#rep-next').onclick = () => { repFrom = keyOf(addDays(parseKey(repFrom), repDays)); renderReparto(); };
-    $('#rep-days').onclick = e => { const b = e.target.closest('[data-days]'); if (!b) return; repDays = +b.dataset.days; renderReparto(); };
-    $('#rep-today').onclick = () => { repFrom = todayKey(); renderReparto(); };
-    $('#rep-body').addEventListener('click', e => {
-      const c = e.target.closest('[data-pl-open]'); if (!c) return;
-      const p = playerById(c.dataset.plId); if (p) openPlayer(p);
+    $('#rep-prev').onclick = () => moveReparto(keyOf(addDays(parseKey(repFrom), -repDays)), repDays);
+    $('#rep-next').onclick = () => moveReparto(keyOf(addDays(parseKey(repFrom), repDays)), repDays);
+    $('#rep-days').onclick = e => { const b = e.target.closest('[data-days]'); if (!b) return; moveReparto(repFrom, +b.dataset.days); };
+    $('#rep-today').onclick = () => moveReparto(todayKey(), repDays);
+    let busy = false;
+    $('#rep-body').addEventListener('click', async e => {
+      const t = e.target;
+      const info = t.closest('[data-info]'); if (info) { const p = playerById(info.dataset.info); if (p) openPlayer(p); return; }
+      const f = t.closest('[data-sq-fill]'); if (f) { squadFill(f.dataset.sqFill); return; }
+      const cp = t.closest('[data-sq-copy]'); if (cp) { squadCopy(cp.dataset.sqCopy); return; }
+      const cl = t.closest('[data-sq-clear]'); if (cl) { squadClear(cl.dataset.sqClear); return; }
+      const tg = t.closest('[data-tog]'); if (!tg || busy) return;
+      busy = true; try { await toggleSquad(tg.dataset.m, tg.dataset.tog); } finally { busy = false; }
     });
+    $('#rep-body').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-tog]')) { e.preventDefault(); e.target.click(); } });
+    store.squads.subscribe(async () => { if ($('#rep-dialog').open && !busy) { await loadSquads(); renderReparto(); } });
     // Al guardar una ficha desde el reparto, se recalcula
     $('#player-dialog').addEventListener('close', () => { if ($('#rep-dialog').open) renderReparto(); });
     $('#m-reparto').onclick = () => { closeUserMenu(); openReparto(); };
@@ -4588,7 +4703,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261109102506';
+  const APP_VERSION = '20261109103002';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

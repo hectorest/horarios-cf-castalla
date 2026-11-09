@@ -169,9 +169,17 @@ Se abre desde *Equipos → 👥 Reparto de jugadores*, desde el 👥 de cada fin
 - **Carga:** jugadores que pueden jugar más de un partido en esos días.
   - Las opciones del mismo día, incluido su propio equipo, se agrupan con «o», porque solo pueden jugar una (por ejemplo, «CAD sáb 16:30 o JUV sáb 19:00»).
   - Entre partido y partido se indican los días que hay («→ 3 días →»); en naranja cuando son días seguidos.
-- Al tocar un jugador se abre su ficha; al cambiar su estado, el reparto se recalcula.
+- Al cambiar el estado de un jugador desde su ficha (ⓘ), el reparto se recalcula.
 
-Es la fase 1, solo de consulta. La siguiente fase será hacer las convocatorias de cada partido desde aquí.
+**Convocatorias (fase 2):**
+- Cada partido tiene su **convocatoria**, con el contador «8/18 · 👟 8 · 🧤 0».
+- **Toca un jugador** para convocarlo o quitarlo; ⓘ abre su ficha.
+- **＋ Disponibles** convoca de golpe a los disponibles de la plantilla, sin los que están en duda. **Vaciar** deja la convocatoria a cero y **Copiar** saca la lista para WhatsApp.
+- **Un jugador, un partido por día**, y lo garantiza la base de datos. Si ya está convocado con otro equipo ese día, la web ofrece pasarlo. Si un partido cambia de día, su convocatoria le sigue, y salen de ella los que ya estén convocados en otro partido ese nuevo día.
+- **Avisos:** sin portero convocado, sobran jugadores, o hay convocados en duda o de baja (por ejemplo, si se lesionan después).
+- Los jugadores convocados con otro equipo ese día salen aparte en su equipo.
+- En la **carga**, relleno = convocado y borde = posible, con el número de convocatorias de cada jugador en esos días.
+- Solo la coordinación ve y hace las convocatorias (tabla `match_squads`).
 
 ### Convocables de equipos inferiores
 

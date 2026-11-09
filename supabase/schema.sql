@@ -1130,3 +1130,75 @@ do $$ begin
     alter publication supabase_realtime add table public.team_settings;
   end if;
 end $$;
+
+-- ---------- Convocatorias (reparto de jugadores; solo coordinación) ----------
+-- Un jugador, un partido por día (índice único player_id + day; el día lo copia el trigger del partido).
+create table if not exists public.match_squads (
+  booking_id  uuid not null references public.bookings(id) on delete cascade,
+  player_id   uuid not null references public.players(id) on delete cascade,
+  day         date not null,
+  created_by  uuid default auth.uid() references auth.users(id) on delete set null,
+  created_at  timestamptz not null default now(),
+  primary key (booking_id, player_id)
+);
+create unique index if not exists match_squads_un_partido_al_dia on public.match_squads (player_id, day);
+create index if not exists match_squads_player_idx on public.match_squads (player_id);
+create index if not exists match_squads_created_by_idx on public.match_squads (created_by);
+alter table public.match_squads enable row level security;
+comment on table public.match_squads is 'Convocatoria de cada partido (reparto de jugadores). Solo coordinación. Un jugador, un partido por día.';
+
+create or replace function private.match_squads_day()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare d date; k text;
+begin
+  select b.day, b.kind into d, k from public.bookings b where b.id = new.booking_id;
+  if d is null or k <> 'partido' then raise exception 'Solo se convoca a partidos'; end if;
+  new.day := d;
+  return new;
+end;
+$$;
+drop trigger if exists match_squads_day on public.match_squads;
+create trigger match_squads_day before insert or update on public.match_squads
+  for each row execute function private.match_squads_day();
+
+-- Si el partido cambia de día, la convocatoria le sigue (salen los que ya estén en otro partido ese día)
+create or replace function private.match_squads_follow()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  if new.day is distinct from old.day then
+    delete from public.match_squads s
+      where s.booking_id = new.id
+        and exists (select 1 from public.match_squads o where o.player_id = s.player_id and o.day = new.day and o.booking_id <> new.id);
+    update public.match_squads set day = new.day where booking_id = new.id;
+  end if;
+  return new;
+end;
+$$;
+drop trigger if exists match_squads_follow on public.bookings;
+create trigger match_squads_follow after update of day on public.bookings
+  for each row execute function private.match_squads_follow();
+
+drop policy if exists "Coordinadores ven las convocatorias" on public.match_squads;
+create policy "Coordinadores ven las convocatorias" on public.match_squads
+  for select to authenticated using ((select private.is_coordinator()));
+drop policy if exists "Coordinadores convocan" on public.match_squads;
+create policy "Coordinadores convocan" on public.match_squads
+  for insert to authenticated with check ((select private.is_coordinator()));
+drop policy if exists "Coordinadores desconvocan" on public.match_squads;
+create policy "Coordinadores desconvocan" on public.match_squads
+  for delete to authenticated using ((select private.is_coordinator()));
+revoke all on public.match_squads from anon, authenticated;
+grant select, insert, delete on public.match_squads to authenticated;
+do $$ begin
+  if not exists (select 1 from pg_publication_tables where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'match_squads') then
+    alter publication supabase_realtime add table public.match_squads;
+  end if;
+end $$;
