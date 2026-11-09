@@ -161,7 +161,7 @@ Se abre desde *Equipos → 👥 Reparto de jugadores*, desde el 👥 de cada fin
   - La **sanción** se cuenta partido a partido.
   - Quien va con otro equipo ese día no cuenta para el suyo.
   - Las molestias y quien vuelve de una lesión salen como **en duda**.
-- **Avisos:** sin portero, equipo sin plantilla cargada o convocatoria incompleta: «Faltan N convocados para 18» cuenta lo que falta en la convocatoria (no los disponibles; «Convocatoria por hacer» si está vacía), con cuántos disponibles quedan sin convocar y cuántos pueden subir.
+- **Avisos:** sin portero, equipo sin plantilla cargada o convocatoria incompleta. «Faltan N para 18» se cuenta sobre la convocatoria: lo que falta para 18/14 contando los ya convocados y los disponibles del equipo que aún quedan sin convocar (no sobre la plantilla), con cuántos pueden subir.
 - **Pueden subir:** jugadores de los equipos de abajo que cumplen las reglas de convocables y su condición, y cuyo equipo **no juega ese mismo día**.
   - Los convocables aprobados se marcan con ★ y los que ya van con ese equipo, con «ya va».
   - Si su equipo juega ese mismo día, salen aparte en **«Si no juegan con su equipo»**: es una alternativa, porque juegan uno u otro.

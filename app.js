@@ -4095,16 +4095,16 @@
         ...sq.map(p => ({ p, a: availFor(p, m) })).filter(x => !x.a.ok || x.a.doubt).map(x => `${x.p.name}: ${x.a.why.toLowerCase()}`),
       ].filter(Boolean);
       const lowGk = c.canCome.filter(x => x.p.goalkeeper).length;
-      const short = Math.max(0, c.target - n);          // la plantilla sola no llega a la convocatoria completa
-      const missing = Math.max(0, c.target - sn);       // lo que falta en la convocatoria hecha
-      const notIn = xs => xs.filter(x => !inIds.has(x.p.id)).length;
-      const freeOwn = notIn(c.avail), freeLow = notIn(c.canCome), freeSame = notIn(c.sameDay);
+      // Lo que falta se mide sobre la convocatoria: convocados + disponibles propios aún sin convocar
+      const ownLeft = c.avail.filter(x => !inIds.has(x.p.id)).length;
+      const short = Math.max(0, c.target - sn - ownLeft);
+      const upLeft = c.canCome.filter(x => !inIds.has(x.p.id)).length, sameLeft = c.sameDay.filter(x => !inIds.has(x.p.id)).length;
       const pct = c.sq.length ? Math.min(100, Math.round(n / c.sq.length * 100)) : 0;
       const doubts = c.avail.filter(x => x.a.doubt);
       const warn = [
         !c.sq.length ? 'Sin plantilla cargada' : '',
         c.sq.length && !c.gk ? (lowGk ? `Sin portero propio: ${lowGk} puede${lowGk > 1 ? 'n' : ''} subir` : 'Ningún portero disponible') : '',
-        c.sq.length && missing ? `${sn ? `Faltan ${missing} convocados para ${c.target}` : 'Convocatoria por hacer'}${[freeOwn ? `${freeOwn} disponible${freeOwn > 1 ? 's' : ''} sin convocar` : '', freeLow ? `pueden subir ${freeLow}` : ''].filter(Boolean).map(x => ' · ' + x).join('')}${freeSame ? ` (+${freeSame} si no juegan con su equipo)` : ''}` : '',
+        c.sq.length && short ? `Faltan ${short} para ${c.target}${sn ? ' en la convocatoria' : ''}${upLeft ? ` · pueden subir ${upLeft}` : ''}${sameLeft ? ` (+${sameLeft} si no juegan con su equipo)` : ''}` : '',
       ].filter(Boolean);
       return `<section class="rep-col" style="--team:${t.color}">
         <header class="rep-head">
@@ -4726,7 +4726,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261109223841';
+  const APP_VERSION = '20261109223901';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;
