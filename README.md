@@ -174,6 +174,7 @@ Se abre desde *Equipos → 👥 Reparto de jugadores*, desde el 👥 de cada fin
 **Convocatorias (fase 2):**
 - Cada partido tiene su **convocatoria**, con el contador «8/18 · 👟 8 · 🧤 0».
 - **Toca un jugador** para convocarlo o quitarlo; ⓘ abre su ficha.
+- **Filtro de equipos**: arriba, los equipos que se ven (toca para mostrar u ocultar; «Ninguno»/«Ver todos»). Sirve para balancear solo los equipos que comparten jugadores; la carga solo cuenta esos partidos. Se recuerda en este navegador. Los equipos sin partido en esos días salen atenuados.
 - **＋ Añadir todos**, en «Disponibles sin convocar», añade de golpe a todos los de esa lista, también los que están en duda. **Vaciar** deja la convocatoria a cero y **Copiar** saca la lista para WhatsApp.
 - **Un jugador, un partido por día**, y lo garantiza la base de datos. Si ya está convocado con otro equipo ese día, la web ofrece pasarlo. Si un partido cambia de día, su convocatoria le sigue, y salen de ella los que ya estén convocados en otro partido ese nuevo día.
 - **Avisos:** sin portero convocado, sobran jugadores, o hay convocados en duda o de baja (por ejemplo, si se lesionan después).

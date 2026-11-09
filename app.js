@@ -4005,6 +4005,11 @@
 
   // Ventana de próximos días (no por findes: así un miércoles y el jueves siguiente salen seguidos)
   let repFrom = null, repDays = 7;
+  // Equipos que se ven en el reparto (los elige la coordinación; se recuerda en este navegador)
+  const REP_TEAMS_KEY = 'cfc-reparto-equipos';
+  let repTeams = (() => { try { const v = JSON.parse(localStorage.getItem(REP_TEAMS_KEY) || 'null'); return Array.isArray(v) ? v : null; } catch { return null; } })();
+  const saveRepTeams = () => { try { repTeams ? localStorage.setItem(REP_TEAMS_KEY, JSON.stringify(repTeams)) : localStorage.removeItem(REP_TEAMS_KEY); } catch { } };
+  const repShows = team => !repTeams || repTeams.includes(team);
   async function openReparto(monKey) {
     repFrom = monKey ? findeRange(monKey)[0] : todayKey();
     if (monKey) repDays = 7;
@@ -4069,8 +4074,15 @@
     const a = parseKey(from), z = parseKey(to);
     $('#rep-title').textContent = `Próximos partidos · ${a.getDate()}${a.getMonth() !== z.getMonth() ? ' ' + MONTHS[a.getMonth()] : ''}–${z.getDate()} ${MONTHS[z.getMonth()]}`;
     $$('#rep-days [data-days]').forEach(b => b.classList.toggle('on', +b.dataset.days === repDays));
-    const ms = (state.allMatches || []).filter(b => b.day >= from && b.day <= to && TEAM[b.team]).sort((x, y) => byKickoff(x, y) || TEAMS.findIndex(t => t.id === x.team) - TEAMS.findIndex(t => t.id === y.team));
-    if (!ms.length) { $('#rep-body').innerHTML = `<p class="muted rep-loading">No hay partidos en estos ${repDays} días.</p>`; return; }
+    const allMs = (state.allMatches || []).filter(b => b.day >= from && b.day <= to && TEAM[b.team]);
+    const withMatch = new Set(allMs.map(b => b.team));
+    const filterHTML = `<div class="rep-filter" role="group" aria-label="Equipos que se ven">
+      <span class="rep-f-lbl">Equipos:</span>
+      ${MATCH_TEAMS().map(t => `<button type="button" class="chip ${repShows(t.id) ? 'on' : ''} ${withMatch.has(t.id) ? '' : 'nomatch'}" data-rep-team="${t.id}" style="--c:${t.color}" aria-pressed="${repShows(t.id)}" title="${withMatch.has(t.id) ? '' : 'Sin partido en estos días'}"><span class="dot"></span>${esc(t.short)}</button>`).join('')}
+      <button type="button" class="link" data-rep-all>${repTeams ? 'Ver todos' : 'Ninguno'}</button>
+    </div>`;
+    const ms = allMs.filter(b => repShows(b.team)).sort((x, y) => byKickoff(x, y) || TEAMS.findIndex(t => t.id === x.team) - TEAMS.findIndex(t => t.id === y.team));
+    if (!ms.length) { $('#rep-body').innerHTML = filterHTML + `<p class="muted rep-loading">${allMs.length ? 'Ningún partido de los equipos elegidos en estos días.' : `No hay partidos en estos ${repDays} días.`}</p>`; return; }
     const cols = ms.map(repColumn);
     // Tocar un jugador lo convoca o lo quita; ⓘ abre su ficha
     const chip = (p, extra = '', cls = '', m = null) => `<span class="rep-p ${cls}" ${m ? `data-tog="${p.id}" data-m="${m.id}" role="button" tabindex="0"` : ''} title="${esc(p.name)}${extra ? ' · ' + esc(extra) : ''}${m ? (cls.includes('in') ? ' · toca para quitarlo' : ' · toca para convocarlo') : ''}"><b>${p.number ?? '–'}</b> ${esc(p.name)}${p.goalkeeper ? ' 🧤' : ''}${extra ? ` <small>${esc(extra)}</small>` : ''}<button type="button" class="rep-i" data-info="${p.id}" aria-label="Ficha de ${esc(p.name)}">ⓘ</button></span>`;
@@ -4143,7 +4155,7 @@
         }).join('');
       })()}</td></tr>`).join('')}</tbody></table></section>` : '';
     $('#rep-body').innerHTML = `<p class="rep-help"><b>Toca un jugador para convocarlo o quitarlo</b> (ⓘ abre su ficha). Disponibles según lesiones, sanciones (partido a partido) y convocatorias de ese día: nadie juega dos partidos el mismo día. «Pueden subir»: de los equipos de abajo que cumplen las reglas de convocables.</p>
-      <div class="rep-cols">${cols.map(colHTML).join('')}</div>${loadHTML}`;
+      ${filterHTML}<div class="rep-cols">${cols.map(colHTML).join('')}</div>${loadHTML}`;
   }
 
   function bindReparto() {
@@ -4155,6 +4167,14 @@
     $('#rep-body').addEventListener('click', async e => {
       const t = e.target;
       const info = t.closest('[data-info]'); if (info) { const p = playerById(info.dataset.info); if (p) openPlayer(p); return; }
+      const rt = t.closest('[data-rep-team]');
+      if (rt) {
+        const id = rt.dataset.repTeam, cur = repTeams || MATCH_TEAMS().map(x => x.id);
+        repTeams = cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id];
+        if (MATCH_TEAMS().every(x => repTeams.includes(x.id))) repTeams = null;
+        saveRepTeams(); renderReparto(); return;
+      }
+      if (t.closest('[data-rep-all]')) { repTeams = repTeams ? null : []; saveRepTeams(); renderReparto(); return; }
       const f = t.closest('[data-sq-fill]'); if (f) { squadFill(f.dataset.sqFill); return; }
       const cp = t.closest('[data-sq-copy]'); if (cp) { squadCopy(cp.dataset.sqCopy); return; }
       const cl = t.closest('[data-sq-clear]'); if (cl) { squadClear(cl.dataset.sqClear); return; }
@@ -4703,7 +4723,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261109103304';
+  const APP_VERSION = '20261109103738';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

@@ -1356,3 +1356,7 @@ button.tm-pname:hover .tm-pn { text-decoration: underline; text-underline-offset
 .rep-sq-acts { flex-wrap: wrap; }
 .rep-h-act { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .rep-add-all { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--pitch); background: var(--pitch); color: #fff; cursor: pointer; white-space: nowrap; }
+.rep-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 12px; }
+.rep-f-lbl { font-size: 12.5px; font-weight: 700; color: var(--muted); margin-right: 2px; }
+.rep-filter .chip.nomatch:not(.on) { opacity: .45; }
+.rep-filter .link { font-size: 12.5px; margin-left: 4px; }
