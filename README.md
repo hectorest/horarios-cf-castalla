@@ -165,7 +165,7 @@ Se abre desde *Equipos → 👥 Reparto de jugadores*, desde el 👥 de cada fin
 - **Pueden subir:** jugadores de los equipos de abajo que cumplen las reglas de convocables y su condición, y cuyo equipo **no juega ese mismo día**. Los convocables aprobados se marcan con ★ y los que ya van con ese equipo, con «ya va». En «No pueden» se ve el motivo.
 - **Carga:** jugadores que pueden jugar más de un partido en esos días (en días distintos).
   - Las opciones del mismo día se agrupan con «o», porque solo pueden jugar una.
-  - Si dos partidos posibles caen en días seguidos, se indica.
+  - Entre partido y partido se indican los días que hay («→ 3 días →»); en naranja cuando son días seguidos.
 - Al tocar un jugador se abre su ficha; al cambiar su estado, el reparto se recalcula.
 
 Es la fase 1, solo de consulta. La siguiente fase será hacer las convocatorias de cada partido desde aquí.

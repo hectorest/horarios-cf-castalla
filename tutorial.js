@@ -323,7 +323,7 @@ window.TUTORIAL_STEPS = [
   {
     id: 'reparto-proximos', since: 39, roles: ['coordinador'], target: '#mode-toggle [data-mode="teams"], #user-btn',
     title: 'Reparto por próximos partidos',
-    body: 'El reparto de jugadores ya no va por fines de semana: muestra los <b>próximos 7 o 14 días</b> en orden cronológico (con ‹ › y «Hoy» para moverte), así un partido de miércoles y otro de jueves salen seguidos. En la carga se indica cuando dos partidos posibles caen en días seguidos.',
+    body: 'El reparto de jugadores ya no va por fines de semana: muestra los <b>próximos 7 o 14 días</b> en orden cronológico (con ‹ › y «Hoy» para moverte), así un partido de miércoles y otro de jueves salen seguidos. En la carga se ven los días que hay entre un partido y otro (en naranja si son seguidos).',
   },
   {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',

@@ -4019,14 +4019,18 @@
     }
     const multi = [...load.values()].filter(e => new Set(e.ms.map(m => m.id)).size > 1 && new Set(e.ms.map(m => m.day)).size > 1)
       .sort((a, b) => TEAMS.findIndex(t => t.id === a.p.team) - TEAMS.findIndex(t => t.id === b.p.team) || byDorsal(a.p, b.p));
-    const loadHTML = multi.length ? `<section class="panel rep-load"><h4>Pueden jugar más de un partido en estos días <small>${multi.length} · en días distintos; «o» = solo uno de esos dos</small></h4>
+    const loadHTML = multi.length ? `<section class="panel rep-load"><h4>Pueden jugar más de un partido en estos días <small>${multi.length} · en días distintos, con los días que hay entre uno y otro; «o» = solo uno de esos dos</small></h4>
       <table><tbody>${multi.map(e => `<tr><td><span class="rep-dot" style="--team:${teamOf(e.p.team).color}"></span>${e.p.number ?? '–'} · ${esc(e.p.name)}${e.p.goalkeeper ? ' 🧤' : ''} <small>${esc(teamOf(e.p.team).short)}</small></td><td>${(() => {
         const ms = [...new Map(e.ms.map(m => [m.id, m])).values()].sort(byKickoff);
         const days = [...new Set(ms.map(m => m.day))];
         const tag = m => `<span class="rep-mtag" style="--team:${teamOf(m.team).color}">${esc(teamOf(m.team).short)} ${DAYS[dayIndexOf(m.day)].slice(0, 3).toLowerCase()} ${fmt(m.start_min)}</span>`;
-        const consec = days.some((d, i) => i && (parseKey(d) - parseKey(days[i - 1])) / 864e5 === 1);
-        return days.map(d => { const g = ms.filter(m => m.day === d); return g.length > 1 ? `<span class="rep-alt">${g.map(tag).join('<small>o</small>')}</span>` : tag(g[0]); }).join('<span class="rep-plus">+</span>')
-          + (consec ? '<span class="rep-consec" title="Dos partidos posibles en días seguidos">· días seguidos</span>' : '');
+        // Entre partido y partido, los días de diferencia (1 = días seguidos)
+        return days.map((d, i) => {
+          const g = ms.filter(m => m.day === d);
+          const gap = i ? Math.round((parseKey(d) - parseKey(days[i - 1])) / 864e5) : 0;
+          return (i ? `<span class="rep-gap${gap === 1 ? ' tight' : ''}" title="${gap === 1 ? 'Días seguidos' : `${gap} días entre un partido y otro`}">→ ${gap} ${gap === 1 ? 'día' : 'días'} →</span>` : '')
+            + (g.length > 1 ? `<span class="rep-alt">${g.map(tag).join('<small>o</small>')}</span>` : tag(g[0]));
+        }).join('');
       })()}</td></tr>`).join('')}</tbody></table></section>` : '';
     $('#rep-body').innerHTML = `<p class="rep-help">Disponibles de cada partido teniendo en cuenta lesiones, sanciones (partido a partido) y quién juega con otro equipo ese día. «Pueden subir» son los de los equipos de abajo que cumplen las reglas de convocables y cuyo equipo no juega ese mismo día. Toca un jugador para ver su ficha.</p>
       <div class="rep-cols">${cols.map(colHTML).join('')}</div>${loadHTML}`;
@@ -4581,7 +4585,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261109100655';
+  const APP_VERSION = '20261109102300';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;
