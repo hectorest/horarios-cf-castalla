@@ -4040,13 +4040,13 @@
     } catch (e) { toast('No se pudo cambiar la convocatoria: ' + (/un_partido_al_dia|duplicate key/.test(e.message) ? 'ya está convocado ese día en otro partido.' : e.message), true); }
     renderReparto();
   }
-  /** Convoca a todos los disponibles de la plantilla (sin dudas ni convocados en otro partido ese día) */
+  /** Convoca a todos los disponibles sin convocar de la plantilla (también los que están en duda) */
   async function squadFill(mId) {
     const m = (state.allMatches || []).find(b => b.id === mId); if (!m) return;
     const c = repColumn(m);
-    const ids = c.avail.filter(x => !x.a.doubt && !inSquad(mId, x.p.id)).map(x => x.p.id);
+    const list = c.avail.filter(x => !inSquad(mId, x.p.id)), ids = list.map(x => x.p.id), dudas = list.filter(x => x.a.doubt).length;
     if (!ids.length) { toast('No queda nadie disponible sin convocar'); return; }
-    try { const added = await store.squads.add(mId, ids); state.squads = [...(state.squads || []), ...added]; toast(`${plural(ids.length, 'jugador convocado', 'jugadores convocados')}`); }
+    try { const added = await store.squads.add(mId, ids); state.squads = [...(state.squads || []), ...added]; toast(`${plural(ids.length, 'jugador convocado', 'jugadores convocados')}${dudas ? ` (${dudas} en duda)` : ''}`); }
     catch (e) { toast('No se pudo convocar: ' + e.message, true); }
     renderReparto();
   }
@@ -4104,11 +4104,11 @@
         ${warn.length ? `<ul class="rep-warn">${warn.map(w => `<li>⚠️ ${esc(w)}</li>`).join('')}</ul>` : ''}
         ${!sn && !c.sq.length && !c.low.length ? '' : `<div class="rep-squad ${sn ? '' : 'empty'}">
           <div class="rep-sq-head"><b>Convocatoria</b> <span class="rep-sq-n ${sn > c.target ? 'over' : sn === c.target ? 'full' : ''}">${sn}/${c.target}</span> <span class="rep-sq-split">👟 ${sn - sgk} · 🧤 ${sgk}</span>
-            <span class="rep-sq-acts"><button type="button" class="link" data-sq-fill="${m.id}" title="Convocar a todos los disponibles de la plantilla (sin los que están en duda)">＋ Disponibles</button>${sn ? `<button type="button" class="link" data-sq-copy="${m.id}">Copiar</button><button type="button" class="link danger-link" data-sq-clear="${m.id}">Vaciar</button>` : ''}</span></div>
+            <span class="rep-sq-acts">${sn ? `<button type="button" class="link" data-sq-copy="${m.id}">Copiar</button><button type="button" class="link danger-link" data-sq-clear="${m.id}">Vaciar</button>` : ''}</span></div>
           ${sqWarn.length ? `<ul class="rep-warn">${sqWarn.map(w => `<li>⚠️ ${esc(w)}</li>`).join('')}</ul>` : ''}
-          ${sn ? `<div class="rep-list">${sq.map(p => chip(p, p.team !== c.team ? teamOf(p.team).short : '', 'in', m)).join('')}</div>` : '<p class="rep-none">Toca jugadores de abajo para convocarlos, o «＋ Disponibles».</p>'}
+          ${sn ? `<div class="rep-list">${sq.map(p => chip(p, p.team !== c.team ? teamOf(p.team).short : '', 'in', m)).join('')}</div>` : '<p class="rep-none">Toca jugadores de abajo para convocarlos, o «＋ Añadir todos» en los disponibles.</p>'}
         </div>`}
-        ${c.avail.some(x => !inIds.has(x.p.id)) ? `<div class="rep-sec"><h5>Disponibles sin convocar (${c.avail.filter(x => !inIds.has(x.p.id)).length})</h5><div class="rep-list">${c.avail.filter(x => !inIds.has(x.p.id)).map(x => chip(x.p, x.a.doubt ? x.a.why : '', x.a.doubt ? 'doubt' : '', m)).join('')}</div></div>` : ''}
+        ${c.avail.some(x => !inIds.has(x.p.id)) ? `<div class="rep-sec"><h5 class="rep-h-act">Disponibles sin convocar (${c.avail.filter(x => !inIds.has(x.p.id)).length}) <button type="button" class="rep-add-all" data-sq-fill="${m.id}" title="Añadir a la convocatoria a todos los disponibles sin convocar (también los que están en duda)">＋ Añadir todos</button></h5><div class="rep-list">${c.avail.filter(x => !inIds.has(x.p.id)).map(x => chip(x.p, x.a.doubt ? x.a.why : '', x.a.doubt ? 'doubt' : '', m)).join('')}</div></div>` : ''}
         ${c.elsewhere.length ? `<div class="rep-sec"><h5>Convocados con otro equipo ese día (${c.elsewhere.length})</h5><div class="rep-list">${c.elsewhere.map(x => chip(x.p, `con el ${teamOf(x.away.team).short}`, 'fixed', m)).join('')}</div></div>` : ''}
         ${c.out.length ? `<div class="rep-sec"><h5>Bajas (${c.out.length})</h5><div class="rep-list">${c.out.map(x => chip(x.p, x.a.why, 'out')).join('')}</div></div>` : ''}
         ${c.low.length ? `<div class="rep-sec"><h5>Pueden subir (${c.canCome.length})</h5>
@@ -4703,7 +4703,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261109103002';
+  const APP_VERSION = '20261109103304';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

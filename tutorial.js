@@ -328,7 +328,7 @@ window.TUTORIAL_STEPS = [
   {
     id: 'convocatorias', since: 40, roles: ['coordinador'], target: '#mode-toggle [data-mode="teams"], #user-btn',
     title: 'Convocatorias en el reparto',
-    body: 'En <b>Reparto de jugadores</b>, cada partido tiene su <b>convocatoria</b> (18 en F11, 14 en F8). <b>Toca un jugador</b> para convocarlo o quitarlo (ⓘ abre su ficha), o usa <b>＋ Disponibles</b> para convocar de golpe a los disponibles de la plantilla. Nadie puede estar en dos partidos el mismo día: si ya está convocado con otro equipo, te ofrece pasarlo. Avisa si falta portero, si sobran jugadores o si un convocado está en duda o de baja. «Copiar» saca la lista para WhatsApp, y la carga distingue lo convocado (relleno) de lo posible (borde).',
+    body: 'En <b>Reparto de jugadores</b>, cada partido tiene su <b>convocatoria</b> (18 en F11, 14 en F8). <b>Toca un jugador</b> para convocarlo o quitarlo (ⓘ abre su ficha), o pulsa <b>＋ Añadir todos</b> en «Disponibles sin convocar» para meterlos a todos de golpe. Nadie puede estar en dos partidos el mismo día: si ya está convocado con otro equipo, te ofrece pasarlo. Avisa si falta portero, si sobran jugadores o si un convocado está en duda o de baja. «Copiar» saca la lista para WhatsApp, y la carga distingue lo convocado (relleno) de lo posible (borde).',
   },
   {
     id: 'version', since: 18, target: '#app-ver, #app-ver-top',

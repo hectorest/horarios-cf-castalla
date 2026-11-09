@@ -1354,3 +1354,5 @@ button.tm-pname:hover .tm-pn { text-decoration: underline; text-underline-offset
 .rep-nconv { font-size: 11px; font-weight: 800; color: var(--pitch-dark); background: var(--pitch-tint); padding: 1px 6px; border-radius: 99px; }
 .rep-squad, .rep-col > * { min-width: 0; }
 .rep-sq-acts { flex-wrap: wrap; }
+.rep-h-act { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.rep-add-all { text-transform: none; letter-spacing: 0; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 99px; border: 1px solid var(--pitch); background: var(--pitch); color: #fff; cursor: pointer; white-space: nowrap; }
