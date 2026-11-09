@@ -51,6 +51,9 @@ window.APP_CONFIG = {
     { team: 'alevin-a',   from: 'alevin-b' },
   ],
 
+  // Convocatoria completa por formato (reparto del finde)
+  SQUAD_SIZE: { F11: 18, F8: 14 },
+
   // match.meet: minutos antes del saque para la quedada (por defecto 60). Con Supabase manda lo que ajuste
   // la coordinación en Equipos → Hora de quedada (tabla team_settings).
   TEAMS: [

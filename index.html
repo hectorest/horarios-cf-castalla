@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261105075517">
+  <link rel="stylesheet" href="styles.css?v=20261109100033">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -60,6 +60,7 @@
           <button type="button" role="menuitem" id="m-teams" hidden>Equipos y plantillas</button>
           <button type="button" role="menuitem" id="m-matches">Partidos por equipo</button>
           <button type="button" role="menuitem" id="m-weekend">Partidos del fin de semana</button>
+          <button type="button" role="menuitem" id="m-reparto" hidden>Reparto de jugadores del finde</button>
           <button type="button" role="menuitem" id="m-people" hidden>Entrenadores y solicitudes <span id="m-people-count"></span></button>
           <button type="button" role="menuitem" id="m-copy" hidden>Copiar entrenos de la semana anterior</button>
           <button type="button" role="menuitem" id="m-confirm" hidden>Confirmar los partidos de esta semana</button>
@@ -549,6 +550,17 @@
     <div class="people-body mx-body" id="mx-body"></div>
   </dialog>
 
+  <dialog id="rep-dialog" class="dialog wide-dlg mx-wide rep-dlg">
+    <header class="dlg-head">
+      <button type="button" class="icon-btn" id="rep-prev" aria-label="Fin de semana anterior">‹</button>
+      <h3 id="rep-title">Reparto</h3>
+      <button type="button" class="icon-btn" id="rep-next" aria-label="Fin de semana siguiente">›</button>
+      <span class="spacer"></span>
+      <button type="button" class="icon-btn" data-close aria-label="Cerrar">×</button>
+    </header>
+    <div class="dlg-body rep-body" id="rep-body"></div>
+  </dialog>
+
   <div id="drag-tip" class="drag-tip" hidden></div>
   <aside id="install-card" class="install-card" role="dialog" aria-labelledby="install-title" hidden>
     <img src="assets/apple-touch-icon.png" alt="" class="install-icon">
@@ -568,8 +580,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261105075517"></script>
-  <script src="tutorial.js?v=20261105075517"></script>
-  <script src="app.js?v=20261105075517"></script>
+  <script src="config.js?v=20261109100033"></script>
+  <script src="tutorial.js?v=20261109100033"></script>
+  <script src="app.js?v=20261109100033"></script>
 </body>
 </html>

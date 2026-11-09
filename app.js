@@ -1155,6 +1155,7 @@
     const rt = rosterTeams().length;
     $$('#mode-toggle [data-mode="teams"]').forEach(x => { x.hidden = !rt; x.textContent = isCoord() ? 'Equipos' : rt > 1 ? 'Plantillas' : 'Plantilla'; });
     $('#m-teams').hidden = !rt || isTeams();
+    $('#m-reparto').hidden = !isCoord();
     $('#m-teams').textContent = isCoord() ? 'Equipos y plantillas' : rt > 1 ? 'Plantillas de mis equipos' : 'Plantilla de mi equipo';
     $$('.home-only-coord').forEach(x => x.hidden = !isCoord());
     $$('#mode-toggle button').forEach(x => { const on = x.dataset.mode === state.mode; x.classList.toggle('on', on); x.setAttribute('aria-pressed', String(on)); });
@@ -2413,7 +2414,7 @@
       const yr = fri.getFullYear() !== new Date().getFullYear() ? ` <small>${fri.getFullYear()}</small>` : '';
       const heat = h ? 0.12 + 0.55 * h / maxHome : 0;
       return `<tr class="${k < nowWk ? 'past' : ''} ${k === nowWk ? 'now' : ''} ${ms.length ? '' : 'empty'}" data-wk="${k}">
-        <th class="mx-g-wk"><div class="mx-wk-cell"><span>${lbl}${yr}${k === nowWk ? '<small class="mx-now">este finde</small>' : ''}</span><button type="button" class="mx-msg" data-msg="${k}" title="Mensaje para la directiva con los partidos de este finde" aria-label="Mensaje para la directiva de los partidos del ${lbl}">💬${(() => { const n = ms.filter(b => commTodo(b, 'board') && b.day >= todayKey()).length; return n ? `<span class="mx-msg-n" title="${n} confirmado${n > 1 ? 's' : ''} sin comunicar a la directiva">${n}</span>` : ''; })()}</button></div></th>
+        <th class="mx-g-wk"><div class="mx-wk-cell"><span>${lbl}${yr}${k === nowWk ? '<small class="mx-now">este finde</small>' : ''}</span>${isCoord() ? `<button type="button" class="mx-msg" data-rep="${k}" title="Reparto de jugadores de este finde" aria-label="Reparto de jugadores del ${lbl}">👥</button>` : ''}<button type="button" class="mx-msg" data-msg="${k}" title="Mensaje para la directiva con los partidos de este finde" aria-label="Mensaje para la directiva de los partidos del ${lbl}">💬${(() => { const n = ms.filter(b => commTodo(b, 'board') && b.day >= todayKey()).length; return n ? `<span class="mx-msg-n" title="${n} confirmado${n > 1 ? 's' : ''} sin comunicar a la directiva">${n}</span>` : ''; })()}</button></div></th>
         <td class="mx-g-tot home" style="--heat:${heat.toFixed(2)}">${h || ''}</td><td class="mx-g-tot away">${f || ''}</td>
         ${teams.map(t => `<td class="mx-g-c" style="--team:${t.color}">${ms.filter(b => b.team === t.id).map(cell).join('')}</td>`).join('')}</tr>`;
     }).join('');
@@ -3472,6 +3473,7 @@
         <span class="tm-card-go" aria-hidden="true">›</span></button>`;
     }).join('');
     return `<div class="tm-head"><div class="tm-title"><h2>${isCoord() ? 'Equipos' : 'Mis equipos'}</h2><p>${loading ? 'Cargando plantillas…' : `${plural(total, 'jugador', 'jugadores')} en ${plural(list.length, 'equipo', 'equipos')} · pulsa un equipo para ver su plantilla`}</p></div>
+      ${isCoord() ? '<button type="button" class="primary tm-rep-btn" data-tm-rep>👥 Reparto del finde</button>' : ''}
       <button type="button" class="ghost home-cal-btn" data-tm-week>Ver calendario →</button></div>
       ${pend ? `<div class="tm-pend-note">⏳ Tienes ${plural(pend, 'convocable', 'convocables')} por aprobar. Entra en el equipo o apruébalos desde <button type="button" class="link" data-tm-home>Inicio</button>.</div>` : ''}
       <div class="tm-grid">${cards}</div>
@@ -3787,6 +3789,7 @@
       const t = e.target;
       if (t.closest('[data-tm-week]')) { setMode('week'); return; }
       if (t.closest('[data-tm-home]')) { setMode('home'); return; }
+      if (t.closest('[data-tm-rep]')) { openReparto(); return; }
       const op = t.closest('[data-team-open]');
       if (op) {
         state.teamOpen = op.dataset.teamOpen || null; state.bulkOpen = false; state.bulkDraft = ''; state.pickOpen = false; state.pickSel = new Set();
@@ -3904,6 +3907,139 @@
       setCallup(b.closest('[data-cu]').dataset.cu, b.dataset.cuSet);
     });
     $('#m-teams').onclick = () => { closeUserMenu(); setMode('teams'); };
+  }
+
+  // ================================================================
+  //  Reparto del finde (coordinación): disponibles de cada partido y quién puede subir
+  // ================================================================
+  const SQUAD_SIZE = CFG.SQUAD_SIZE || { F11: 18, F8: 14 };
+  const squadTarget = team => SQUAD_SIZE[TEAM[team]?.match?.format] || 18;
+  const byKickoff = (a, b) => a.day.localeCompare(b.day) || a.start_min - b.start_min;
+  /** Partidos de la sanción: los N primeros del equipo después de la fecha de la sanción */
+  const sanctionMatches = p => (state.allMatches || []).filter(b => b.team === p.team && b.day > (p.status_since || '')).sort(byKickoff).slice(0, p.sanction_matches || 1);
+
+  /** ¿Puede jugar el partido m (de su equipo o de uno superior)? → { ok, doubt, why, cls, up } */
+  function availFor(p, m) {
+    const own = m.team === p.team;
+    if (p.status === 'no_disponible' && p.status_team) {
+      if (p.status_until !== m.day) return { ok: true };
+      return p.status_team === m.team ? { ok: true, up: true } : { ok: false, why: `Con el ${teamOf(p.status_team).short}`, cls: 'ps-up' };
+    }
+    if (p.status === 'sancionado') {
+      const ban = sanctionMatches(p);
+      if (own) return ban.some(b => b.id === m.id) ? { ok: false, why: 'Sancionado', cls: 'ps-san' } : { ok: true };
+      return ban.some(b => b.day >= todayKey()) ? { ok: true, doubt: true, why: 'Sancionado en su equipo' } : { ok: true };
+    }
+    if (p.status === 'molestias') return { ok: true, doubt: true, why: 'Molestias' };
+    if (PST[p.status]?.out) {
+      const back = p.status_until && m.day >= p.status_until;
+      return back ? { ok: true, doubt: true, why: `Vuelve de ${PST[p.status].label.toLowerCase()}` } : { ok: false, why: PST[p.status].label, cls: PST[p.status].cls };
+    }
+    return { ok: true };
+  }
+
+  /** Columna de un partido: plantilla propia y jugadores de equipos inferiores que pueden venir */
+  function repColumn(m) {
+    const team = m.team, sq = squadOf(team), target = squadTarget(team);
+    const rows = sq.map(p => ({ p, a: availFor(p, m) }));
+    const avail = rows.filter(x => x.a.ok), out = rows.filter(x => !x.a.ok);
+    const gk = avail.filter(x => x.p.goalkeeper).length;
+    // De abajo: reglas de convocables + condición; no si su equipo juega ese mismo día (salvo que ya vaya con este)
+    const rules = (state.callupRules || []).filter(r => r.team === team);
+    const low = [];
+    for (const r of rules) for (const p of squadOf(r.from)) {
+      if (r.sub23 && !p.sub23) continue;
+      const a = availFor(p, m);
+      const ownSameDay = (state.allMatches || []).some(b => b.team === p.team && b.day === m.day);
+      const fixed = a.up;
+      const conv = (state.callups || []).some(c => c.player_id === p.id && c.team === team && c.status === 'aprobado');
+      low.push({ p, a, conv, fixed, blocked: !a.ok ? a.why : ownSameDay && !fixed ? `Su equipo juega el ${DAYS[dayIndexOf(m.day)].toLowerCase()}` : null });
+    }
+    low.sort((x, y) => (y.fixed - x.fixed) || (!!x.blocked - !!y.blocked) || (y.conv - x.conv) || TEAMS.findIndex(t => t.id === x.p.team) - TEAMS.findIndex(t => t.id === y.p.team) || byDorsal(x.p, y.p));
+    const canCome = low.filter(x => !x.blocked), fixed = low.filter(x => x.fixed);
+    return { m, team, target, sq, avail, out, gk, low, canCome, fixed };
+  }
+
+  let repWeek = null;
+  async function openReparto(monKey) {
+    // Por defecto, el próximo finde (de lunes a miércoles aún cuenta el anterior, ya jugado)
+    const t = todayKey(), di = dayIndexOf(t);
+    repWeek = monKey || findeKey(di < 3 ? keyOf(addDays(parseKey(t), 3 - di)) : t);
+    $('#rep-body').innerHTML = '<p class="muted rep-loading">Cargando plantillas y partidos…</p>';
+    if (!$('#rep-dialog').open) $('#rep-dialog').showModal();
+    try { await fetchSquads(); } catch (e) { toast('No se pudo cargar: ' + e.message, true); }
+    renderReparto();
+  }
+
+  function renderReparto() {
+    const [from, to] = findeRange(repWeek);
+    const fri = addDays(parseKey(repWeek), 4), sun = addDays(parseKey(repWeek), 6);
+    $('#rep-title').textContent = `Reparto · ${fri.getDate()}–${sun.getDate()} ${MONTHS[sun.getMonth()]}`;
+    const ms = (state.allMatches || []).filter(b => b.day >= from && b.day <= to && TEAM[b.team])
+      .sort((a, b) => TEAMS.findIndex(t => t.id === a.team) - TEAMS.findIndex(t => t.id === b.team) || byKickoff(a, b));
+    if (!ms.length) { $('#rep-body').innerHTML = '<p class="muted rep-loading">No hay partidos este fin de semana.</p>'; return; }
+    const cols = ms.map(repColumn);
+    const chip = (p, extra = '', cls = '') => `<span class="rep-p ${cls}" data-pl-open data-pl-id="${p.id}" title="${esc(p.name)}${extra ? ' · ' + esc(extra) : ''}"><b>${p.number ?? '–'}</b> ${esc(p.name)}${p.goalkeeper ? ' 🧤' : ''}${extra ? ` <small>${esc(extra)}</small>` : ''}</span>`;
+    const colHTML = c => {
+      const t = teamOf(c.team), m = c.m, n = c.avail.length, field = n - c.gk;
+      const lowGk = c.canCome.filter(x => x.p.goalkeeper).length;
+      const short = Math.max(0, c.target - n);
+      const pct = Math.min(100, Math.round(n / c.target * 100));
+      const doubts = c.avail.filter(x => x.a.doubt);
+      const warn = [
+        !c.sq.length ? 'Sin plantilla cargada' : '',
+        c.sq.length && !c.gk ? (lowGk ? `Sin portero propio: ${lowGk} puede${lowGk > 1 ? 'n' : ''} subir` : 'Ningún portero disponible') : '',
+        c.sq.length && short ? `Faltan ${short} para ${c.target}${c.canCome.length ? ` · pueden subir ${c.canCome.length}` : ''}` : '',
+      ].filter(Boolean);
+      return `<section class="rep-col" style="--team:${t.color}">
+        <header class="rep-head">
+          <div class="rep-team">${esc(t.name)} <small>${esc(TEAM[c.team]?.match?.format || '')} · ${c.target}</small></div>
+          <div class="rep-match">${esc(DAYS[dayIndexOf(m.day)])} ${parseKey(m.day).getDate()} · ${fmt(m.start_min)} · ${m.away ? '✈️' : '🏠'} ${esc(m.opponent || 'rival por definir')}</div>
+        </header>
+        <div class="rep-avail ${short ? 'short' : 'ok'}">
+          <div class="rep-num"><b>${n}</b>/${c.target} <span>disponibles</span></div>
+          <div class="rep-split">👟 ${field} · 🧤 ${c.gk}</div>
+          <div class="rep-bar"><i style="width:${pct}%"></i></div>
+        </div>
+        ${warn.length ? `<ul class="rep-warn">${warn.map(w => `<li>⚠️ ${esc(w)}</li>`).join('')}</ul>` : ''}
+        ${c.out.length ? `<div class="rep-sec"><h5>Bajas (${c.out.length})</h5><div class="rep-list">${c.out.map(x => chip(x.p, x.a.why, 'out')).join('')}</div></div>` : ''}
+        ${doubts.length ? `<div class="rep-sec"><h5>En duda (${doubts.length})</h5><div class="rep-list">${doubts.map(x => chip(x.p, x.a.why, 'doubt')).join('')}</div></div>` : ''}
+        ${c.low.length ? `<div class="rep-sec"><h5>Pueden subir (${c.canCome.length})</h5>
+          ${c.canCome.length ? `<div class="rep-list">${c.canCome.map(x => chip(x.p, [teamOf(x.p.team).short, x.fixed ? 'ya va' : x.conv ? '★ convocable' : '', x.a.doubt ? x.a.why : ''].filter(Boolean).join(' · '), x.fixed ? 'fixed' : x.conv ? 'conv' : '')).join('')}</div>` : '<p class="rep-none">Nadie de abajo puede ese día.</p>'}
+          ${c.low.length > c.canCome.length ? `<details class="rep-more"><summary>No pueden (${c.low.length - c.canCome.length})</summary><div class="rep-list">${c.low.filter(x => x.blocked).map(x => chip(x.p, `${teamOf(x.p.team).short} · ${x.blocked}`, 'out')).join('')}</div></details>` : ''}
+        </div>` : ''}
+        <details class="rep-more"><summary>Disponibles de la plantilla (${n})</summary><div class="rep-list">${c.avail.map(x => chip(x.p, x.a.doubt ? x.a.why : '')).join('')}</div></details>
+      </section>`;
+    };
+    // Carga: jugadores que pueden jugar más de un partido este finde (su equipo y uno superior, en días distintos)
+    const load = new Map();
+    for (const c of cols) {
+      for (const x of c.avail) { const e = load.get(x.p.id) || { p: x.p, ms: [] }; e.ms.push(c.m); load.set(x.p.id, e); }
+      for (const x of c.canCome) { const e = load.get(x.p.id) || { p: x.p, ms: [] }; e.ms.push(c.m); load.set(x.p.id, e); }
+    }
+    const multi = [...load.values()].filter(e => new Set(e.ms.map(m => m.id)).size > 1 && new Set(e.ms.map(m => m.day)).size > 1)
+      .sort((a, b) => TEAMS.findIndex(t => t.id === a.p.team) - TEAMS.findIndex(t => t.id === b.p.team) || byDorsal(a.p, b.p));
+    const loadHTML = multi.length ? `<section class="panel rep-load"><h4>Pueden jugar más de un partido este finde <small>${multi.length} · días distintos; «o» = solo uno de esos dos</small></h4>
+      <table><tbody>${multi.map(e => `<tr><td><span class="rep-dot" style="--team:${teamOf(e.p.team).color}"></span>${e.p.number ?? '–'} · ${esc(e.p.name)}${e.p.goalkeeper ? ' 🧤' : ''} <small>${esc(teamOf(e.p.team).short)}</small></td><td>${(() => {
+        const ms = [...new Map(e.ms.map(m => [m.id, m])).values()].sort(byKickoff);
+        const days = [...new Set(ms.map(m => m.day))];
+        const tag = m => `<span class="rep-mtag" style="--team:${teamOf(m.team).color}">${esc(teamOf(m.team).short)} ${DAYS[dayIndexOf(m.day)].slice(0, 3).toLowerCase()} ${fmt(m.start_min)}</span>`;
+        return days.map(d => { const g = ms.filter(m => m.day === d); return g.length > 1 ? `<span class="rep-alt">${g.map(tag).join('<small>o</small>')}</span>` : tag(g[0]); }).join('<span class="rep-plus">+</span>');
+      })()}</td></tr>`).join('')}</tbody></table></section>` : '';
+    $('#rep-body').innerHTML = `<p class="rep-help">Disponibles de cada partido teniendo en cuenta lesiones, sanciones (partido a partido) y quién juega con otro equipo ese día. «Pueden subir» son los de los equipos de abajo que cumplen las reglas de convocables y cuyo equipo no juega ese mismo día. Toca un jugador para ver su ficha.</p>
+      <div class="rep-cols">${cols.map(colHTML).join('')}</div>${loadHTML}`;
+  }
+
+  function bindReparto() {
+    $('#rep-prev').onclick = () => { repWeek = keyOf(addDays(parseKey(repWeek), -7)); renderReparto(); };
+    $('#rep-next').onclick = () => { repWeek = keyOf(addDays(parseKey(repWeek), 7)); renderReparto(); };
+    $('#rep-body').addEventListener('click', e => {
+      const c = e.target.closest('[data-pl-open]'); if (!c) return;
+      const p = playerById(c.dataset.plId); if (p) openPlayer(p);
+    });
+    // Al guardar una ficha desde el reparto, se recalcula
+    $('#player-dialog').addEventListener('close', () => { if ($('#rep-dialog').open) renderReparto(); });
+    $('#m-reparto').onclick = () => { closeUserMenu(); openReparto(); };
   }
 
   function bindShare() {
@@ -4216,6 +4352,7 @@
     bindShare();
     bindTeams();
     bindPlayerDialog();
+    bindReparto();
     bindShortcuts();
     bindNotifications();
     $('#d-body').addEventListener('click', e => { if (e.target.id === 'd-rem') { const b = state.bookings.find(x => x.id === $('#detail-dialog').dataset.id); $('#detail-dialog').close(); if (b) reminderFromBooking(b); } });
@@ -4255,7 +4392,7 @@
     $('#msg-copy').onclick = copyWeekMessage;
     $('#msg-share').onclick = async () => { try { await navigator.share({ text: $('#msg-text').value }); weekMessageSent(); } catch { } };
     $('#msg-wa').onclick = () => { window.open('https://wa.me/?text=' + encodeURIComponent($('#msg-text').value), '_blank', 'noopener'); weekMessageSent(); };
-    $('#mx-body').onclick = e => { const m = e.target.closest('[data-msg]'); if (m) { openWeekMessage(m.dataset.msg); return; } const r = e.target.closest('.mx-row, .mx-grid .mx-cell'); if (r) goToBooking(r.dataset.id, r.dataset.day); };
+    $('#mx-body').onclick = e => { const rp = e.target.closest('[data-rep]'); if (rp) { openReparto(rp.dataset.rep); return; } const m = e.target.closest('[data-msg]'); if (m) { openWeekMessage(m.dataset.msg); return; } const r = e.target.closest('.mx-row, .mx-grid .mx-cell'); if (r) goToBooking(r.dataset.id, r.dataset.day); };
     $('#people-btn').onclick = () => openPeople();
     $('#m-copy').onclick = () => { closeUserMenu(); copyPrevWeek(); };
     $('#m-clear').onclick = clearWeekEvents;
@@ -4440,7 +4577,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261105075517';
+  const APP_VERSION = '20261109100033';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

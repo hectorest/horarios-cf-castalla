@@ -150,6 +150,23 @@ Pestaña **Equipos** (en el móvil, en el menú del usuario). La coordinación v
 - La plantilla y las tarjetas de equipo cuentan los convocables, los que tienen molestias y las bajas. El estado se ve también en los convocables y al proponerlos, y «Copiar plantilla» lo incluye.
 - Lo cambian la coordinación y el entrenador del equipo del jugador. El entrenador de un equipo superior solo lo consulta.
 
+### Reparto del finde (coordinación)
+
+Se abre desde *Equipos → 👥 Reparto del finde*, desde el 👥 de cada fin de semana en *Partidos → Por fin de semana* o desde el menú. Por defecto muestra el próximo fin de semana; con ‹ › se cambia.
+
+- **Una columna por partido del finde**, del jueves al miércoles, con el día, la hora, si es en casa o fuera y el rival.
+- **Disponibles ese día** frente a la convocatoria completa: 18 en F11 y 14 en F8 (`config.js > SQUAD_SIZE`), separados en 👟 jugadores y 🧤 porteros.
+  - Una lesión o un «no disponible» con vuelta prevista cuentan hasta esa fecha.
+  - La **sanción** se cuenta partido a partido: no puede jugar los N primeros partidos de su equipo después de la sanción.
+  - Quien va con otro equipo ese día no cuenta para el suyo.
+  - Las molestias y quien vuelve de una lesión salen como **en duda**.
+- **Avisos** de cada partido: sin portero, faltan jugadores para la convocatoria (y cuántos pueden subir) o equipo sin plantilla cargada.
+- **Pueden subir:** jugadores de los equipos de abajo que cumplen las reglas de convocables y su condición, y cuyo equipo **no juega ese mismo día**. Los convocables aprobados se marcan con ★ y los que ya van con ese equipo, con «ya va». En «No pueden» se ve el motivo.
+- **Carga:** abajo se listan los jugadores que pueden jugar más de un partido el finde (en días distintos). Las opciones del mismo día se agrupan con «o», porque solo pueden jugar una.
+- Al tocar un jugador se abre su ficha; al cambiar su estado, el reparto se recalcula.
+
+Es la fase 1, solo de consulta. La siguiente fase será hacer las convocatorias de cada partido desde aquí.
+
 ### Convocables de equipos inferiores
 
 - Cada entrenador puede proponer como **convocables** a jugadores del equipo de debajo. Los propuestos quedan **⏳ pendientes** hasta que la coordinación los aprueba o rechaza (desde Inicio, «Convocables por aprobar», o dentro del equipo). Si los añade la coordinación, van aprobados.
