@@ -4096,7 +4096,7 @@
       ].filter(Boolean);
       const lowGk = c.canCome.filter(x => x.p.goalkeeper).length;
       const short = Math.max(0, c.target - n);
-      const pct = Math.min(100, Math.round(n / c.target * 100));
+      const pct = c.sq.length ? Math.min(100, Math.round(n / c.sq.length * 100)) : 0;
       const doubts = c.avail.filter(x => x.a.doubt);
       const warn = [
         !c.sq.length ? 'Sin plantilla cargada' : '',
@@ -4109,7 +4109,7 @@
           <div class="rep-match"><b>${esc(DAYS[dayIndexOf(m.day)])} ${parseKey(m.day).getDate()} ${MONTHS[parseKey(m.day).getMonth()]} · ${fmt(m.start_min)}</b> · ${m.away ? '✈️' : '🏠'} ${esc(m.opponent || 'rival por definir')}</div>
         </header>
         <div class="rep-avail ${short ? 'short' : 'ok'}">
-          <div class="rep-num"><b>${n}</b>/${c.target} <span>disponibles</span></div>
+          <div class="rep-num" title="Disponibles de la plantilla de ${esc(t.name)}"><b>${n}</b>${c.sq.length ? '/' + c.sq.length : ''} <span>disponibles</span></div>
           <div class="rep-split">👟 ${field} · 🧤 ${c.gk}</div>
           <div class="rep-bar"><i style="width:${pct}%"></i></div>
         </div>
@@ -4723,7 +4723,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261109103738';
+  const APP_VERSION = '20261109104425';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

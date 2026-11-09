@@ -156,7 +156,7 @@ Se abre desde *Equipos → 👥 Reparto de jugadores*, desde el 👥 de cada fin
 
 - **Ventana:** muestra los **próximos 7 o 14 días** desde hoy, en orden cronológico; un partido de miércoles y el del jueves siguiente salen seguidos. Con ‹ › se avanza o retrocede y «Hoy» vuelve al día actual.
 - **Una columna por partido**, con el día, la hora, si es en casa o fuera y el rival.
-- **Disponibles ese día** frente a la convocatoria completa: 18 en F11 y 14 en F8 (`config.js > SQUAD_SIZE`), separados en 👟 jugadores y 🧤 porteros.
+- **Disponibles ese día** sobre el total de la plantilla (por ejemplo, «15/20»), separados en 👟 jugadores y 🧤 porteros. Si no llegan a la convocatoria completa (18 en F11 y 14 en F8, `config.js > SQUAD_SIZE`), avisa de cuántos faltan.
   - Una lesión o un «no disponible» con vuelta prevista cuentan hasta esa fecha.
   - La **sanción** se cuenta partido a partido.
   - Quien va con otro equipo ese día no cuenta para el suyo.

@@ -318,7 +318,7 @@ window.TUTORIAL_STEPS = [
   {
     id: 'reparto-finde', since: 38, roles: ['coordinador'], target: '#mode-toggle [data-mode="teams"], #user-btn',
     title: 'Reparto del finde',
-    body: 'En <b>Equipos → 👥 Reparto del finde</b> (o con el 👥 de cada finde en <i>Partidos → Por fin de semana</i>) ves cada partido con sus <b>disponibles ese día</b> (👟/🧤 frente a los 18 de F11 o 14 de F8), las bajas (lesión, sanción partido a partido, con otro equipo), los que están en duda y <b>quién puede subir</b> de los equipos de abajo. Abajo, los jugadores que pueden jugar más de un partido ese finde. Toca un jugador para abrir su ficha.',
+    body: 'En <b>Equipos → 👥 Reparto del finde</b> (o con el 👥 de cada finde en <i>Partidos → Por fin de semana</i>) ves cada partido con sus <b>disponibles ese día</b> (sobre el total de la plantilla, con 👟/🧤; si no llegan a los 18 de F11 o 14 de F8, avisa de cuántos faltan), las bajas (lesión, sanción partido a partido, con otro equipo), los que están en duda y <b>quién puede subir</b> de los equipos de abajo. Abajo, los jugadores que pueden jugar más de un partido ese finde. Toca un jugador para abrir su ficha.',
   },
   {
     id: 'reparto-proximos', since: 39, roles: ['coordinador'], target: '#mode-toggle [data-mode="teams"], #user-btn',
