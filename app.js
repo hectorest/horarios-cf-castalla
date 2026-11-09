@@ -3953,11 +3953,13 @@
       const ownSameDay = (state.allMatches || []).some(b => b.team === p.team && b.day === m.day);
       const fixed = a.up;
       const conv = (state.callups || []).some(c => c.player_id === p.id && c.team === team && c.status === 'aprobado');
-      low.push({ p, a, conv, fixed, blocked: !a.ok ? a.why : ownSameDay && !fixed ? `Su equipo juega el ${DAYS[dayIndexOf(m.day)].toLowerCase()}` : null });
+      // Si su equipo juega ese mismo día no es imposible: es una alternativa (juega uno u otro)
+      const sameDay = a.ok && ownSameDay && !fixed;
+      low.push({ p, a, conv, fixed, sameDay, blocked: !a.ok ? a.why : null });
     }
-    low.sort((x, y) => (y.fixed - x.fixed) || (!!x.blocked - !!y.blocked) || (y.conv - x.conv) || TEAMS.findIndex(t => t.id === x.p.team) - TEAMS.findIndex(t => t.id === y.p.team) || byDorsal(x.p, y.p));
-    const canCome = low.filter(x => !x.blocked), fixed = low.filter(x => x.fixed);
-    return { m, team, target, sq, avail, out, gk, low, canCome, fixed };
+    low.sort((x, y) => (y.fixed - x.fixed) || (!!x.blocked - !!y.blocked) || (x.sameDay - y.sameDay) || (y.conv - x.conv) || TEAMS.findIndex(t => t.id === x.p.team) - TEAMS.findIndex(t => t.id === y.p.team) || byDorsal(x.p, y.p));
+    const canCome = low.filter(x => !x.blocked && !x.sameDay), sameDay = low.filter(x => x.sameDay), fixed = low.filter(x => x.fixed);
+    return { m, team, target, sq, avail, out, gk, low, canCome, sameDay, fixed };
   }
 
   // Ventana de próximos días (no por findes: así un miércoles y el jueves siguiente salen seguidos)
@@ -3989,7 +3991,7 @@
       const warn = [
         !c.sq.length ? 'Sin plantilla cargada' : '',
         c.sq.length && !c.gk ? (lowGk ? `Sin portero propio: ${lowGk} puede${lowGk > 1 ? 'n' : ''} subir` : 'Ningún portero disponible') : '',
-        c.sq.length && short ? `Faltan ${short} para ${c.target}${c.canCome.length ? ` · pueden subir ${c.canCome.length}` : ''}` : '',
+        c.sq.length && short ? `Faltan ${short} para ${c.target}${c.canCome.length ? ` · pueden subir ${c.canCome.length}` : ''}${c.sameDay.length ? ` (+${c.sameDay.length} si no juegan con su equipo)` : ''}` : '',
       ].filter(Boolean);
       return `<section class="rep-col" style="--team:${t.color}">
         <header class="rep-head">
@@ -4005,8 +4007,9 @@
         ${c.out.length ? `<div class="rep-sec"><h5>Bajas (${c.out.length})</h5><div class="rep-list">${c.out.map(x => chip(x.p, x.a.why, 'out')).join('')}</div></div>` : ''}
         ${doubts.length ? `<div class="rep-sec"><h5>En duda (${doubts.length})</h5><div class="rep-list">${doubts.map(x => chip(x.p, x.a.why, 'doubt')).join('')}</div></div>` : ''}
         ${c.low.length ? `<div class="rep-sec"><h5>Pueden subir (${c.canCome.length})</h5>
-          ${c.canCome.length ? `<div class="rep-list">${c.canCome.map(x => chip(x.p, [teamOf(x.p.team).short, x.fixed ? 'ya va' : x.conv ? '★ convocable' : '', x.a.doubt ? x.a.why : ''].filter(Boolean).join(' · '), x.fixed ? 'fixed' : x.conv ? 'conv' : '')).join('')}</div>` : '<p class="rep-none">Nadie de abajo puede ese día.</p>'}
-          ${c.low.length > c.canCome.length ? `<details class="rep-more"><summary>No pueden (${c.low.length - c.canCome.length})</summary><div class="rep-list">${c.low.filter(x => x.blocked).map(x => chip(x.p, `${teamOf(x.p.team).short} · ${x.blocked}`, 'out')).join('')}</div></details>` : ''}
+          ${c.canCome.length ? `<div class="rep-list">${c.canCome.map(x => chip(x.p, [teamOf(x.p.team).short, x.fixed ? 'ya va' : x.conv ? '★ convocable' : '', x.a.doubt ? x.a.why : ''].filter(Boolean).join(' · '), x.fixed ? 'fixed' : x.conv ? 'conv' : '')).join('')}</div>` : `<p class="rep-none">${c.sameDay.length ? 'Ninguno libre ese día.' : 'Nadie de abajo puede ese día.'}</p>`}
+          ${c.sameDay.length ? `<details class="rep-more" open><summary>Si no juegan con su equipo (${c.sameDay.length})</summary><div class="rep-list">${c.sameDay.map(x => chip(x.p, [teamOf(x.p.team).short, 'mismo día', x.conv ? '★' : ''].filter(Boolean).join(' · '), 'alt')).join('')}</div></details>` : ''}
+          ${c.low.some(x => x.blocked) ? `<details class="rep-more"><summary>No pueden (${c.low.filter(x => x.blocked).length})</summary><div class="rep-list">${c.low.filter(x => x.blocked).map(x => chip(x.p, `${teamOf(x.p.team).short} · ${x.blocked}`, 'out')).join('')}</div></details>` : ''}
         </div>` : ''}
         <details class="rep-more"><summary>Disponibles de la plantilla (${n})</summary><div class="rep-list">${c.avail.map(x => chip(x.p, x.a.doubt ? x.a.why : '')).join('')}</div></details>
       </section>`;
@@ -4015,11 +4018,11 @@
     const load = new Map();
     for (const c of cols) {
       for (const x of c.avail) { const e = load.get(x.p.id) || { p: x.p, ms: [] }; e.ms.push(c.m); load.set(x.p.id, e); }
-      for (const x of c.canCome) { const e = load.get(x.p.id) || { p: x.p, ms: [] }; e.ms.push(c.m); load.set(x.p.id, e); }
+      for (const x of [...c.canCome, ...c.sameDay]) { const e = load.get(x.p.id) || { p: x.p, ms: [] }; e.ms.push(c.m); load.set(x.p.id, e); }
     }
-    const multi = [...load.values()].filter(e => new Set(e.ms.map(m => m.id)).size > 1 && new Set(e.ms.map(m => m.day)).size > 1)
+    const multi = [...load.values()].filter(e => new Set(e.ms.map(m => m.id)).size > 1)
       .sort((a, b) => TEAMS.findIndex(t => t.id === a.p.team) - TEAMS.findIndex(t => t.id === b.p.team) || byDorsal(a.p, b.p));
-    const loadHTML = multi.length ? `<section class="panel rep-load"><h4>Pueden jugar más de un partido en estos días <small>${multi.length} · en días distintos, con los días que hay entre uno y otro; «o» = solo uno de esos dos</small></h4>
+    const loadHTML = multi.length ? `<section class="panel rep-load"><h4>Pueden jugar más de un partido en estos días <small>${multi.length} · con los días que hay entre uno y otro; «o» = el mismo día, solo uno de los dos</small></h4>
       <table><tbody>${multi.map(e => `<tr><td><span class="rep-dot" style="--team:${teamOf(e.p.team).color}"></span>${e.p.number ?? '–'} · ${esc(e.p.name)}${e.p.goalkeeper ? ' 🧤' : ''} <small>${esc(teamOf(e.p.team).short)}</small></td><td>${(() => {
         const ms = [...new Map(e.ms.map(m => [m.id, m])).values()].sort(byKickoff);
         const days = [...new Set(ms.map(m => m.day))];
@@ -4585,7 +4588,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261109102300';
+  const APP_VERSION = '20261109102506';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

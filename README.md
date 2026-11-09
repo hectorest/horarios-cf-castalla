@@ -162,9 +162,12 @@ Se abre desde *Equipos → 👥 Reparto de jugadores*, desde el 👥 de cada fin
   - Quien va con otro equipo ese día no cuenta para el suyo.
   - Las molestias y quien vuelve de una lesión salen como **en duda**.
 - **Avisos:** sin portero, faltan jugadores para la convocatoria (y cuántos pueden subir) o equipo sin plantilla cargada.
-- **Pueden subir:** jugadores de los equipos de abajo que cumplen las reglas de convocables y su condición, y cuyo equipo **no juega ese mismo día**. Los convocables aprobados se marcan con ★ y los que ya van con ese equipo, con «ya va». En «No pueden» se ve el motivo.
-- **Carga:** jugadores que pueden jugar más de un partido en esos días (en días distintos).
-  - Las opciones del mismo día se agrupan con «o», porque solo pueden jugar una.
+- **Pueden subir:** jugadores de los equipos de abajo que cumplen las reglas de convocables y su condición, y cuyo equipo **no juega ese mismo día**.
+  - Los convocables aprobados se marcan con ★ y los que ya van con ese equipo, con «ya va».
+  - Si su equipo juega ese mismo día, salen aparte en **«Si no juegan con su equipo»**: es una alternativa, porque juegan uno u otro.
+  - En «No pueden» (lesión, sanción…) se ve el motivo.
+- **Carga:** jugadores que pueden jugar más de un partido en esos días.
+  - Las opciones del mismo día, incluido su propio equipo, se agrupan con «o», porque solo pueden jugar una (por ejemplo, «CAD sáb 16:30 o JUV sáb 19:00»).
   - Entre partido y partido se indican los días que hay («→ 3 días →»); en naranja cuando son días seguidos.
 - Al tocar un jugador se abre su ficha; al cambiar su estado, el reparto se recalcula.
 

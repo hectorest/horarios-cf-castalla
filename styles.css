@@ -1331,3 +1331,4 @@ button.tm-pname:hover .tm-pn { text-decoration: underline; text-underline-offset
 @media (max-width: 720px) { .rep-dlg .dlg-head { flex-wrap: wrap; } .rep-dlg .dlg-head h3 { font-size: 15px; } }
 .rep-gap { display: inline-block; margin: 0 6px; font-size: 11.5px; font-weight: 700; color: var(--muted); white-space: nowrap; }
 .rep-gap.tight { color: #b45309; }
+.rep-p.alt { border-style: dashed; }
