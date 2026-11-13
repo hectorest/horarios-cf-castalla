@@ -94,7 +94,9 @@ Cada coordinador activa los avisos en sus dispositivos desde el menú → **🔔
 
 Tocar un aviso abre la herramienta en Inicio.
 
-Cómo funciona: `sw.js` (service worker solo para push, sin caché) recibe los avisos; los dispositivos se guardan en `push_subscriptions` y las preferencias en `notify_settings`. La Edge Function `notificaciones` (`supabase/functions/notificaciones`, Web Push propio con VAPID y cifrado aes128gcm, sin dependencias) envía los avisos. Una tarea programada (`pg_cron`, cada 15 min) la llama con un secreto guardado en Vault, y un trigger en `profiles` avisa de las altas. Las claves VAPID se generan solas la primera vez y se guardan en Vault. Los conflictos y cambios salen de `issue_snapshot`, una foto que guarda la herramienta cada vez que un coordinador abre Inicio (mismo motor que el calendario).
+Si el servicio de avisos del móvil da por caducada la suscripción (iOS lo hace a veces, o al reinstalar la app), el servidor la borra y ese dispositivo deja de recibir avisos. Para que no pase en silencio, al abrir la herramienta (y al volver a ella, como mucho cada 30 min) se comprueba que el dispositivo sigue registrado y, si no, se renueva solo (`syncPush`). Si el navegador no lo permite sin un toque, sale un aviso para reactivarlas en 🔔 Notificaciones.
+
+Cómo funciona: `sw.js` (service worker solo para push, sin caché) recibe los avisos; los dispositivos se guardan en `push_subscriptions` y las preferencias en `notify_settings`. La Edge Function `notificaciones` (`supabase/functions/notificaciones`, Web Push propio con VAPID y cifrado aes128gcm, sin dependencias) envía los avisos. Una tarea programada (`pg_cron`, cada 5 min) la llama con un secreto guardado en Vault, y un trigger en `profiles` avisa de las altas. Las claves VAPID se generan solas la primera vez y se guardan en Vault. Los conflictos y cambios salen de `issue_snapshot`, una foto que guarda la herramienta cada vez que un coordinador abre Inicio (mismo motor que el calendario).
 
 ## Comunicar los horarios de los partidos
 

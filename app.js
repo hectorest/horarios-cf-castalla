@@ -1191,6 +1191,7 @@
     $('#m-home').hidden = !isCoord() || isHome();
     $('#m-shortcuts').hidden = !isCoord();
     $('#m-notif').hidden = !isCoord();
+    if (isCoord()) syncPush();
     $('#new-btn').innerHTML = `+<span class="hide-sm"> ${isTpl() ? 'Nuevo entreno habitual' : 'Nueva reserva'}</span>`;
     renderStrip();
     $$('#view-toggle button').forEach(x => x.classList.toggle('on', x.dataset.view === state.view));
@@ -3120,6 +3121,40 @@
     return reg ? reg.pushManager.getSubscription() : null;
   }
 
+  /**
+   * Repara la suscripción de este dispositivo sin que el usuario tenga que hacer nada.
+   * El servidor borra una suscripción cuando el servicio de push la da por caducada (404/410, p. ej. iOS
+   * la renueva o se reinstala la app); entonces el móvil deja de recibir avisos en silencio.
+   * Al abrir la app: si hay permiso y los avisos están activos, pero este endpoint ya no está en el servidor,
+   * se crea una suscripción nueva y se registra. Si el navegador no deja (iOS sin toque), se avisa.
+   */
+  let pushSyncAt = 0;
+  async function syncPush() {
+    if (!isCoord() || store.mode === 'demo' || !pushSupported() || Notification.permission !== 'granted') return;
+    if (Date.now() - pushSyncAt < 30 * 60 * 1000) return;
+    pushSyncAt = Date.now();
+    try {
+      const st = await store.notify.getSettings();
+      if (!st || st.enabled === false) return;
+      const reg = await swRegistration(); if (!reg) return;
+      await navigator.serviceWorker.ready;
+      const devices = await store.notify.listDevices();
+      let sub = await reg.pushManager.getSubscription();
+      if (sub && devices.some(d => d.endpoint === sub.endpoint)) return;   // todo bien
+      try {
+        if (sub) await sub.unsubscribe().catch(() => { });
+        const { publicKey } = await store.notify.call('config');
+        sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64uBytes(publicKey) });
+        const j = sub.toJSON();
+        await store.notify.addDevice({ endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth, device: deviceName() });
+        console.info('push: suscripción renovada');
+      } catch (e) {
+        console.warn('push: no se pudo renovar', e);
+        toast('Las notificaciones de este dispositivo se han desactivado. Vuelve a activarlas en el menú → 🔔 Notificaciones', true);
+      }
+    } catch (e) { console.warn('push sync', e); }
+  }
+
   async function openNotifications() {
     closeUserMenu();
     $('#notif-dialog').showModal();
@@ -3208,6 +3243,7 @@
 
   function bindNotifications() {
     $('#m-notif').onclick = openNotifications;
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') syncPush(); });
     $('#nf-enable').onclick = enablePush;
     $('#nf-disable').onclick = disablePush;
     $('#nf-time').onchange = () => saveNotifSettings();
@@ -4726,7 +4762,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261109223901';
+  const APP_VERSION = '20261113125630';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;
