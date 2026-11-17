@@ -426,6 +426,7 @@
       set('Pablo Rico', { status: 'molestias', status_note: 'Carga en el gemelo', status_since: d(-2) });
       set('Leo Navarro', { status: 'no_disponible', status_note: 'De viaje con la familia', status_since: d(-1), status_until: d(5) });
       set('Dani Amorós', { notes: 'El domingo por la mañana no puede' });
+      set('Fran Guill', { status: 'vuelve_lesion', status_note: 'Rotura de fibras; minutos controlados', status_since: d(-3), status_until: d(10) });
       set('Edu Ribera', { status: 'lesion_grave', status_note: 'Rotura de ligamento cruzado', status_since: d(-40) });
       return a;
     };
@@ -3404,9 +3405,10 @@
   const ruleOk = (p, team) => !!p && (state.callupRules || []).some(r => r.team === team && r.from === p.team && (!r.sub23 || p.sub23));
   const callupsOf = team => (state.callups || []).filter(c => c.team === team);
   const pendingCallups = () => (state.callups || []).filter(c => c.status === 'pendiente');
-  // Estado del jugador: null = disponible; molestias = convocable en duda; el resto, no convocable
+  // Estado del jugador: null = disponible; molestias y vuelve de lesión = convocable en duda (con aviso); el resto, no convocable
   const PST = {
-    molestias:     { label: 'Molestias',     cls: 'ps-mol', out: false },
+    molestias:     { label: 'Molestias',     cls: 'ps-mol', out: false, doubt: true },
+    vuelve_lesion: { label: 'Vuelve de lesión', cls: 'ps-vue', out: false, doubt: true },
     lesion_leve:   { label: 'Lesión leve',   cls: 'ps-lev', out: true },
     lesion:        { label: 'Lesión',        cls: 'ps-les', out: true },
     lesion_grave:  { label: 'Lesión grave',  cls: 'ps-gra', out: true },
@@ -3446,7 +3448,7 @@
     }
     const st = PST[p.status]; if (!st) return '';
     const late = p.status_until && p.status_until < todayKey();
-    const tip = [st.label, p.status_note, p.status_since ? 'desde ' + shortDate(p.status_since) : '', p.status_until ? 'vuelta prevista ' + shortDate(p.status_until) : ''].filter(Boolean).join(' · ');
+    const tip = [st.label, p.status_note, p.status_since ? 'desde ' + shortDate(p.status_since) : '', p.status_until ? (p.status === 'vuelve_lesion' ? 'con precaución hasta ' : 'vuelta prevista ') + shortDate(p.status_until) : ''].filter(Boolean).join(' · ');
     return `<span class="ps ${st.cls}" title="${esc(tip)}">${st.label}${p.status_until ? ` · ${late ? 'revisar' : 'hasta ' + shortDate(p.status_until)}` : ''}</span>`;
   };
   const playerSub = p => {
@@ -3458,9 +3460,9 @@
   // Convocables por separado: jugadores de campo y porteros
   const availSplit = sq => { const av = sq.filter(p => !isOut(p)); const gk = av.filter(p => p.goalkeeper).length; return { all: av.length, gk, field: av.length - gk }; };
   const squadSummary = sq => {
-    const out = sq.filter(isOut).length, mol = sq.filter(p => p.status === 'molestias').length, up = sq.filter(p => upperDay(p)).length;
+    const out = sq.filter(isOut).length, mol = sq.filter(p => p.status === 'molestias').length, vue = sq.filter(p => p.status === 'vuelve_lesion').length, up = sq.filter(p => upperDay(p)).length;
     const a = availSplit(sq), anyGk = sq.some(p => p.goalkeeper);
-    return [`${a.all} convocable${a.all === 1 ? '' : 's'}${anyGk ? ` (👟 ${plural(a.field, 'jugador', 'jugadores')} · 🧤 ${plural(a.gk, 'portero', 'porteros')})` : ' (ningún portero marcado)'}`, mol ? `${mol} con molestias` : '', out ? `${plural(out, 'baja', 'bajas')}` : '', up ? `${up} también con el superior` : ''].filter(Boolean).join(' · ');
+    return [`${a.all} convocable${a.all === 1 ? '' : 's'}${anyGk ? ` (👟 ${plural(a.field, 'jugador', 'jugadores')} · 🧤 ${plural(a.gk, 'portero', 'porteros')})` : ' (ningún portero marcado)'}`, mol ? `${mol} con molestias` : '', vue ? `${vue} ${vue === 1 ? 'vuelve' : 'vuelven'} de lesión` : '', out ? `${plural(out, 'baja', 'bajas')}` : '', up ? `${up} también con el superior` : ''].filter(Boolean).join(' · ');
   };
   const canEditPlayer = p => isCoord() || isMine(p.team);
   const CU_ST = { pendiente: '⏳ Pendiente de aprobar', aprobado: '', rechazado: '✗ Rechazado' };
@@ -3531,7 +3533,7 @@
         <span class="tm-card-name">${esc(t.name)}</span>
         <span class="tm-card-n ${n ? '' : 'zero'}"><b>${loading ? '…' : n}</b> ${n === 1 ? 'jugador' : 'jugadores'}${ok ? ` <span class="tm-card-cu">+${ok} conv.</span>` : ''}</span>
         ${(() => { const sq = squadOf(t.id); if (!sq.length) return ''; const a = availSplit(sq); return `<span class="tm-card-av" title="${plural(a.all, 'convocable', 'convocables')}: ${plural(a.field, 'jugador', 'jugadores')} y ${plural(a.gk, 'portero', 'porteros')}">Convocables: <b>${a.all}</b> <span class="nowrap">(👟 <b>${a.field}</b> · 🧤 <b>${a.gk}</b>${a.gk ? '' : ' ⚠️'})</span></span>`; })()}
-        ${(() => { const sq = squadOf(t.id), o = sq.filter(isOut).length, m = sq.filter(p => p.status === 'molestias').length; return o || m ? `<span class="tm-card-st">${o ? `<span class="ps ps-les">${plural(o, 'baja', 'bajas')}</span>` : ''}${m ? `<span class="ps ps-mol">${m} con molestias</span>` : ''}</span>` : ''; })()}
+        ${(() => { const sq = squadOf(t.id), o = sq.filter(isOut).length, m = sq.filter(p => p.status === 'molestias').length, v = sq.filter(p => p.status === 'vuelve_lesion').length; return o || m || v ? `<span class="tm-card-st">${o ? `<span class="ps ps-les">${plural(o, 'baja', 'bajas')}</span>` : ''}${m ? `<span class="ps ps-mol">${m} con molestias</span>` : ''}${v ? `<span class="ps ps-vue">${v} ${v === 1 ? 'vuelve' : 'vuelven'} de lesión</span>` : ''}</span>` : ''; })()}
         ${pe ? `<span class="tm-card-pe">⏳ ${plural(pe, 'convocable por aprobar', 'convocables por aprobar')}</span>` : ''}
         ${co ? `<span class="tm-card-co">${co.length ? '👤 ' + esc(co.join(', ')) : '<i>Sin entrenador</i>'}</span>` : ''}
         <span class="tm-card-go" aria-hidden="true">›</span></button>`;
@@ -3707,7 +3709,7 @@
     $$('#pd-st button').forEach(b => { const on = b.dataset.st === st; b.classList.toggle('on', on); b.setAttribute('aria-checked', String(on)); });
     $('#pd-st-more').hidden = !st;
     $('#pd-st-note-l').textContent = st === 'no_disponible' ? 'Motivo' : 'Detalle';
-    $('#pd-st-note').placeholder = st === 'no_disponible' ? 'Ej.: de viaje, sanción, exámenes…' : st === 'molestias' ? 'Ej.: carga en el gemelo' : 'Ej.: esguince de tobillo';
+    $('#pd-st-note').placeholder = st === 'no_disponible' ? 'Ej.: de viaje, sanción, exámenes…' : st === 'molestias' ? 'Ej.: carga en el gemelo' : st === 'vuelve_lesion' ? 'Ej.: rotura de fibras; minutos controlados' : 'Ej.: esguince de tobillo';
     $('#player-dialog').dataset.st = st;
     markUntilPresets();
     renderPdUp();
@@ -3750,7 +3752,8 @@
     // Día con el superior: sus próximos partidos (y si coincide con un partido del propio equipo)
     const days = $('#pd-up-days');
     days.hidden = box.hidden || !pdUp;
-    $('#pd-until-l').textContent = pdUp ? 'Día con el superior' : 'Vuelta prevista';
+    $('#pd-until-l').textContent = pdUp ? 'Día con el superior' : st === 'vuelve_lesion' ? 'Con precaución hasta' : 'Vuelta prevista';
+    $('#pd-until-pre-l').textContent = st === 'vuelve_lesion' ? 'Precaución:' : 'Vuelve:';
     const opt = $('#pd-until-l').parentElement.querySelector('small'); if (opt) opt.hidden = !!pdUp;
     $('#pd-until-pre').hidden = !!pdUp || st === 'sancionado';
     if (pdUp) {
@@ -4004,6 +4007,8 @@
       return ban.some(b => b.day >= todayKey()) ? { ok: true, doubt: true, why: 'Sancionado en su equipo' } : { ok: true };
     }
     if (p.status === 'molestias') return { ok: true, doubt: true, why: 'Molestias' };
+    // Vuelve de lesión: convocable con aviso; si se puso fecha de precaución, a partir del día siguiente ya sin aviso
+    if (p.status === 'vuelve_lesion') return p.status_until && m.day > p.status_until ? { ok: true } : { ok: true, doubt: true, why: 'Vuelve de lesión' };
     if (PST[p.status]?.out) {
       const back = p.status_until && m.day >= p.status_until;
       return back ? { ok: true, doubt: true, why: `Vuelve de ${PST[p.status].label.toLowerCase()}` } : { ok: false, why: PST[p.status].label, cls: PST[p.status].cls };
@@ -4762,7 +4767,7 @@
   }
 
   // ---- Versión: si se publica una nueva, la página se recarga sola ----
-  const APP_VERSION = '20261117100252';
+  const APP_VERSION = '20261117131005';
   // Actualizaciones: si hay versión nueva, recarga pidiendo la página con una URL nueva (?v=) para
   // saltarse la caché del navegador y de GitHub Pages. Si se está editando, avisa y espera.
   let pendingVersion = null;

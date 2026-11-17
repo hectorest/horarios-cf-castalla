@@ -136,6 +136,7 @@ Pestaña **Equipos** (en el móvil, en el menú del usuario). La coordinación v
 - Estados:
   - **Disponible**.
   - **Molestias**: convocable, pero en duda.
+  - **Vuelve de lesión**: convocable con advertencias (en duda, y avisa al convocarlo). Con fecha opcional «con precaución hasta»; después de ese día deja de avisar.
   - **Lesión leve**, **Lesión**, **Lesión grave** y **No disponible** (con el motivo): no convocable.
 - **Va con el equipo superior:** al elegir «No disponible», la ficha ofrece «Va con: ⬆️ Juvenil» (o el equipo que toque).
   - Solo aparece para los jugadores que cumplen las reglas de convocables de su equipo, incluida su condición (sub-23, 15 cumplidos, 2º año). Si un equipo puede subir a varios, se elige cuál.
@@ -149,7 +150,7 @@ Pestaña **Equipos** (en el móvil, en el menú del usuario). La coordinación v
   - Cuando la cumple, sale «Sanción cumplida · revisar» y deja de contar como baja.
 - Cada estado admite detalle y **vuelta prevista**, con botones de 1 semana, 2 semanas y 1 mes. Si la fecha pasa, el estado se marca «revisar».
 - **A tener en cuenta** es una nota fija, como «el domingo por la mañana no puede». Se ve debajo del nombre.
-- La plantilla y las tarjetas de equipo cuentan los convocables, los que tienen molestias y las bajas. El estado se ve también en los convocables y al proponerlos, y «Copiar plantilla» lo incluye.
+- La plantilla y las tarjetas de equipo cuentan los convocables, los que tienen molestias, los que vuelven de lesión y las bajas. El estado se ve también en los convocables y al proponerlos, y «Copiar plantilla» lo incluye.
 - Lo cambian la coordinación y el entrenador del equipo del jugador. El entrenador de un equipo superior solo lo consulta.
 
 ### Reparto de jugadores por próximos partidos (coordinación)
@@ -162,7 +163,7 @@ Se abre desde *Equipos → 👥 Reparto de jugadores*, desde el 👥 de cada fin
   - Una lesión o un «no disponible» con vuelta prevista cuentan hasta esa fecha.
   - La **sanción** se cuenta partido a partido.
   - Quien va con otro equipo ese día no cuenta para el suyo.
-  - Las molestias y quien vuelve de una lesión salen como **en duda**.
+  - Las molestias, el estado **Vuelve de lesión** y quien ha pasado su fecha de vuelta salen como **en duda** (se pueden convocar, con aviso).
 - **Avisos:** sin portero, equipo sin plantilla cargada o convocatoria incompleta. «Faltan N para 18» se cuenta sobre la convocatoria: lo que falta para 18/14 contando los ya convocados y los disponibles del equipo que aún quedan sin convocar (no sobre la plantilla), con cuántos pueden subir.
 - **Pueden subir:** jugadores de los equipos de abajo que cumplen las reglas de convocables y su condición, y cuyo equipo **no juega ese mismo día**.
   - Los convocables aprobados se marcan con ★ y los que ya van con ese equipo, con «ya va».

@@ -969,7 +969,8 @@ alter table public.players add column if not exists status_team text check (char
 comment on column public.players.status_team is 'Con status = no_disponible: equipo superior con el que va (solo si cumple las reglas de convocables).';
 -- Sancionado: doble amarilla o roja directa (1 partido) o sanción grave (varios); se descuenta con los partidos del equipo
 alter table public.players drop constraint if exists players_status_check;
-alter table public.players add constraint players_status_check check (status in ('molestias', 'lesion_leve', 'lesion', 'lesion_grave', 'no_disponible', 'sancionado'));
+alter table public.players add constraint players_status_check check (status in ('molestias', 'vuelve_lesion', 'lesion_leve', 'lesion', 'lesion_grave', 'no_disponible', 'sancionado'));
+comment on column public.players.status is 'Disponibilidad: null = disponible; molestias/vuelve_lesion = convocable en duda (con aviso; vuelve_lesion con status_until = precaución hasta); lesion_leve/lesion/lesion_grave/no_disponible/sancionado = no convocable.';
 alter table public.players add column if not exists sanction_matches smallint check (sanction_matches between 1 and 99);
 comment on column public.players.sanction_matches is 'Con status = sancionado: partidos de sanción, contados desde status_since (fecha de la sanción).';
 alter table public.players add column if not exists goalkeeper boolean not null default false;

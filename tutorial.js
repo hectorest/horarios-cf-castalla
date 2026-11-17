@@ -331,6 +331,11 @@ window.TUTORIAL_STEPS = [
     body: 'En <b>Reparto de jugadores</b>, cada partido tiene su <b>convocatoria</b> (18 en F11, 14 en F8). <b>Toca un jugador</b> para convocarlo o quitarlo (ⓘ abre su ficha), o pulsa <b>＋ Añadir todos</b> en «Disponibles sin convocar» para meterlos a todos de golpe. Nadie puede estar en dos partidos el mismo día: si ya está convocado con otro equipo, te ofrece pasarlo. Avisa si falta portero, si sobran jugadores o si un convocado está en duda o de baja. «Copiar» saca la lista para WhatsApp, y la carga distingue lo convocado (relleno) de lo posible (borde).',
   },
   {
+    id: 'vuelve-lesion', since: 42, target: '#mode-toggle [data-mode="teams"], #user-btn',
+    title: 'Nuevo estado: vuelve de lesión',
+    body: 'En la ficha del jugador hay un estado nuevo, <b>Vuelve de lesión</b>. Como las molestias, sigue siendo <b>convocable pero en duda</b>: sale con aviso en la plantilla, en el reparto y al convocarlo. Puedes poner hasta cuándo hay que tener precaución; a partir del día siguiente deja de avisar.',
+  },
+  {
     id: 'reparto-filtro', since: 41, roles: ['coordinador'], target: '#mode-toggle [data-mode="teams"], #user-btn',
     title: 'Filtro de equipos en el reparto',
     body: 'Arriba del <b>Reparto de jugadores</b> eliges qué <b>equipos</b> ver: toca cada uno para mostrarlo u ocultarlo, o usa «Ninguno»/«Ver todos». Así balanceas solo los equipos que comparten jugadores; la carga de abajo solo cuenta sus partidos. La selección se recuerda en este dispositivo.',

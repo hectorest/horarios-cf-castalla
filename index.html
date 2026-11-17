@@ -16,7 +16,7 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Castalla C.F.">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
-  <link rel="stylesheet" href="styles.css?v=20261117100252">
+  <link rel="stylesheet" href="styles.css?v=20261117131005">
 </head>
 <body class="gated">
   <header class="topbar">
@@ -380,13 +380,14 @@
           <div class="pd-st" id="pd-st" role="radiogroup" aria-label="Estado del jugador">
             <button type="button" role="radio" data-st="" class="ps-ok">Disponible</button>
             <button type="button" role="radio" data-st="molestias" class="ps-mol">Molestias</button>
+            <button type="button" role="radio" data-st="vuelve_lesion" class="ps-vue">Vuelve de lesión</button>
             <button type="button" role="radio" data-st="lesion_leve" class="ps-lev">Lesión leve</button>
             <button type="button" role="radio" data-st="lesion" class="ps-les">Lesión</button>
             <button type="button" role="radio" data-st="lesion_grave" class="ps-gra">Lesión grave</button>
             <button type="button" role="radio" data-st="no_disponible" class="ps-no">No disponible</button>
             <button type="button" role="radio" data-st="sancionado" class="ps-san">Sancionado</button>
           </div>
-          <p class="pd-hint">Con molestias sigue siendo convocable (en duda). Con lesión, sanción o no disponible, no.</p>
+          <p class="pd-hint">Con molestias o si vuelve de lesión sigue siendo convocable, pero en duda y con aviso al convocarlo. Con lesión, sanción o no disponible, no.</p>
         </div>
         <div id="pd-st-more" class="pd-st-more" hidden>
           <div class="pd-san" id="pd-san" hidden>
@@ -401,7 +402,7 @@
           <div class="rq-presets pd-up-days" id="pd-up-days" hidden></div>
           <div class="field" id="pd-st-note-f"><label for="pd-st-note" id="pd-st-note-l">Detalle</label><input id="pd-st-note" maxlength="200"></div>
           <div class="field" id="pd-until-f"><label for="pd-until"><span id="pd-until-l">Vuelta prevista</span> <small>(opcional)</small></label><input type="date" id="pd-until"></div>
-          <div class="rq-presets" id="pd-until-pre"><span>Vuelve:</span><button type="button" data-until="7">en 1 semana</button><button type="button" data-until="14">en 2 semanas</button><button type="button" data-until="30">en 1 mes</button><button type="button" data-until="">sin fecha</button></div>
+          <div class="rq-presets" id="pd-until-pre"><span id="pd-until-pre-l">Vuelve:</span><button type="button" data-until="7">en 1 semana</button><button type="button" data-until="14">en 2 semanas</button><button type="button" data-until="30">en 1 mes</button><button type="button" data-until="">sin fecha</button></div>
         </div>
         <div class="field"><label for="pd-notes">A tener en cuenta <small>(siempre)</small></label><textarea id="pd-notes" rows="2" maxlength="500" placeholder="Ej.: el domingo por la mañana no puede"></textarea></div>
         <p class="pd-ro" id="pd-ro" hidden>Es de otro equipo: solo lo pueden cambiar su entrenador y la coordinación.</p>
@@ -582,8 +583,8 @@
   </div>
   <div id="toast" class="toast" role="status"></div>
 
-  <script src="config.js?v=20261117100252"></script>
-  <script src="tutorial.js?v=20261117100252"></script>
-  <script src="app.js?v=20261117100252"></script>
+  <script src="config.js?v=20261117131005"></script>
+  <script src="tutorial.js?v=20261117131005"></script>
+  <script src="app.js?v=20261117131005"></script>
 </body>
 </html>
